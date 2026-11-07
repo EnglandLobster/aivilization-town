@@ -1,0 +1,46 @@
+{
+  "ok": true,
+  "scope": "original-ended-productive-and-service-wage-continuity",
+  "policyVersion": "resident-earned-wage-estate-v1",
+  "quality": {
+    "lint": true,
+    "typecheck": true,
+    "testsPassed": 3334,
+    "testsSkipped": 1,
+    "targetedTestsPassed": 29,
+    "dependencyBuild": "worker-and-dependencies-passed"
+  },
+  "newIntegrationCases": 4,
+  "cases": [
+    "actual productive ended claim paid to preserved creditor",
+    "actual service ended claim paid to preserved creditor",
+    "active productive claim refused",
+    "active service claim refused"
+  ],
+  "assertions": [
+    "runtime-created work and original claim context",
+    "real funding before isolated population-boundary combination",
+    "system executor without impersonated resident command",
+    "original gross wage and cumulative tax proof",
+    "enterprise debit equals net estate receipt plus tax",
+    "original elapsed work and material/service state unchanged",
+    "no recreated body or time reservation",
+    "stale revision and forged source/accounting rejected",
+    "duplicate rejected and deterministic replay",
+    "original runtime journal reopens unchanged"
+  ],
+  "limitations": [
+    "Population departure performed in isolated world continuation, not live canonical journal",
+    "Active work departure orchestration remains incomplete",
+    "Automatic later debt collection scheduler not integrated",
+    "No new CLI or OpenCode experiment"
+  ],
+  "canonicalRevisionUnchanged": 802,
+  "logs": {
+    "target": "/tmp/other-wage-target.log",
+    "lint": "/tmp/other-wage-lint.log",
+    "typecheck": "/tmp/other-wage-typecheck.log",
+    "tests": "/tmp/other-wage-tests.log",
+    "build": "/tmp/other-wage-build.log"
+  }
+}

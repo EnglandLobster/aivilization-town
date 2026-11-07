@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "society-interrupted-free-run-checkpoint-v1",
+  "root": "/home/dev/aivilization-town/.local/open-residents/society-elapsed-study-20261005",
+  "frozenEngine": "/tmp/aivilization-housing-20261006",
+  "implementationFingerprintsVerified": 371,
+  "opportunities": 451,
+  "commits": 3346,
+  "simulationTime": 430360000,
+  "checkpoint": "/home/dev/aivilization-town/.local/open-residents/society-elapsed-study-20261005/checkpoints/free-451",
+  "recovery": {
+    "schemaVersion": "resident-driver-interruption-recovery-v1",
+    "evidenceSource": "operator-recovery",
+    "actorId": "resident-003",
+    "turnId": "turn-3345-resident-003",
+    "status": "provider-error",
+    "providerArtifactMissing": true,
+    "simulationTimeAtStart": 430360000,
+    "recoveredAt": "2026-10-06T06:34:54.717Z",
+    "beforeJournalSha256": "edcaafd8445d12a78fc138df944d36e5c69455a94fd3aa626f8af0be0175258f",
+    "afterJournalSha256": "fa532f82b753cf3d189dba48397b51381b8aa53f8693915e9c4db0bf2b4664c5",
+    "retainedCalls": [],
+    "sessionId": null,
+    "providerUsage": null,
+    "reason": "Externally interrupted driver; dead writer lock recovered by existing single-writer protocol. No provider artifact or completed model steps were fabricated."
+  },
+  "journalSha256": "fa532f82b753cf3d189dba48397b51381b8aa53f8693915e9c4db0bf2b4664c5",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "limitations": [
+    "External driver interruption is distinct from the five preceding provider failures.",
+    "No provider artifact existed; no model steps, elapsed timeout, usage, or exit signal was invented.",
+    "Previously committed calls and original sessions retained; continuation is new opportunities, not repeating the interrupted turn.",
+    "Engine remains housing H1/H2; new premises principal capabilities are not enabled here."
+  ]
+}

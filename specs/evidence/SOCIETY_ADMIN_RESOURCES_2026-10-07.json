@@ -1,0 +1,58 @@
+{
+  "version": "society-admin-resource-observation-evidence-v1",
+  "scope": "existing resident HTTP administrator observation; not partition/multihost completion",
+  "domains": 18,
+  "newResidentCommands": 0,
+  "newDomainEvents": 0,
+  "defaultResidentContextExpansion": false,
+  "verification": {
+    "version": "admin-resource-read-v1",
+    "status": "verified",
+    "sections": 18,
+    "residentCommandsAdded": 0,
+    "defaultContextExpansion": false,
+    "tests": {
+      "http": "/tmp/admin-resources-target3.log",
+      "related": "/tmp/admin-resources-target2.log",
+      "lint": "/tmp/admin-resources-full-lint3.log",
+      "typecheck": "/tmp/admin-resources-typecheck3.log",
+      "observerLint": "/tmp/admin-resources-observer-lint.log",
+      "isolatedBuild": "/tmp/admin-observer-preview-build.log",
+      "browser": ".local/observer-browser-qa/report.md",
+      "fullRegression": {
+        "log": "/tmp/admin-resources-full-tests.log",
+        "passed": 3299,
+        "skipped": 1,
+        "filesPassed": 501,
+        "filesSkipped": 1,
+        "exitCode": 0
+      },
+      "normalBuild": "/tmp/admin-resources-build.log",
+      "compiledCurrentWorld": ".local/observer-browser-qa/compiled-world-verification.json"
+    },
+    "pending": [],
+    "liveExperiment": {
+      "session": 14617,
+      "root": ".local/canonical-cutover-20261007/society",
+      "log": "/tmp/continuous-society-opencode.log",
+      "maxOpportunities": 24
+    },
+    "previewStopped": true,
+    "frozenDistVerification": {
+      "files": 262,
+      "changed": 0
+    }
+  },
+  "currentWorld": {
+    "revision": 577,
+    "adminStatus": 200,
+    "residentStatus": 403,
+    "exactStockDetail": true,
+    "stateAndJournalUnchanged": true
+  },
+  "limits": [
+    "Administrator raw detail is privileged, not a resident read model.",
+    "Counts and statuses are not social success or satisfaction.",
+    "No partition/multihost completeness claim."
+  ]
+}

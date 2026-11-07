@@ -1,0 +1,94 @@
+{
+  "version": "society-independent-periodic-access-evidence-v1",
+  "status": "engineering-and-canonical-source-migration-verified",
+  "scope": "Existing finite payment commitments independent of public authority; not complete long-term obligations or all-mode delivery.",
+  "tests": {
+    "passed": 3303,
+    "skipped": 1,
+    "log": "/tmp/periodic-access-full-tests.log"
+  },
+  "lint": "/tmp/periodic-access-lint-final.log",
+  "typecheck": "/tmp/periodic-access-typecheck3.log",
+  "build": "/tmp/periodic-access-build.log",
+  "cli": {
+    "ok": true,
+    "version": "independent-periodic-cli-v1",
+    "results": [
+      {
+        "route": "obligations.prepare",
+        "ok": true,
+        "error": null
+      },
+      {
+        "route": "principals.operate",
+        "ok": true,
+        "error": null
+      },
+      {
+        "route": "obligations.read",
+        "ok": true,
+        "error": null
+      },
+      {
+        "route": "principals.operate",
+        "ok": false,
+        "error": "periodic-original-party-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "ok": true,
+        "error": null
+      },
+      {
+        "route": "obligations.prepare",
+        "ok": false,
+        "error": "periodic-open-independent-accounts-required"
+      },
+      {
+        "route": "obligations.read",
+        "ok": true,
+        "error": null
+      }
+    ],
+    "publicAuthorityAbsent": true,
+    "actualPayment": 1,
+    "replayMatched": true,
+    "manifestUnchanged": true
+  },
+  "migration": {
+    "ok": true,
+    "version": "canonical-independent-periodic-access-verification-v1",
+    "result": {
+      "ok": true,
+      "data": {
+        "enabled": true,
+        "version": "independent-periodic-access-v1"
+      },
+      "revision": 742,
+      "simulationTime": 3463000
+    },
+    "beforeRevision": 741,
+    "afterRevision": 742,
+    "policy": {
+      "version": "independent-periodic-access-v1"
+    },
+    "agreementCount": 0,
+    "allOtherWorldFieldsUnchanged": true,
+    "nonWorldStateUnchanged": true,
+    "publicGrantUnchanged": true,
+    "existingAgreementsUnchanged": true,
+    "originalJournalPrefixPreserved": true,
+    "manifestUnchanged": true,
+    "retryNoCommit": true,
+    "replayMatched": true,
+    "journalHash": "4798c2bb73473b54948ddf59d636f4152125ffad36bcb0f7696bfdd4e9e378c8"
+  },
+  "residentCommandsAdded": 0,
+  "skillVersion": "town-resident-skill-v69",
+  "rulebookVersion": "society-rulebook-v56",
+  "limits": [
+    "Directed CLI fixture is not spontaneous resident use.",
+    "Public periodic grant extension after independent activation remains separate pending work.",
+    "Full 25 capabilities and complete canonical/partition/multi-host acceptance remain incomplete."
+  ]
+}

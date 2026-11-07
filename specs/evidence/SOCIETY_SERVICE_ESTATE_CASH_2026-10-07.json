@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "scope": "original-funded-service-estate-income-and-refund",
+  "quality": {
+    "lint": true,
+    "typecheck": true,
+    "dependencyBuild": true,
+    "testsPassed": 3319,
+    "testsSkipped": 1
+  },
+  "targetedTests": 21,
+  "newTests": 3,
+  "evidence": [
+    "separate original income and refund to same preserved owner",
+    "actual service 1000ms by living participants",
+    "escrow cleared and money supply conserved",
+    "deterministic replay",
+    "missing/reordered/forged/reused receipts rejected",
+    "gross overdraft cannot be netted with later refund"
+  ],
+  "limitations": [
+    "No natural population activation",
+    "No new estate CLI or OpenCode adoption claim",
+    "Participant death and wage/freight continuity still pending"
+  ],
+  "canonicalRevisionUnchanged": 802
+}

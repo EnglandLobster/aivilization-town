@@ -1,4 +1,4 @@
-import { getInventoryQuantity } from '@aivilization/economy';
+import { getInventoryQuantity, resolveInventoryRequest } from '@aivilization/economy';
 import type { CommandEnvelope } from '@aivilization/sim-core';
 import { resolveCommodityConsumptionRule, type ConsumptionPolicy } from '@aivilization/society';
 import { assertAgentConsumePayload } from '../commands';
@@ -35,7 +35,8 @@ export function handleAgentConsumeCommand(input: {
     return rejectCommand(input, 'AgentConsume', `${payload.commodityName} is not a final good`);
   }
   const available = getInventoryQuantity(agent.inventory, payload.commodityName);
-  if (available < payload.quantity) {
+  const resolved = resolveInventoryRequest(available, payload.quantity);
+  if (!resolved) {
     return rejectCommand(
       input,
       'AgentConsume',
@@ -47,8 +48,9 @@ export function handleAgentConsumeCommand(input: {
     makeEvent(input, 0, 'CommodityConsumed', {
       agentId: agent.agentId,
       commodityName: payload.commodityName,
-      quantity: payload.quantity,
-      utilityPoints: rule.utilityPoints * payload.quantity,
+      quantity: resolved.quantity,
+      ...(resolved.quantityResolution ? { quantityResolution: resolved.quantityResolution } : {}),
+      utilityPoints: rule.utilityPoints * resolved.quantity,
       kind: rule.kind,
       policyVersion: input.policy.policyVersion,
       ...(rule.kind === 'durable'
@@ -63,8 +65,8 @@ export function handleAgentConsumeCommand(input: {
     makeMemoryEvent(input, 1, {
       summary:
         rule.kind === 'durable'
-          ? `Put ${payload.quantity} ${payload.commodityName} into use.`
-          : `Consumed ${payload.quantity} ${payload.commodityName}.`,
+          ? `Put ${resolved.quantity} ${payload.commodityName} into use.`
+          : `Consumed ${resolved.quantity} ${payload.commodityName}.`,
       status: 'succeeded',
       tags: ['consume', rule.kind, payload.commodityName],
       sourceEventOffsets: [0],

@@ -1,0 +1,238 @@
+{
+  "schemaVersion": "society-free-checkpoint-evidence-v1",
+  "opportunities": 672,
+  "journalCommits": 4802,
+  "capabilityCalls": 2331,
+  "simulationTime": 802320000,
+  "journalSha256": "dad1e067706f034bb335c2e4acb6c9a849eb583505c8413b1ebceabe8ace3ca1",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFingerprints": 81,
+  "implementationVersions": {
+    "catalog": 56,
+    "skill": 55,
+    "rulebook": 45
+  },
+  "providerStatusCounts": {
+    "completed": 666,
+    "provider-error": 6
+  },
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 456.0000000000102,
+      "educationLevel": 5,
+      "residentialTier": 4,
+      "job": "Maintenance Worker",
+      "balance": 500,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 2,
+      "job": "Receptionist",
+      "balance": 501.2397618676187
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 673.6666666669892,
+      "educationLevel": 5,
+      "residentialTier": 5,
+      "job": "Teacher",
+      "balance": 500,
+      "upkeepArrears": 1.6757897047188024
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 4,
+      "job": "Chef",
+      "balance": 500
+    }
+  ],
+  "observedEntities": {
+    "enterprises": [],
+    "collectives": [],
+    "programs": [],
+    "projects": [],
+    "principalOrders": []
+  },
+  "residentAuthoredCounts": {
+    "spaces": 0,
+    "documents": 10,
+    "messages": 250,
+    "groups": 0,
+    "collectives": 0,
+    "registers": 0,
+    "views": 0,
+    "programs": 0,
+    "services": 0
+  },
+  "newPhase": {
+    "opportunities": 32,
+    "providerStatuses": {
+      "completed": 32
+    },
+    "commitsIncludingExplicitMigration": 200,
+    "calls": 78,
+    "actualFacts": [
+      {
+        "sequence": 4618,
+        "type": "ResidentialTierUpgraded",
+        "at": 756983000,
+        "facts": {
+          "agentId": "resident-003",
+          "consumedInventory": {
+            "Transistor": 1
+          },
+          "currencyCost": 500,
+          "nextResidentialTier": 5,
+          "previousResidentialTier": 4,
+          "publicHousingRevision": 1
+        }
+      },
+      {
+        "sequence": 4621,
+        "type": "JobApplicationSubmitted",
+        "at": 756983000,
+        "facts": {
+          "agentId": "resident-003",
+          "applicationId": "open-82f389f9f8c75135fd789855c194aa72:application",
+          "cycleNumber": 8,
+          "educationScore": 673.6666666669892,
+          "occupationName": "Teacher",
+          "publicEmploymentRevision": 3,
+          "residentialTier": 5
+        }
+      },
+      {
+        "sequence": 4633,
+        "type": "JobApplicationSubmitted",
+        "at": 757483000,
+        "facts": {
+          "agentId": "resident-003",
+          "applicationId": "open-604c3343de8e1557d32f4cec5dfc13d8:application",
+          "cycleNumber": 8,
+          "educationScore": 673.6666666669892,
+          "occupationName": "Doctor",
+          "publicEmploymentRevision": 3,
+          "residentialTier": 5
+        }
+      },
+      {
+        "sequence": 4645,
+        "type": "MedicalTreatmentCharged",
+        "at": 759126000,
+        "facts": {
+          "agentId": "resident-001",
+          "amount": 10,
+          "nextBalance": 490,
+          "previousBalance": 500,
+          "reason": "medical-treatment"
+        }
+      },
+      {
+        "sequence": 4672,
+        "type": "JobApplicationResolved",
+        "at": 777600000,
+        "facts": {
+          "agentId": "resident-003",
+          "applicationId": "open-604c3343de8e1557d32f4cec5dfc13d8:application",
+          "cycleNumber": 8,
+          "occupationName": "Doctor",
+          "publicEmploymentRevision": 3,
+          "reason": "agent-matched-elsewhere",
+          "status": "rejected"
+        }
+      },
+      {
+        "sequence": 4672,
+        "type": "JobApplicationResolved",
+        "at": 777600000,
+        "facts": {
+          "agentId": "resident-003",
+          "applicationId": "open-82f389f9f8c75135fd789855c194aa72:application",
+          "cycleNumber": 8,
+          "occupationName": "Teacher",
+          "publicEmploymentRevision": 3,
+          "reason": "competitive-match",
+          "status": "accepted"
+        }
+      },
+      {
+        "sequence": 4672,
+        "type": "JobAssigned",
+        "at": 777600000,
+        "facts": {
+          "agentId": "resident-003",
+          "applicationId": "open-82f389f9f8c75135fd789855c194aa72:application",
+          "cycleNumber": 8,
+          "occupationName": "Teacher",
+          "previousJob": "Chef"
+        }
+      },
+      {
+        "sequence": 4672,
+        "type": "EducationExamResolved",
+        "at": 770060000,
+        "facts": {
+          "agentId": "resident-003",
+          "applicationId": "open-b8eb50ec9d89ce9cccff12cefb2e53f5:application",
+          "cutoffScore": 457.66666666701,
+          "cycleNumber": 8,
+          "reason": "quota-admitted",
+          "status": "admitted",
+          "targetLevel": 5
+        }
+      },
+      {
+        "sequence": 4672,
+        "type": "EducationLevelChanged",
+        "at": 770060000,
+        "facts": {
+          "agentId": "resident-003",
+          "nextLevel": 5,
+          "previousLevel": 4,
+          "reason": "education-exam-admission:cycle-8"
+        }
+      },
+      {
+        "sequence": 4793,
+        "type": "MedicalTreatmentCharged",
+        "at": 802200000,
+        "facts": {
+          "agentId": "resident-003",
+          "amount": 10,
+          "nextBalance": 490,
+          "previousBalance": 500,
+          "reason": "medical-treatment"
+        }
+      }
+    ],
+    "refusals": [
+      {
+        "sequence": 4619,
+        "actorId": "resident-003",
+        "capability": "world.apply_job",
+        "error": "missing-prerequisite: Transistor requires 1, available 0 [public employment revision 3, cycle 8; town governance employment --revision 3]"
+      },
+      {
+        "sequence": 4620,
+        "actorId": "resident-003",
+        "capability": "world.trade",
+        "error": "insufficient balance: required 10.307153164296096, available 0"
+      }
+    ]
+  },
+  "interpretation": [
+    "Teacher assignment and exam result use actual recorded recruitment/exam rules, not resident text as proof",
+    "Housing service tier is not new house construction; original arrears remain",
+    "Medical treatment here belongs to explicit initial external service, not a resident-founded hospital",
+    "Resident economic commentary is attributed original text, not official calculations or consensus",
+    "No observed enterprise/collective/new construction/principal fee order, historical failures and original sessions preserved"
+  ]
+}

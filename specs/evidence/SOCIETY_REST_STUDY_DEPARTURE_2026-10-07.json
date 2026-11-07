@@ -1,0 +1,38 @@
+{
+  "ok": true,
+  "scope": "rest-and-elapsed-study-stopped-before-population-capture",
+  "sourceVersion": "resident-departure-activity-v1",
+  "quality": {
+    "lint": true,
+    "typecheck": true,
+    "testsPassed": 3344,
+    "testsSkipped": 1,
+    "targetedTestsPassed": 42,
+    "dependencyBuild": "worker-and-dependencies-passed"
+  },
+  "assertions": [
+    "explicit system executor and population source",
+    "zero and partial rest preserve prior recovery",
+    "unsettled time refused",
+    "personal and treasury study funding returned to original payers",
+    "no extra knowledge or fee accrual",
+    "study escrow cleared and final personal cash preserved",
+    "wrong actor or missing study source rejected",
+    "other resident untouched",
+    "deterministic replay and preparation input unchanged"
+  ],
+  "limitations": [
+    "Death fixture tested; full emigration combination not yet verified",
+    "Candidate world events only; runtime atomic journal integration not yet implemented",
+    "Construction travel cargo and other participants remain pending",
+    "Natural population and canonical activation not performed",
+    "No new CLI or OpenCode experiment"
+  ],
+  "logs": {
+    "target": "/tmp/departure-activities-target.log",
+    "lint": "/tmp/departure-activities-lint.log",
+    "typecheck": "/tmp/departure-activities-typecheck.log",
+    "tests": "/tmp/departure-activities-tests.log",
+    "build": "/tmp/departure-activities-build.log"
+  }
+}

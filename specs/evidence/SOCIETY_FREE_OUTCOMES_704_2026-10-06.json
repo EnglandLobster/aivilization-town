@@ -1,0 +1,172 @@
+{
+  "schemaVersion": "society-free-checkpoint-evidence-v1",
+  "opportunities": 704,
+  "journalCommits": 5001,
+  "capabilityCalls": 2401,
+  "simulationTime": 865080000,
+  "journalSha256": "0db28a1b1ffecefd351b84e89e76fda807a2fd31edb99dc79c88347e3685b92e",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFingerprints": 81,
+  "implementationVersions": {
+    "catalog": 57,
+    "skill": 56,
+    "rulebook": 46
+  },
+  "providerStatusCounts": {
+    "completed": 698,
+    "provider-error": 6
+  },
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 456.0000000000102,
+      "educationLevel": 5,
+      "residentialTier": 4,
+      "job": "Maintenance Worker",
+      "balance": 500,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 2,
+      "job": "Receptionist",
+      "balance": 546.6743276747035
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 709.9666666669841,
+      "educationLevel": 5,
+      "residentialTier": 5,
+      "job": "Office Clerk",
+      "balance": 500,
+      "upkeepArrears": 1.6757897047188024
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 4,
+      "job": "Chef",
+      "balance": 500
+    }
+  ],
+  "observedEntities": {
+    "enterprises": [],
+    "collectives": [],
+    "programs": [],
+    "projects": [],
+    "principalOrders": []
+  },
+  "residentAuthoredCounts": {
+    "spaces": 0,
+    "documents": 10,
+    "messages": 250,
+    "groups": 0,
+    "collectives": 0,
+    "registers": 0,
+    "views": 0,
+    "programs": 0,
+    "services": 0
+  },
+  "newPhase": {
+    "opportunities": 32,
+    "providerStatuses": {
+      "completed": 32
+    },
+    "commitsIncludingExplicitMigration": 199,
+    "calls": 70,
+    "actualFacts": [
+      {
+        "sequence": 4803,
+        "type": "ResidentServiceAffiliationCommitted",
+        "at": 802320000,
+        "facts": {
+          "actorId": "system",
+          "events": [
+            {
+              "policy": {
+                "maxConsentHorizonMs": 2592000000,
+                "version": "resident-service-affiliation-v4"
+              },
+              "type": "ServiceAffiliationsEnabled"
+            }
+          ],
+          "policyVersion": "resident-service-affiliation-v4"
+        }
+      },
+      {
+        "sequence": 4860,
+        "type": "JobApplicationSubmitted",
+        "at": 815300000,
+        "facts": {
+          "agentId": "resident-003",
+          "applicationId": "open-b725db33b6428bd4667eec7f11cb41db:application",
+          "cycleNumber": 9,
+          "educationScore": 709.6666666669842,
+          "occupationName": "Office Clerk",
+          "publicEmploymentRevision": 3,
+          "residentialTier": 5
+        }
+      },
+      {
+        "sequence": 4982,
+        "type": "JobApplicationResolved",
+        "at": 864000000,
+        "facts": {
+          "agentId": "resident-003",
+          "applicationId": "open-b725db33b6428bd4667eec7f11cb41db:application",
+          "cycleNumber": 9,
+          "occupationName": "Office Clerk",
+          "publicEmploymentRevision": 3,
+          "reason": "competitive-match",
+          "status": "accepted"
+        }
+      },
+      {
+        "sequence": 4982,
+        "type": "JobAssigned",
+        "at": 864000000,
+        "facts": {
+          "agentId": "resident-003",
+          "applicationId": "open-b725db33b6428bd4667eec7f11cb41db:application",
+          "cycleNumber": 9,
+          "occupationName": "Office Clerk",
+          "previousJob": "Teacher"
+        }
+      }
+    ],
+    "refusals": [],
+    "capabilityCounts": {
+      "schedule.wait/accepted": 32,
+      "cognition.update/accepted": 1,
+      "world.move/accepted": 14,
+      "world.trade/accepted": 5,
+      "world.study/accepted": 2,
+      "world.eat/accepted": 5,
+      "world.apply_job/accepted": 1,
+      "world.sleep/accepted": 4,
+      "world.work/accepted": 5,
+      "governance.employment/accepted": 1
+    }
+  },
+  "interpretation": [
+    "Teacher assignment and exam result use actual recorded recruitment/exam rules, not resident text as proof",
+    "Housing service tier is not new house construction; original arrears remain",
+    "Medical treatment here belongs to explicit initial external service, not a resident-founded hospital",
+    "Resident economic commentary is attributed original text, not official calculations or consensus",
+    "No observed enterprise/collective/new construction/principal fee order, historical failures and original sessions preserved"
+  ],
+  "limitations": [
+    "Four original residents and original provider sessions; one initial condition, no specified organization or partners",
+    "698 completed turns and 6 retained historical provider errors; latest 32 completed",
+    "Only explicit service affiliation capability enabled; no seeded services, assets, goals or employment changes",
+    "No resident enterprises, collectives, projects or principal orders observed; engineering availability is not spontaneous adoption",
+    "Initial public jobs/markets/services/subsidies remain external supplied institutions; their effect on adoption is a hypothesis for controlled comparison",
+    "Resident plans and price/rate assertions remain their own text; actual job assignment came from recorded recruitment source",
+    "Full 25 contracts, housing H4-H6, long obligations and canonical/partition wiring remain unfinished"
+  ]
+}

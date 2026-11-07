@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T21:58:25.967411+00:00",
+  "spec": "specs/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md",
+  "status": "open-runtime-construction-procurement-and-compiled-cli-verified-model-and-full-modes-pending",
+  "newTests": 5,
+  "residentCapabilities": 384,
+  "newResidentCapabilities": 0,
+  "skillVersion": "town-resident-skill-v64",
+  "rulebookVersion": "society-rulebook-v53",
+  "fullTests": {
+    "passed": 3205,
+    "skipped": 1,
+    "filesPassed": 481,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/construction-runtime-acl-lint.log"
+    },
+    "sortedFullTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/construction-runtime-acl-typecheck.log"
+    },
+    "residentsAndDependenciesBuild": {
+      "exitCode": 0,
+      "log": "/tmp/construction-runtime-acl-build.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-runtime-acl-full-tests.log"
+    },
+    "targetedTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-runtime-acl-tests.log"
+    },
+    "sharedAclLint": {
+      "exitCode": 0,
+      "log": "/tmp/construction-runtime-shared-acl-lint.log"
+    },
+    "finalScriptLint": {
+      "exitCode": 0,
+      "log": "/tmp/construction-runtime-acl-script-lint.log"
+    },
+    "compiledCli": {
+      "exitCode": 0,
+      "log": "/tmp/construction-runtime-acl-cli.log"
+    }
+  },
+  "sourceSha256": {
+    "packages/commerce/src/constructionTrade.ts": "5114c64653b9dc54ecb658e6d098e3d82f7bc68d9dd4ec07f505c68ac1255357",
+    "packages/world/src/index.ts": "58179b48d5af2b3cd453a4d0eab57d5c037af68cd213079716ec294e2c2cef81",
+    "apps/worker/src/openSociety/constructionTradeTools.ts": "cc00e19ebdc77165a8c3cab08a284f862edb124ad01cba114c36b521a214382b",
+    "apps/worker/src/openSociety/constructionTrade.test.ts": "54c1ac0314b2869c5cbee49774a8d4a474d34438f14ab6d4c3dbfc12ac24ff64",
+    "apps/worker/src/openSociety/resourcePrincipalTools.ts": "24898a8b1224528b2033a78162842cff36cf9de17031ce71fd10a1fde0ace891",
+    "apps/worker/src/openSociety/resourcePrincipalCatalog.ts": "990d321d321f6c81b0c76fa111afe74e029f0920f516c0d328d29e7360e12d77",
+    "apps/worker/src/openSociety/resourceControlAccess.ts": "3cfa74b634217441386204f0a31c13dcb89548a6d669af3e34cfc60bf423db1e",
+    "apps/worker/src/openSociety/premisesTools.ts": "d6feabdb03507c6eea32831ad850ed5cbf4ec30e6aa6cb150a0d15fdbc27612d",
+    "apps/worker/src/openSociety/publicGovernanceTools.ts": "a8e7a213467d928181742f4cd6832c3bda053b49b90f2228564efcba6dd5293a",
+    "apps/worker/src/openSociety/runtime.ts": "7d5aefdb816516aad32258c9ddcf73437d9201c3add384b937d946203ef95df8",
+    "apps/worker/src/openSociety/manifest.ts": "9d3df379739bc7cd47979a56bbba3a1626c840b8edb481236d7a16b2b21dd338",
+    "apps/worker/src/openSociety/ruleDefinitions.ts": "e23756b555d7e059225856c92a592b3d0c017746e1faed89c84751be6a693f98",
+    "apps/worker/src/openSociety/rulebook.ts": "43b1cd4e9a9dda3c2bdbebaa9df0e80076da0160d50203781cadb5bd890f72e7",
+    "apps/worker/src/openSociety/capabilityRoutes.ts": "f58a8102163bc1479a5b966a52dd3884ba95de4e705e6f4d8066c608182002ff",
+    "apps/residents/src/cli.ts": "5bce03cb7df638e125dd21053c039b5c7bf7b9c7d4301785b9955f2a920878bf",
+    "apps/residents/src/societySkill.ts": "dc15ae9b240c98f433cae18f2478d4de00ea21a87b9f9d12fe69a82f676ee2c4",
+    "apps/residents/scripts/verify-construction-trade-cli.mjs": "7233d83ca6d6ecbe97611e8f765ebc0c12ede132e1e634b2902056e0c8c0d3ea",
+    "apps/residents/skills/town-resident/SKILL.md": "ad1e5bd2201e42b7e2b3482565cf3e98cd05c74219195e9d0c44f4a0f45dec75",
+    "apps/residents/skills/town-resident/commands/principals.md": "821a8f9a4f16fa53ba0316defd378333a7da1845c4115d5cb3069216864fa3b0",
+    "apps/residents/skills/town-resident/society/premises.md": "e2db5cf43f71fdbd6f45b5c50c5e65c55c59219f70f6006fe74f923ff04ab6bc"
+  },
+  "compiledCli": {
+    "artifact": ".local/open-residents/construction-trade-cli-20261007-2/acceptance.json",
+    "sha256": "989ca74048a3e0f54c6fc75735d9da0eee9472cf43eaac4ad701171d64484391",
+    "calls": 13,
+    "expectedRefusals": 2,
+    "transport": "real node town subprocess through authenticated HTTP",
+    "replay": true
+  },
+  "verified": [
+    "actual private supply/project/escrow/work/completion/payment through runtime",
+    "private original terms require existing party access; list contains metadata only",
+    "quotation cannot query hidden source project; read and quotation share existing visibility predicate",
+    "unpaid competing quote expires at exact boundary while funded responsibilities remain",
+    "independent collective project creation and common-account funding consume exact decisions; missing receipt consumption rejects effects",
+    "actual public project creation and procurement each approved independently before personal construction and real payment",
+    "explicit initial manifest provenance and journal migration preserve old manifest bytes; full runtime reopen identical",
+    "compiled CLI performs actual physical and monetary chain, rejects stranger quote/read and replays"
+  ],
+  "initialFailures": [
+    {
+      "log": "/tmp/construction-runtime-tests.log",
+      "reason": "fixture tried principal reservation on a legacy stock; corrected to actual independently accepted custody transition"
+    },
+    {
+      "log": "/tmp/construction-runtime-tests3.log",
+      "reason": "public fixture named private payer; corrected to original treasury account"
+    },
+    {
+      "log": "/tmp/construction-runtime-typecheck.log",
+      "reason": "new rule omitted required limits; added explicit boundaries"
+    },
+    {
+      "log": "/tmp/construction-runtime-lint-final.log",
+      "reason": "verification script URL missing explicit node import; corrected"
+    }
+  ],
+  "remaining": [
+    "true OpenCode usability with current compiled artifact",
+    "explicit integrated profile activation after acceptance",
+    "canonical and partition integration, full 25-capability delivery",
+    "sustained spontaneous organization and free condition comparison; no new model run in this slice"
+  ]
+}

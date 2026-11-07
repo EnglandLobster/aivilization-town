@@ -1,0 +1,116 @@
+{
+  "schemaVersion": "canonical-service-transition-evidence-v1",
+  "sourceSha256": {
+    "packages/services/src/policyTransition.ts": "01b024ba06a39926fb7f9acdf8bcfb226ba2939d3b78caab13290ae9754a0812",
+    "packages/services/src/policyTransition.test.ts": "9c63f123cb055dbe3ee8b7d70af0535680c3860695dae724b356e5acfebf9a3a",
+    "packages/services/src/model.ts": "b430f528e5e4e819efba58107447b0ab5f70ca48d735c65457c9c3aa14899bf6",
+    "packages/services/src/serviceRecordEvents.ts": "964d6107d0f3338d1f22b0eb84180d734d3fd0a4f214b1282632eccfb1af5bb5",
+    "packages/services/src/serviceSupply.ts": "1aecf8683d1d8225fdc0063d2beea4973af97be52608734b3a6f39b1cd2bb311",
+    "apps/worker/src/openSociety/runtime.ts": "60836a29152450f29c87cc18437cf175df832d162384d87df7c9e97f64d7ff90",
+    "apps/worker/src/openSociety/societyActivation.ts": "e9eed33d2c04680d9d25e518e557511d55a6841585d8dbdfb70ddfdf82727920",
+    "apps/worker/src/openSociety/societyActivation.test.ts": "5a1d0018f4c86bf2fda95e64f932e5abb4c441e537fd428141965154efd137c4",
+    "apps/worker/src/openSociety/servicesTools.ts": "44969ad570abbf208b631cfce67bc3c3f0ad2cdd170aa08b73bb82e419fd6032",
+    "apps/worker/src/openSociety/context.ts": "01b27b0106780c27ae972c5251d952a79c0510fbbaf1ec802e10d31fb802db4b",
+    "apps/residents/src/cli.ts": "e217c526b2138451a7c48df4ebd4d2729b24636842b52480ee2892c6ab8e92a2",
+    "apps/server/scripts/verify-service-policy-transition.mjs": "be353966249446cda7a78e988fbf8e841c9cf62cfc550f0515e0f5a09b6dd2b6"
+  },
+  "realMigratedWorld": {
+    "passed": true,
+    "root": "/home/dev/aivilization-town/.local/canonical-cutover-20261007/society",
+    "activation": {
+      "version": "society-services-activation-v1",
+      "status": "enabled",
+      "completed": [
+        "providers",
+        "service-control",
+        "service-principals",
+        "service-supply",
+        "service-affiliations",
+        "service-relations"
+      ],
+      "features": [
+        {
+          "feature": "providers",
+          "enabled": true
+        },
+        {
+          "feature": "service-control",
+          "enabled": true
+        },
+        {
+          "feature": "service-principals",
+          "enabled": true
+        },
+        {
+          "feature": "service-supply",
+          "enabled": true
+        },
+        {
+          "feature": "service-affiliations",
+          "enabled": true
+        },
+        {
+          "feature": "service-relations",
+          "enabled": true
+        }
+      ],
+      "scope": "service-directory-no-providers-facilities-or-complete-profile"
+    },
+    "previousRevision": 34,
+    "revision": 41,
+    "publicAuthorization": "explicit-enable-public-governance-operator-command-not-resident-consent",
+    "assetsClockTravelBodyUnchanged": true,
+    "originalManifestUnchanged": true,
+    "noServicesProvidersBookingsCreated": true,
+    "retryCreatedNoCommits": true,
+    "replayMatched": true,
+    "limitations": [
+      "Legacy v1/v2 services must drain and close before transition; no automatic reinterpretation.",
+      "Private multi-principal service registration currently depends on public authorization activation; this coupling remains for boundary review.",
+      "No real facilities, teacher/doctor capacity, biological effects or complete integrated profile claim.",
+      "Operator CLI evidence, not model emergence."
+    ]
+  },
+  "validation": {
+    "targeted": {
+      "passed": 6,
+      "log": "/tmp/service-transition-tests.log"
+    },
+    "lint": {
+      "passed": true,
+      "logs": [
+        "/tmp/service-transition-lint.log",
+        "/tmp/service-transition-final-lint.log",
+        "/tmp/service-transition-script-lint.log"
+      ]
+    },
+    "typecheck": {
+      "passed": true,
+      "logs": [
+        "/tmp/service-transition-typecheck.log",
+        "/tmp/service-transition-final-typecheck.log"
+      ]
+    },
+    "build": {
+      "passed": true,
+      "logs": ["/tmp/service-transition-build.log", "/tmp/service-transition-final-build.log"]
+    },
+    "tests": {
+      "passed": 3270,
+      "skipped": 1,
+      "filesPassed": 496,
+      "filesSkipped": 1,
+      "log": "/tmp/service-transition-full-tests.log"
+    }
+  },
+  "initialFailures": [
+    "Service phase initially assumed public authorization was not required; integration rejected invalid-service-principals-world-activation. Kept domain guards, added explicit missing-public-governance refusal and tested separately declared activation."
+  ],
+  "limitations": [
+    "Old live services must drain under their original agreement; no forced cancellation or historical semantic rewrite.",
+    "Closed legacy service IDs cannot reopen under new policy; new offers require new declarations.",
+    "Private multi-principal registration currently depends on public authorization; coupling remains for architecture review.",
+    "No real medical/education facilities, materials, providers or biological effects created.",
+    "Full profile, all running modes and 25 capability goal remain active; no new model emergence claim."
+  ]
+}

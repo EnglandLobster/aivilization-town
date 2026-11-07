@@ -1,0 +1,29 @@
+{
+  "kind": "explicit-vehicle-principals-activation",
+  "afterOpportunities": 576,
+  "simulationTime": 655103000,
+  "commitsBefore": 4158,
+  "commitsAfter": 4159,
+  "implementation": {
+    "root": "/tmp/aivilization-vehicle-principals-20261006",
+    "versions": {
+      "catalog": 54,
+      "skill": 53,
+      "rulebook": 43
+    },
+    "fingerprints": 81,
+    "validation": {
+      "command": "pnpm check",
+      "testsPassed": 2889,
+      "testsSkipped": 1,
+      "compiledCalls": 45,
+      "expectedRefusals": 11
+    }
+  },
+  "source": "operator-capability-migration",
+  "retainsOriginalManifest": true,
+  "prescribedSocialGoal": false,
+  "addsAssets": false,
+  "replayMatches576FullState": true,
+  "originalVehiclesDriversRidesQuotesUnchanged": true
+}

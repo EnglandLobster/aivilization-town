@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "canonical-runtime-ownership-evidence-v1",
+  "sourceSha256": {
+    "apps/server/src/canonicalRuntimeOwnership.ts": "5f09bb104913c44c247be0cc4d8157dbffe60ab70e765f8e0fd9da647078729e",
+    "apps/server/src/canonicalRuntimeOwnership.test.ts": "01bcb3387aaffd098f3ab09f5185120c7d0ea5dfb208b6c2dec2bb4eacc04a09",
+    "apps/server/src/canonicalSocietyArchive.ts": "8901948861c255beb5570dbe5246624b3456d38a3accb9562e579c8797eddd1d",
+    "apps/server/src/canonicalSocietyArchive.test.ts": "ddfdf13c971076d793f33bcd3b9e73591d96143ed7fdfb42d4d55d7fbc4131c6",
+    "apps/server/src/localRuntimeTownCli.ts": "70a7a1000717959334c172adb624fe04117e9c715d3da6c6878c0de33c2445f0",
+    "apps/server/src/localRuntimeTownCli.test.ts": "894a77d87bef788a1a4551003ae530724f45f435f3a5f7b1970416cead651ea2",
+    "apps/residents/scripts/verify-canonical-ownership.mjs": "ed3da9c65eec4441b27b7b1cde9d2bbbd901c0567c9c20aa441d6e9b2a4b2ba5"
+  },
+  "validation": {
+    "targeted": {
+      "passed": 47,
+      "log": "/tmp/canonical-ownership-tests.log"
+    },
+    "lint": {
+      "passed": true,
+      "log": "/tmp/canonical-ownership-lint.log",
+      "scriptLog": "/tmp/canonical-ownership-script-lint2.log"
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/canonical-ownership-typecheck.log"
+    },
+    "tests": {
+      "passed": 3231,
+      "skipped": 1,
+      "filesPassed": 486,
+      "log": "/tmp/canonical-ownership-full-tests.log"
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/canonical-ownership-build.log"
+    }
+  },
+  "crossProcessCli": {
+    "passed": true,
+    "root": "/home/dev/aivilization-town/.local/canonical-ownership-20261007",
+    "actualDaemonStarted": true,
+    "archiveRefusedWhileWriterActive": true,
+    "refusalCreatedNoTarget": true,
+    "daemonExit": {
+      "code": 0,
+      "signal": null
+    },
+    "archiveAcceptedAfterGracefulExit": true,
+    "repeatedArchiveUnchanged": true,
+    "archiveCliCalls": 3,
+    "sourceTreeSha256": "11d64a0e31404a5adf202597031a5a44519db57578f97ba85f3ea150068f221c",
+    "limitations": [
+      "Deterministic engineering daemon, not OpenCode or free social emergence.",
+      "Cooperative same-filesystem admission; no legacy-writer, multi-host or forced-crash recovery claim."
+    ]
+  },
+  "retainedFailures": [
+    {
+      "log": "/tmp/canonical-ownership-script-lint.log",
+      "reason": "Verifier timer globals required explicit node:timers import under existing JS lint rules; import added, rules unchanged."
+    }
+  ],
+  "limitations": [
+    "Cooperative same-filesystem formal canonical CLI and archive entrypoints only.",
+    "Direct library/storage writes and old processes are not fenced.",
+    "Failed bootstrap or shutdown retains records; explicit crash recovery and retirement still pending.",
+    "Archive remains original source preservation, not a runnable migrated society.",
+    "All 25 capability contracts and full R01 migration remain active."
+  ]
+}

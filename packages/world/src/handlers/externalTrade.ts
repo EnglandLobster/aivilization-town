@@ -1,7 +1,11 @@
+import { enterpriseRequiresManagement } from '@aivilization/enterprise';
+import type { ControlAuthorizationPort } from '@aivilization/authority';
+import { enterpriseMayOperate, enterpriseManagementAuthority } from '@aivilization/enterprise';
 import {
   evaluateExternalExportPrice,
   evaluateExternalImportPrice,
   getInventoryQuantity,
+  resolveInventoryRequest,
   getSpotPrice,
   type ExternalTradePolicy,
   type ExternalTradePriceQuote,
@@ -34,6 +38,7 @@ export function handleAgentExportCommodityCommand(input: {
   readonly command: CommandEnvelope<'AgentExportCommodity', unknown>;
   readonly projection: WorldProjection;
   readonly policy: ExternalTradePolicy;
+  readonly enterpriseAuthorization?: ControlAuthorizationPort;
   readonly regionalMarketsEnabled?: boolean;
   readonly nextSequence: number;
 }): WorldEvent[] {
@@ -50,6 +55,7 @@ export function handleAgentImportCommodityCommand(input: {
   readonly command: CommandEnvelope<'AgentImportCommodity', unknown>;
   readonly projection: WorldProjection;
   readonly policy: ExternalTradePolicy;
+  readonly enterpriseAuthorization?: ControlAuthorizationPort;
   readonly regionalMarketsEnabled?: boolean;
   readonly nextSequence: number;
 }): WorldEvent[] {
@@ -65,6 +71,7 @@ export function handleAgentImportCommodityCommand(input: {
 function settleExternalTrade(
   input: WorldCommandHandlerInput & {
     readonly policy: ExternalTradePolicy;
+    readonly enterpriseAuthorization?: ControlAuthorizationPort;
     readonly regionalMarketsEnabled?: boolean;
   },
   direction: 'export' | 'import',
@@ -86,8 +93,7 @@ function settleExternalTrade(
       return rejectCommand(input, commandType, 'enterprise is missing or closed');
     }
     if (
-      enterprise.ownerAgentId !== agent.agentId &&
-      !enterprise.employeeAgentIds.includes(agent.agentId)
+      !enterpriseMayOperate(enterprise, agent.agentId, direction, input.enterpriseAuthorization)
     ) {
       return rejectCommand(input, commandType, 'agent is not authorized for enterprise');
     }
@@ -118,19 +124,35 @@ function settleExternalTrade(
   }
   const spotPrice = getSpotPrice(pool);
 
+  const available = getInventoryQuantity(
+    enterprise?.inventory ?? agent.inventory,
+    payload.commodityName,
+  );
+  const resolved =
+    direction === 'export'
+      ? resolveInventoryRequest(available, payload.quantity)
+      : { quantity: payload.quantity };
+  if (!resolved)
+    return rejectCommand(
+      input,
+      commandType,
+      `insufficient ${payload.commodityName}: required ${payload.quantity}, available ${available}`,
+    );
+  const quantity = resolved.quantity;
+
   const balanceBefore =
     input.projection.externalTrade?.balancesByCommodity[payload.commodityName] ?? 0;
   const quoteResult = parsePayload(() =>
     direction === 'export'
       ? evaluateExternalExportPrice({
           spotPrice,
-          quantity: payload.quantity,
+          quantity,
           netExportBalance: balanceBefore,
           policy: input.policy,
         })
       : evaluateExternalImportPrice({
           spotPrice,
-          quantity: payload.quantity,
+          quantity,
           netExportBalance: balanceBefore,
           policy: input.policy,
         }),
@@ -141,17 +163,6 @@ function settleExternalTrade(
   const quote: ExternalTradePriceQuote = quoteResult.payload;
 
   if (direction === 'export') {
-    const available = getInventoryQuantity(
-      enterprise?.inventory ?? agent.inventory,
-      payload.commodityName,
-    );
-    if (available < payload.quantity) {
-      return rejectCommand(
-        input,
-        commandType,
-        `insufficient ${payload.commodityName}: required ${payload.quantity}, available ${available}`,
-      );
-    }
     if (quote.total <= 0) {
       return rejectCommand(
         input,
@@ -174,15 +185,25 @@ function settleExternalTrade(
     payload.asEnterpriseId === undefined
       ? { agentId: agent.agentId }
       : { enterpriseId: payload.asEnterpriseId };
-  const balanceAfter =
-    direction === 'export' ? balanceBefore + payload.quantity : balanceBefore - payload.quantity;
+  const balanceAfter = direction === 'export' ? balanceBefore + quantity : balanceBefore - quantity;
 
   return [
     makeEvent(input, 0, 'ExternalTradeExecuted', {
+      ...(enterprise && enterpriseRequiresManagement(enterprise)
+        ? {
+            managementAuthority: enterpriseManagementAuthority(
+              enterprise,
+              agent.agentId,
+              direction,
+              input.enterpriseAuthorization,
+            )!,
+          }
+        : {}),
       trader,
       direction,
       commodityName: payload.commodityName,
-      quantity: payload.quantity,
+      quantity,
+      ...(resolved.quantityResolution ? { quantityResolution: resolved.quantityResolution } : {}),
       unitPrice: quote.unitPrice,
       totalCurrency: quote.total,
       balanceBefore,
@@ -193,8 +214,8 @@ function settleExternalTrade(
     makeMemoryEvent(input, 1, {
       summary:
         direction === 'export'
-          ? `Exported ${payload.quantity} ${payload.commodityName} to the external market for ${quote.total}.`
-          : `Imported ${payload.quantity} ${payload.commodityName} from the external market for ${quote.total}.`,
+          ? `Exported ${quantity} ${payload.commodityName} to the external market for ${quote.total}.`
+          : `Imported ${quantity} ${payload.commodityName} from the external market for ${quote.total}.`,
       status: 'succeeded',
       sourceEventOffsets: [0],
       tags: [

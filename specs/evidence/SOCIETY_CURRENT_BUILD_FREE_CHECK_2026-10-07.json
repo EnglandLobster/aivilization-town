@@ -1,0 +1,115 @@
+{
+  "ok": true,
+  "scope": "current-build-short-unprompted-operational-check",
+  "stableEmergenceProven": false,
+  "root": ".local/open-residents/current-build-operational-20261007",
+  "profile": "society-integrated-v2",
+  "initialization": "settled",
+  "model": "opencode-go/deepseek-v4.1-flash",
+  "residents": 4,
+  "opportunities": 4,
+  "providerCompleted": 4,
+  "providerErrors": 0,
+  "turnStates": {
+    "waiting": 4
+  },
+  "calls": 67,
+  "callsOk": 65,
+  "capabilityCounts": {
+    "world.observe": 41,
+    "obligations.list": 1,
+    "sites.list": 1,
+    "world.move": 3,
+    "schedule.wait": 4,
+    "files.index": 5,
+    "production.recipes": 4,
+    "sources.list": 2,
+    "production.list": 1,
+    "world.study": 1,
+    "schedule.list": 1,
+    "services.list": 1,
+    "world.trade": 1,
+    "world.upgrade_home": 1
+  },
+  "rejections": [
+    {
+      "sequence": 14,
+      "capability": "world.move",
+      "reason": "agent is busy with travel until simulation time 362000 (now 0)"
+    },
+    {
+      "sequence": 73,
+      "capability": "world.upgrade_home",
+      "reason": "agent is busy with trade until simulation time 480000 (now 180000)"
+    }
+  ],
+  "simulationTime": 240000,
+  "revision": 80,
+  "events": {
+    "AgentTravelStarted": 2,
+    "AgentActivityTimeCommitted": 3,
+    "ShortTermMemoryRecorded": 6,
+    "ActionRejected": 2,
+    "SimulationTimeAdvanced": 4,
+    "PhysiologyChanged": 16,
+    "ResidentStudyCommitted": 3,
+    "TradeExecuted": 1
+  },
+  "study": {
+    "elapsedMs": 120000,
+    "educationBefore": 160,
+    "educationAfter": 160.60000000000002,
+    "sourceKind": "scenario-public-course"
+  },
+  "socialObservation": {
+    "messages": 0,
+    "collectives": 0,
+    "proposals": 0
+  },
+  "verification": {
+    "segment": 1,
+    "outcome": {
+      "status": "limit-reached",
+      "opportunities": 4
+    },
+    "replication": {
+      "status": "caught-up",
+      "cursor": {
+        "sequence": 80,
+        "hash": "1865ae29f33c491cf615010f9de2aa86fdf3900c3ba5a237b37d07909e7bcd55"
+      },
+      "pages": 4
+    },
+    "simulationTime": 240000,
+    "liveReportEqualsReplay": true,
+    "liveTransportReplicaEqualsReopenedAuthority": true,
+    "manifestUnchanged": true,
+    "journalUnchangedOnReplay": true,
+    "committedPrefixUnchanged": true,
+    "journalSha256": "d9f4b938854fc081242b3a990c97043e22274f76c2f2e0b18ebef5ef8f100a3d",
+    "fullStateSha256": "07f8dd908f6e28cf1a8a7625d362363398d37619c42b0d2ed528bb553051eda9",
+    "resumedSessions": []
+  },
+  "compiledUnchanged": true,
+  "protectedFilesUnchanged": true,
+  "protectedHashes": {
+    ".local/canonical-cutover-20261007/society/manifest.json": "3024b4ef7893eedf1df359c5bb6a8f6fbfb83a9605a5a6c1d4f664e6da9d7f52",
+    ".local/canonical-cutover-20261007/society/journal.jsonl": "9079fbad030a38fe8aab64b0231476fde0d1e52a838f04943f15308b3e2c2625",
+    ".local/open-residents/society-elapsed-study-20261005/manifest.json": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+    ".local/open-residents/society-elapsed-study-20261005/journal.jsonl": "b8007f05af90a1423a153f132f7fdb3e1163dfaddb8faaf9a16e9f3bcecccac2"
+  },
+  "observerScript": ".local/observe-current-build-20261007.mjs",
+  "observerScriptSha256": "301fd520fb3e3fec1fc686b73172bffce6b7e62583c425fc83da7ebf2e142050",
+  "logs": {
+    "build": "/tmp/society-global-check-build.log",
+    "observation": "/tmp/society-global-check-observation.log"
+  },
+  "limitations": [
+    "Four simulated minutes, one opportunity per resident; not adoption or stable organization evidence",
+    "No interruption, population departure, handoff or resumption scenario occurred",
+    "No causal comparison of initial conditions or policies",
+    "Backgrounds and public facilities are scenario seeds; study does not prove resident teaching",
+    "No production source change this turn; full repository tests not rerun",
+    "No physical multi-host validation"
+  ]
+}

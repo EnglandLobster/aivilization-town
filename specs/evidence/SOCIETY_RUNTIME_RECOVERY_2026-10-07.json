@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T18:45:39.063505+00:00",
+  "spec": "specs/SOCIETY_RUNTIME_RECOVERY_V1.md",
+  "status": "explicit-local-journal-recovery-verified-not-full-runtime-integration",
+  "newTests": 7,
+  "fullTests": {
+    "passed": 3140,
+    "skipped": 1,
+    "filesPassed": 464,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/journal-recovery-lint-final.log"
+    },
+    "sortedTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/journal-recovery-typecheck.log"
+    },
+    "finalWorkerTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/journal-recovery-worker-typecheck-2.log"
+    },
+    "relevantBuild": {
+      "exitCode": 0,
+      "log": "/tmp/journal-recovery-build.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/journal-recovery-tests-verified.log"
+    },
+    "targetedTests": {
+      "exitCode": 0,
+      "log": "/tmp/journal-recovery-targeted-final.log"
+    },
+    "compiledOperatorCLI": {
+      "exitCode": 0,
+      "log": "/tmp/journal-recovery-cli-2.log"
+    }
+  },
+  "trial": {
+    "passed": true,
+    "mode": "killed-writer-and-compiled-operator-CLI-not-emergence",
+    "killedSignal": "SIGKILL",
+    "report": {
+      "version": "open-society-tail-recovery-v1",
+      "action": "removed-incomplete-tail",
+      "throughRevision": 4,
+      "originalBytes": 29034,
+      "recoveredBytes": 28999,
+      "originalSha256": "b0c579673e31ea7cedf981ac690c5b155f69166f6ddf3e52cec6ed03a48ea9bb",
+      "recoveredSha256": "8de572d8a1ab7547928917d8140e73b382ff1203dec6a9178be0554e505c2d11",
+      "backupPath": "/home/dev/aivilization-town/.local/open-residents/journal-recovery-20261007-2/journal-recovery-b0c579673e31ea7cedf981ac690c5b155f69166f6ddf3e52cec6ed03a48ea9bb.original"
+    },
+    "fullStateReplayEqual": true,
+    "requestRetryUnchanged": true,
+    "manifestUnchanged": true
+  },
+  "artifact": ".local/open-residents/journal-recovery-20261007-2/verification.json",
+  "artifactHash": "01e633f49f9cb3045ba2af6b0b4dbf6fa2ba70a763881b495ca069dd63db92ea",
+  "sourceHashes": {
+    "apps/worker/src/openSociety/journal.ts": "7d341f8003a8cd6b087fb915a1279f15bbfc0520f4cd97868b75806164a61aae",
+    "apps/worker/src/openSociety/journalRecovery.ts": "8202a3b70a991e242cea3cd06eb645cac2ca7f9d0f5a77c4e4bc4eec345609f3",
+    "apps/worker/src/openSociety/journalRecovery.test.ts": "e468b8a5f359fac685aceb318bbff4577bed03c44f4acce35c8f6d051574baef",
+    "apps/worker/src/index.ts": "a5ce609012f8d727004bbd8ce9d9786a76e42ec6a15942ec9b45c1bd7cae142b",
+    "apps/residents/src/cli.ts": "0a11f037b2802a934ba244d7fdba321845bd78c92ff6985c7bf7a66652a1a503",
+    "apps/residents/scripts/verify-journal-recovery.mjs": "2f68bcb03728887bb9b5501d0d2a1b03428c7de5b2dd92f92159dea1e951b7c7",
+    "specs/SOCIETY_RUNTIME_RECOVERY_V1.md": "77ae84c24e5b1ac938d8f3988ded1d1fd726ca00f538a6819d4692d4450d2a2f"
+  },
+  "preservedFailures": [
+    {
+      "log": "/tmp/journal-recovery-cli.log",
+      "reason": "Verifier used nonexistent cognition.write; corrected to existing cognition.update/key."
+    },
+    {
+      "log": "/tmp/journal-recovery-lint.log",
+      "reason": "Untyped JSON test mutation; narrowed to Record<string, unknown>."
+    },
+    {
+      "log": "/tmp/journal-recovery-tests-final.log",
+      "reason": "Empty fixture incorrectly instantiated Runtime which creates a bootstrap commit; use an actual empty Journal. Final 7 tests and full suite pass."
+    }
+  ],
+  "limits": [
+    "Actual SIGKILL after explicit partial-tail injection, not a power-loss proof for every syscall.",
+    "PID writer lock and fsync/atomic rename supported local filesystem; not multi-host fencing.",
+    "No resident capabilities or policies changed; normal startup remains strict.",
+    "No frozen free-world data touched.",
+    "Canonical/partition complete-state integration and original 25 capabilities remain incomplete."
+  ]
+}

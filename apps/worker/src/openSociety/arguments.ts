@@ -45,3 +45,8 @@ export class ToolRefusal extends Error {
     this.name = 'ToolRefusal';
   }
 }
+
+export function booleanArg(args: Readonly<Record<string, unknown>>, name: string): boolean {
+  if (typeof args[name] !== 'boolean') throw new ToolRefusal(`invalid-boolean:${name}`);
+  return args[name];
+}

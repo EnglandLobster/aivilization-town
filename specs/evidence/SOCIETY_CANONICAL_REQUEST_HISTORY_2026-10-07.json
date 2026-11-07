@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "canonical-request-history-evidence-v1",
+  "sourceSha256": {
+    "packages/sim-core/src/fileEventStore.ts": "1b0042d862fabf1af55a53d3b28afbf2980701f49a78f3b496be0c80fb8ac3a7",
+    "packages/sim-core/src/fileEventStore.test.ts": "6e3e7fe867ef40c749a3a44285e2de706b132821b8e9440e98800f2d8edde3d4",
+    "apps/worker/src/canonicalRequestHistory.ts": "ec483b703a0aca8276378520bcc2ba4be7a8f71f16cd186e7a0201b6fa81f225",
+    "apps/worker/src/canonicalSocietyCandidate.ts": "a7db0e76620bc255dfe3aa49e13583030ae0c54d3f5ccd8449736af0bf0f6412",
+    "apps/worker/src/canonicalSocietyCandidate.test.ts": "61a8e25ae0cc891dcf9f5c29e05d301a1e0185322db0c4b7d0a94a95f712bc74",
+    "apps/worker/src/openSociety/journal.ts": "06b516ef95f6f9b7a4b4f70283d02ef66124773cb70a7027aeb726656e18e32c",
+    "apps/worker/src/openSociety/runtime.ts": "278748e8212bac3451997f8ebe5ed7a72931903bc22b0559cb818fc51270e14d",
+    "apps/worker/src/openSociety/types.ts": "434509817c949a5c3089c51a73e9cacef1117bfc7889c86b8b9acf275a9ad5e2",
+    "apps/residents/scripts/verify-canonical-request-candidate.mjs": "83a0bda6bb269483b82cfa386abfffd5ff36435b65dd1f8d7d127ca40b1d8d5f"
+  },
+  "realArchive": {
+    "passed": true,
+    "archive": "/home/dev/aivilization-town/.local/canonical-ownership-20261007/archive",
+    "residents": 25,
+    "historicalRequestIds": 126,
+    "authorityReceipts": 73,
+    "partitionReceipts": 26,
+    "historicalRetriesRejectedBeforeAndAfterRestart": true,
+    "completedOriginalTrips": 22,
+    "retainedMoves": 22,
+    "jobApplications": 3,
+    "retainedRevisions": 153,
+    "historicalRecords": 278,
+    "moneySupply": 257500,
+    "sourceTime": 7000,
+    "isolatedValidationTime": 2728000,
+    "restartReplayMatched": true,
+    "archiveUnchanged": true,
+    "candidateManifestSha256": "a3c9d90ddf0debfc04e835c7866d241588e03d8fa26d1aebf8c8dff4fe3e8c40",
+    "limitations": [
+      "Isolated temporary runtime only; no production activation, retirement or model run.",
+      "Explicit known source profile/default policy fixture; retained cognitive revisions included; earlier compacted history and exited subjects remain separate; exact historical IDs are fenced, not translated to new CLI results.",
+      "New social policies are not implicitly enabled; complete 25-capability delivery remains unfinished."
+    ]
+  },
+  "validation": {
+    "lint": {
+      "passed": true,
+      "logs": [
+        "/tmp/canonical-requests-lint.log",
+        "/tmp/canonical-requests-final-lint.log",
+        "/tmp/canonical-requests-last-lint.log"
+      ]
+    },
+    "typecheck": {
+      "passed": true,
+      "logs": [
+        "/tmp/canonical-requests-typecheck.log",
+        "/tmp/canonical-requests-final-typecheck.log"
+      ]
+    },
+    "build": {
+      "passed": true,
+      "logs": ["/tmp/canonical-requests-build.log", "/tmp/canonical-requests-worker-build.log"]
+    },
+    "tests": {
+      "passed": 3254,
+      "skipped": 1,
+      "filesPassed": 493,
+      "log": "/tmp/canonical-requests-full-test.log"
+    }
+  },
+  "initialFailures": [
+    "Tail fixture appended legacy bytes after compact records; original codec correctly rejected illegal mixed growth. Updated fixture to a truncated compact frame and asserted original codec rejection.",
+    "Real archive IDs can exceed CLI ID grammar; moved historical guard ahead of time advance validation and resumeReactions, returning a stable failure without effects.",
+    "Real verifier initially expected a bare error object; retained actual revision/simulationTime envelope and asserted failure fields."
+  ],
+  "limitations": [
+    "Exact IDs only; no semantic equivalence inference or translated old success results.",
+    "Optional descriptor for backward-compatible candidates; final importer must require complete source binding.",
+    "Original source retirement/publication, exited identities, full social-policy activation and complete 25 capabilities remain unfinished."
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "canonical-policy-continuity-evidence-v1",
+  "sourceSha256": {
+    "apps/worker/src/canonicalPolicyContinuation.ts": "2b7c1d85f471c33ca71320d18e900487e9b7c33062a2ff2ced11f3afa34b73ae",
+    "apps/worker/src/canonicalPolicyContinuation.test.ts": "db7d92515949ca24a03edeab6610daafd886714c8a40a53d8ddba79fedf946df",
+    "apps/worker/src/openSociety/types.ts": "92e2bb1d22aefbd2ecdeed7b1bfbf46d718469bb8818133abae261ef45294fc1",
+    "apps/worker/src/openSociety/manifest.ts": "6d313206754a0f5a3334756707bbd58cdeed09d89708c276682509ea06bedd9d",
+    "apps/worker/src/openSociety/runtime.ts": "6f2ef83e4b8a5c8a109fc90528ca134089ee67caa74ef17e75a1f9cc2db4eb60",
+    "apps/worker/src/openSociety/servicesTools.ts": "fa6fe8ee320e200c2c77f1a7a7b3505cff999bffb366219bea3a8a6d16ae0be1",
+    "apps/worker/src/openSociety/enterpriseManagementTools.ts": "4e6c565315f4103879e312861b99e25c9b4b513495f9ab02021c26c614d501dd",
+    "apps/worker/src/openSociety/materialTools.ts": "0dbc31272376c554457faf695fc9b9a6cbb8383d0d1a10f7c6d2f2787ced501c",
+    "apps/worker/src/openSociety/resourcePrincipalTools.ts": "bce3a3e3bcea1afeca3fb3eedddbc2495a99d87d2009d5bd545216b9be2edfdf",
+    "apps/worker/src/openSociety/engagementTools.ts": "7b2a058920ed896aa258c87575003c5757954b337bd9a0255d5c6dd1bf3da269",
+    "apps/residents/scripts/verify-canonical-policy-continuity.mjs": "e560f43db57dd899ca962ec5da5270fc8142425fe7b121bbc88bad6b6140fd62"
+  },
+  "validation": {
+    "lint": {
+      "log": "/tmp/canonical-policy-lint3.log",
+      "passed": true
+    },
+    "typecheck": {
+      "log": "/tmp/canonical-policy-typecheck-final.log",
+      "passed": true
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/canonical-policy-build.log"
+    },
+    "fullTests": {
+      "passed": 3243,
+      "skipped": 1,
+      "filesPassed": 488,
+      "log": "/tmp/canonical-policy-full-tests.log"
+    }
+  },
+  "realArchive": {
+    "passed": true,
+    "archive": "/home/dev/aivilization-town/.local/canonical-ownership-20261007/archive",
+    "sourceManifestSha256": "0c6e7abe2c16df83a4bec0d88ae810c223169a40c5c451288ac4f572d0cfa8bd",
+    "sourceManifestId": "resolved-run-manifest:sha256:4bf43f220ad70ff95d02760aa2e75bf866c3d4cbd3a88df6bf0cdd19cab939ae",
+    "seed": "canonical-runtime-composition-v1:smoke-25",
+    "fullPolicyManifestMatched": true,
+    "wages": {
+      "Cleaner": 250,
+      "CEO": 2263.244
+    },
+    "sourceFilesUnchanged": true,
+    "limitations": [
+      "Explicit default-policy fixture, not a general configuration inference/importer.",
+      "No target activation, full cognition migration or retired source; no free-model experiment."
+    ]
+  },
+  "realArchiveLog": "/tmp/canonical-policy-archive.log",
+  "retainedFailures": [
+    "/tmp/canonical-policy-tests.log: compared generated callback identity instead of actual wage results; assertions now verify results.",
+    "/tmp/canonical-policy-lint.log and lint2.log: JSON fixture needed explicit record type, generated manifest comparison uses unknown; no lint rules weakened."
+  ],
+  "limits": [
+    "Actual runtime source branch verified in isolated fixture, not full canonical world activation.",
+    "Source archive verification uses explicit known default configuration; arbitrary legacy options require authenticated source binding, no inference.",
+    "Full cognitive ledger, historical operation deduplication, source retirement and cross-partition migration remain in R01.",
+    "No new resident commands or institutions; no OpenCode or free-emergence claims."
+  ]
+}

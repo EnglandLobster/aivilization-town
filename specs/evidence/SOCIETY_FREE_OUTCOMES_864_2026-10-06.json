@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "society-free-checkpoint-evidence-v1",
+  "opportunities": 864,
+  "journalCommits": 6136,
+  "capabilityCalls": 2913,
+  "simulationTime": 1021108000,
+  "journalSha256": "6cd7136b16d078363b2ee442d18d6468fb1ac0c126d6f966d6fc8585e14a58e5",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayMatchesCapturedFullState": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFingerprints": 82,
+  "implementationVersions": {
+    "catalog": 61,
+    "skill": 60,
+    "rulebook": 50
+  },
+  "providerStatusCounts": {
+    "completed": 858,
+    "provider-error": 6
+  },
+  "latest32ProviderStatusCounts": {
+    "completed": 32
+  },
+  "treasury": 0,
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 456.0000000000102,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Maintenance Worker",
+      "balance": 433.8952710682325,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Receptionist",
+      "balance": 604.5528181623023
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 898.131666666956,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Supermarket Manager",
+      "balance": 399.9172495921195,
+      "upkeepArrears": 1.6757897047188024
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Chef",
+      "balance": 472.96568612048713
+    }
+  ],
+  "publicProposals": [
+    {
+      "id": "proposal-001-employment-quota",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-003-housing-subsidy",
+      "status": "withdrawn"
+    },
+    {
+      "id": "proposal-003-housing-subsidy-2",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-004-subsidy-500",
+      "status": "approved"
+    },
+    {
+      "id": "proposal-003-subsidy-500-fix",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-004-chef-capacity-2",
+      "status": "executed"
+    }
+  ],
+  "residentDocuments": 12,
+  "residentMessages": 266,
+  "latestResidentCalls": 98,
+  "latestRefusals": [
+    {
+      "sequence": 6058,
+      "actorId": "resident-002",
+      "capability": "world.work",
+      "error": "public-wage-full-funding-required"
+    }
+  ],
+  "enterprises": [],
+  "collectives": [],
+  "programs": [],
+  "projects": [],
+  "resourceSales": [],
+  "latestEventCounts": {
+    "worldEvents/SimulationTimeAdvanced": 92,
+    "worldEvents/PhysiologyChanged": 1872,
+    "worldEvents/AgentTravelStarted": 15,
+    "worldEvents/AgentActivityTimeCommitted": 27,
+    "worldEvents/ShortTermMemoryRecorded": 33,
+    "worldEvents/AgentLocationChanged": 14,
+    "worldEvents/ResidentMaterialsCommitted": 56,
+    "worldEvents/TradeExecuted": 6,
+    "worldEvents/ActionRejected": 1,
+    "worldEvents/InventoryChanged": 4,
+    "worldEvents/ResidentRestSessionChanged": 1647,
+    "worldEvents/PhysiologicalDistressChanged": 2,
+    "worldEvents/TradeTaxCharged": 6,
+    "worldEvents/TownDayPhaseChanged": 1,
+    "worldEvents/ResidentialUpkeepCharged": 1908,
+    "worldEvents/ExternalTradeBalancesDecayed": 7,
+    "worldEvents/SafetyNetGranted": 1,
+    "worldEvents/SubsidyPaid": 6
+  },
+  "limits": [
+    "Original world and provider sessions, no prescribed social goals, no assigned partners, no operator fiscal rescue.",
+    "Recorded existing safety-net/subsidy domain events remain genuine baseline policy effects, not operator injection.",
+    "No new documents/messages/organizations/structures/paid control quotes this phase.",
+    "Six prior public proposals/four executions retained; no new autonomous governance.",
+    "Periodic obligations were not enabled in this frozen phase.",
+    "Single initial condition; not a comparison or completed societal emergence."
+  ]
+}

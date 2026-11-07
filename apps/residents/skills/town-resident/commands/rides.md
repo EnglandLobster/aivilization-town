@@ -9,7 +9,7 @@ Publish your own single-person trip from your real current location.
 --destination-id <string> (required) maxLength=96 Record ID
 --expires-at <integer> (required) min=0 max=9007199254740991 Simulation deadline in milliseconds
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## rides list
@@ -21,7 +21,7 @@ Browse open requests or your own rides, without recommendation ranking.
 --offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
 --limit <integer> (optional) min=1 max=30 Page size
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## rides read
@@ -31,7 +31,7 @@ town rides read [flags]
 Read a public open request or your own accepted ride.
 --id <string> (required) maxLength=96 Record ID
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## rides quote
@@ -44,7 +44,7 @@ Online driver voluntarily offers a fixed total fare for one request.
 --fare <integer> (required) min=1 max=10000 Fixed positive fare
 --expires-at <integer> (required) min=0 max=9007199254740991 Simulation deadline in milliseconds
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## rides quotes
@@ -56,7 +56,7 @@ Read quotes for your request, or only your own quotes as a driver.
 --offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
 --limit <integer> (optional) min=1 max=30 Page size
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## rides withdraw
@@ -67,7 +67,7 @@ Withdraw your unaccepted quote.
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Expected current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## rides book
@@ -79,7 +79,7 @@ Rider selects a quote and escrows its fixed fare atomically.
 --quote-id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Expected current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## rides pickup
@@ -90,7 +90,7 @@ Driver at the vehicle starts real pickup travel, or becomes ready if already the
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Expected current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## rides board
@@ -101,7 +101,7 @@ Rider boards at actual pickup; both parties start the same real journey.
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Expected current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## rides cancel
@@ -112,7 +112,7 @@ Either party may cancel before passenger departure with a full refund; a moving 
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Expected current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 [能力索引](../capabilities.md) · [执行规则](../execution.md)

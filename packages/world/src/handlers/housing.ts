@@ -1,3 +1,4 @@
+import { mayResideWorldPremises, premisesAtLocation } from '../premisesAccess';
 import {
   evaluateHousingConstruction,
   evaluateResidenceChange,
@@ -41,6 +42,8 @@ export function handleAgentChooseResidenceCommand(input: {
       `location ${payloadResult.payload.locationId} is not residential`,
     );
   }
+  if (!mayResideWorldPremises(input.projection, agent.agentId, residence.locationId))
+    return rejectCommand(input, 'AgentChooseResidence', 'premises-residence-not-authorized');
   if (agent.locationId !== residence.locationId) {
     return rejectCommand(
       input,
@@ -100,6 +103,8 @@ export function handleAgentBuildHousingCommand(input: {
       `unknown housing location ${payloadResult.payload.locationId}`,
     );
   }
+  if (premisesAtLocation(input.projection, location.locationId))
+    return rejectCommand(input, 'AgentBuildHousing', 'use-material-backed-construction');
   if (location.kind !== 'residence') {
     return rejectCommand(
       input,

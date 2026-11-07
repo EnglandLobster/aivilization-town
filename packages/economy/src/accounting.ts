@@ -1,6 +1,8 @@
 export type EconomicAccountSector =
   | 'agent'
   | 'enterprise'
+  | 'collective'
+  | 'estate'
   | 'treasury'
   | 'public-service'
   | 'bank'
@@ -28,6 +30,8 @@ export type AccountingTransaction = {
 const CIRCULATING_MONEY_SECTORS: ReadonlySet<EconomicAccountSector> = new Set([
   'agent',
   'enterprise',
+  'collective',
+  'estate',
   'treasury',
   'public-service',
   'bank',
@@ -89,7 +93,7 @@ export function createAccountingTransaction(input: AccountingTransaction): Accou
 
 /**
  * The simulation's moneySupply tracks spendable balances owned by domestic
- * actors and public accounts (agents, enterprises, the treasury, public
+ * actors and public accounts (agents, enterprises, collectives, estate custody, the treasury, public
  * services, and the town bank). AMM reserves, the external sector and the
  * monetary authority are counterpart accounts outside that circulation scope.
  */

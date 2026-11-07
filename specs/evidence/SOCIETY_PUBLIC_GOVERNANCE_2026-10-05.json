@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "society-engineering-verification-v1",
+  "scope": "explicit-open-resident-public-governance-v1",
+  "fullCheck": {
+    "command": "pnpm check",
+    "passed": true,
+    "testsPassed": 2605,
+    "testsSkipped": 1,
+    "filesPassed": 358,
+    "filesSkipped": 1,
+    "log": "/tmp/public-check-final.log"
+  },
+  "build": {
+    "fullDependencyBuild": "/tmp/public-build.log",
+    "finalUpdatedPackagesBuild": "/tmp/public-build-final.log",
+    "passed": true
+  },
+  "cli": {
+    "passed": true,
+    "commands": 45,
+    "expectedRefusals": 5,
+    "checks": [
+      "compiled-identity-bound-cli",
+      "explicit-public-grant",
+      "independent-exact-ballots",
+      "actual-income-tax",
+      "actual-public-budget",
+      "actual-treasury-subsidy",
+      "conserved-money-supply",
+      "original-objection-not-verdict",
+      "approved-remedy",
+      "procedure-amended-under-old-rules",
+      "new-designated-executor",
+      "full-state-replay",
+      "journal-bytes-unchanged"
+    ]
+  },
+  "skillChecks": {
+    "testsPassed": 24,
+    "log": "/tmp/public-skill-tests.log",
+    "lintPassed": true
+  },
+  "limitations": [
+    "First public fiscal/procedure path only; broader jurisdictions, changing political membership, hiring/housing institutions and complete remedies remain pending.",
+    "Existing public budgets still use abstract public service accounts; real procurement not yet complete.",
+    "Canonical planner and partition authority are not integrated.",
+    "Initial jurisdiction and majority procedure are explicit scenario institutions, not emergent consent.",
+    "Prompted CLI engineering acceptance, not free Agent adoption."
+  ]
+}

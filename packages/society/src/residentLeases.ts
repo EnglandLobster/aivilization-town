@@ -200,3 +200,77 @@ export function applyResidentLeaseEvent(
     throw new Error('lease-revision-gap');
   return { ...s, leases: { ...s.leases, [e.lease.id]: e.lease } };
 }
+
+/** Recorded execution source; a boundary is not an impersonated resident command. */
+export type LeaseContinuitySource =
+  | { readonly kind: 'boundary'; readonly at: number }
+  | {
+      readonly kind: 'resident';
+      readonly at: number;
+      readonly actorId: string;
+      readonly operation: 'end' | 'pay';
+    };
+/** Validate immutable terms and recorded effects, without choosing a new action during replay. */
+export function validateLeaseContinuityTransition(
+  before: ResidentLease,
+  after: ResidentLease,
+  source: LeaseContinuitySource,
+  paidRent: number,
+): { returnDeposit: boolean } {
+  const fail = () => {
+    throw Error('invalid-lease-continuity-transition');
+  };
+  if (source.kind !== 'boundary' && source.kind !== 'resident') fail();
+  if (
+    !Number.isSafeInteger(source.at) ||
+    source.at < before.at ||
+    !Number.isFinite(paidRent) ||
+    paidRent < 0 ||
+    before.status === 'ended'
+  )
+    fail();
+  const mutable = new Set(['revision', 'status', 'nextRentAt', 'arrears']);
+  if (
+    Object.keys(before).length !== Object.keys(after).length ||
+    Object.entries(before).some(
+      ([key, value]) => !mutable.has(key) && Reflect.get(after, key) !== value,
+    ) ||
+    after.revision !== before.revision + 1
+  )
+    fail();
+  let ended = false;
+  if (source.kind === 'boundary') {
+    if (source.at !== nextLeaseBoundary(before)) fail();
+    ended = source.at >= before.expiresAt;
+    if (ended) {
+      if (
+        paidRent !== 0 ||
+        after.arrears !== before.arrears ||
+        after.nextRentAt !== before.nextRentAt
+      )
+        fail();
+    } else if (
+      before.status !== 'active' ||
+      (paidRent !== 0 && paidRent !== before.rent) ||
+      after.arrears !== before.arrears + before.rent - paidRent ||
+      after.nextRentAt !== before.nextRentAt + RESIDENT_LEASE_POLICY.rentPeriodMs
+    )
+      fail();
+  } else {
+    if (![before.hostId, before.tenantId].includes(source.actorId)) fail();
+    ended = source.operation === 'end';
+    if (after.nextRentAt !== before.nextRentAt) fail();
+    if (ended) {
+      if (paidRent !== 0 || after.arrears !== before.arrears) fail();
+    } else if (
+      source.operation !== 'pay' ||
+      source.actorId !== before.tenantId ||
+      before.arrears <= 0 ||
+      paidRent !== before.arrears ||
+      after.arrears !== 0
+    )
+      fail();
+  }
+  if (after.status !== (ended ? 'ended' : before.status)) fail();
+  return { returnDeposit: ended && before.status === 'active' && before.deposit > 0 };
+}

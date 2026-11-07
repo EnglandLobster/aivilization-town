@@ -1,3 +1,5 @@
+import { activeEnterpriseLaborTerms } from '@aivilization/enterprise';
+import { publicEmploymentAtCycle, publicEmploymentQuota } from '@aivilization/society';
 import { commodities, jobTiers, occupations } from '@aivilization/content';
 import {
   calculateNetWorth,
@@ -1829,10 +1831,37 @@ function withEducationOpportunityCostRule(input: {
   readonly policies: WorldCommandPolicies;
   readonly educationOpportunityCost?: EducationOpportunityCostConfig;
 }): Pick<WorldDecisionRulesContext, 'educationOpportunityCost'> | Record<string, never> {
+  const employers = Object.values(input.projection.enterprises).filter(
+    (e) => e.employeeAgentIds.includes(input.agent.agentId) && e.occupationName === input.agent.job,
+  );
+  // A public occupation catalogue cannot quote a resident-defined employment role.
+  // Keep legacy modes unchanged; the new read port follows the exact employer quote and period.
+  const wage =
+    input.projection.residentLabor && employers.length === 1
+      ? employers[0]!.employeeWageOffers?.[input.agent.agentId]
+      : undefined;
+  const labor = input.projection.residentLabor?.configuration;
+  const agreed =
+    labor?.compensationSource === 'accepted-enterprise-labor-terms-v1' && employers.length === 1
+      ? activeEnterpriseLaborTerms(employers[0]!, input.agent.agentId, input.projection.clock.now)
+      : undefined;
+  if (labor?.compensationSource === 'accepted-enterprise-labor-terms-v1' && !agreed) return {};
+  const laborQuote = agreed
+    ? {
+        wage: agreed.wageMicros / 1e6,
+        pay: {
+          version: 'labor-proportional-pay-v1' as const,
+          referenceSeconds: agreed.referenceMs / 1000,
+        },
+      }
+    : wage !== undefined && labor?.pay
+      ? { wage, pay: labor.pay }
+      : undefined;
   const educationOpportunityCost = createEducationOpportunityCostRule({
     agent: input.agent,
     policies: input.policies,
     treasuryBalance: input.projection.treasury ?? null,
+    ...(laborQuote ? { laborQuote } : {}),
     ...(input.educationOpportunityCost === undefined
       ? {}
       : { config: input.educationOpportunityCost }),
@@ -1862,10 +1891,18 @@ function createOccupationRules(input: {
       application.agentId === input.agent.agentId &&
       (currentCycleNumber === undefined || application.cycleNumber === currentCycleNumber),
   ).length;
-  const applicationLimit = calculateApplicationQuota({
-    residentialTier: input.agent.residentialTier,
-    quotaByResidentialTier: jobApplication.quotaByResidentialTier,
-  });
+  const employment = input.projection.publicEmployment
+    ? publicEmploymentAtCycle(
+        input.projection.publicEmployment,
+        Math.floor(input.projection.clock.now / input.projection.publicEmployment.cycleDurationMs),
+      )
+    : undefined;
+  const applicationLimit = employment
+    ? publicEmploymentQuota(employment.terms, input.agent.residentialTier)
+    : calculateApplicationQuota({
+        residentialTier: input.agent.residentialTier,
+        quotaByResidentialTier: jobApplication.quotaByResidentialTier,
+      });
   const educationSystemPolicy = input.policies.educationSystem;
   const agentEducationLevel = resolveEnabledAgentEducationLevel({
     agent: input.agent,
@@ -1875,16 +1912,20 @@ function createOccupationRules(input: {
   return occupations
     .map((occupation): WorldDecisionOccupationRule => {
       const jobTier = resolveJobTier(occupation.jobTier);
+      const publicRule = employment?.terms.occupations.find(
+        (o) => o.occupationName === occupation.name,
+      );
       const occupationThreshold = calculateEffectiveKnowledgeThreshold({
         educationScores: jobApplication.populationEducationScores,
-        educationFloor: occupation.educationFloor,
-        eligibilityShare: occupation.eligibilityShare,
+        educationFloor: publicRule?.educationFloor ?? occupation.educationFloor,
+        eligibilityShare: publicRule?.eligibilityShare ?? occupation.eligibilityShare,
       });
-      const effectiveEducationThreshold = Math.max(occupationThreshold, jobTier.minEducationScore);
-      const requiredResidentialTier = Math.max(
-        occupation.minResidentialTier,
-        jobTier.minResidentialTier,
-      );
+      const effectiveEducationThreshold = publicRule
+        ? occupationThreshold
+        : Math.max(occupationThreshold, jobTier.minEducationScore);
+      const requiredResidentialTier =
+        publicRule?.minimumResidentialTier ??
+        Math.max(occupation.minResidentialTier, jobTier.minResidentialTier);
       // education-system-v3: eligibility mirrors settlement — a vocational-track
       // applicant is evaluated at the bonus-adjusted effective score.
       const effectiveEducationScore =
@@ -1904,7 +1945,9 @@ function createOccupationRules(input: {
         effectiveEducationScore,
         effectiveEducationThreshold,
         requiredResidentialTier,
-        prerequisiteCommodity: jobTier.prerequisiteCommodity,
+        prerequisiteCommodity: publicRule
+          ? publicRule.prerequisiteCommodity
+          : jobTier.prerequisiteCommodity,
         applicationLimit,
         currentApplications,
       });
@@ -1919,7 +1962,9 @@ function createOccupationRules(input: {
           ? {}
           : { effectiveEducationScore }),
         requiredResidentialTier,
-        prerequisiteCommodity: jobTier.prerequisiteCommodity,
+        prerequisiteCommodity: publicRule
+          ? publicRule.prerequisiteCommodity
+          : jobTier.prerequisiteCommodity,
         eligible: rejectionReasons.length === 0,
         rejectionReasons,
         applicationQuota: {
@@ -1986,6 +2031,7 @@ function createProductionRules(input: {
   readonly policies: WorldCommandPolicies;
   readonly marketPools: Readonly<Record<string, AmmPool>>;
 }): readonly WorldDecisionProductionRule[] {
+  if (input.projection.materials?.extraction) return []; // Legacy instant production is explicitly disabled in the physical mode.
   const agentEducationLevel = resolveEnabledAgentEducationLevel({
     agent: input.agent,
     policies: input.policies,

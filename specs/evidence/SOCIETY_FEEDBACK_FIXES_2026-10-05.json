@@ -1,0 +1,39 @@
+{
+  "mode": "engineering-regression-after-observed-free-run-failure",
+  "sourceJournalSequence": 130,
+  "fullCheck": {
+    "lint": "passed",
+    "typecheck": "passed",
+    "testsPassed": 2568,
+    "testsSkipped": 1
+  },
+  "build": "passed",
+  "continuityCli": {
+    "passed": true,
+    "commands": 34,
+    "checks": [
+      "compiled-cli",
+      "original-reading",
+      "own-sent-message-is-firsthand-evidence",
+      "unread-member-and-outsider-cannot-cite-message",
+      "exact-page-receipts",
+      "search-by-person-source",
+      "personal-pin",
+      "self-chosen-interval",
+      "remote-service",
+      "independent-settlement-consent",
+      "escrow-conservation",
+      "actual-provider-time",
+      "voluntary-early-departure",
+      "exact-replay"
+    ]
+  },
+  "serviceCli": {
+    "calls": 96,
+    "expectedRefusals": 25,
+    "evidence": "SOCIETY_SERVICE_CONTROL_2026-10-05.json"
+  },
+  "modelUsedForTheseChecks": false,
+  "baselineEvidence": "SOCIETY_FREE_BASELINE_2026-10-05.json",
+  "freeContinuation": "separate-run-not-yet-verified"
+}

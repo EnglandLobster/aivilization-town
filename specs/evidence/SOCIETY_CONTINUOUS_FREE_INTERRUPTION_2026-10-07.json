@@ -1,0 +1,336 @@
+{
+  "version": "resident-continuous-phase-observation-v1",
+  "mode": "unprompted-existing-world",
+  "finish": {
+    "event": "resident-society-finished",
+    "status": "provider-error",
+    "opportunities": 13
+  },
+  "beforeRevision": 259,
+  "afterRevision": 577,
+  "beforeClock": 3337000,
+  "afterClock": 3349000,
+  "simulationElapsedMs": 12000,
+  "journalHash": "beb7130695dcde2f37c5b3664bf364647efceaa7f2e72b296e15f0027f424114",
+  "historicalPrefixPreserved": true,
+  "opportunities": 13,
+  "distinctResidents": 13,
+  "capabilityCounts": {
+    "world.observe/accepted": 129,
+    "production.recipes/accepted": 20,
+    "sources.list/accepted": 13,
+    "stocks.list/accepted": 6,
+    "stocks.create/accepted": 8,
+    "stocks.read/accepted": 9,
+    "production.gather/accepted": 10,
+    "production.read/accepted": 7,
+    "production.start/accepted": 8,
+    "schedule.wait/accepted": 12,
+    "programs.list/accepted": 1,
+    "offers.list/accepted": 4,
+    "production.list/accepted": 8,
+    "world.apply_job/accepted": 3,
+    "orders.list/accepted": 1,
+    "feed.list/accepted": 2,
+    "production.start/refused": 1,
+    "sources.read/accepted": 5,
+    "memory.search/accepted": 2,
+    "rules.capabilities/accepted": 5,
+    "world.move/accepted": 4,
+    "obligations.list/refused": 1,
+    "world.work/refused": 1,
+    "schedule.list/accepted": 1,
+    "world.sleep/accepted": 1,
+    "world.study/refused": 2,
+    "groups.list/accepted": 1,
+    "production.gather/refused": 1,
+    "memory.read/accepted": 4,
+    "governance.employment/refused": 1,
+    "world.apply_job/refused": 2,
+    "rules.capability/accepted": 1,
+    "views.list/accepted": 1,
+    "collectives.list/accepted": 1,
+    "messages.list/accepted": 1,
+    "production.read/refused": 1,
+    "spaces.create/accepted": 1,
+    "files.create/accepted": 1
+  },
+  "refusals": [
+    {
+      "sequence": 333,
+      "actorId": "smoke-25-world-main-agent-013",
+      "capability": "production.start",
+      "error": "material-source-labor-capacity-unavailable"
+    },
+    {
+      "sequence": 394,
+      "actorId": "smoke-25-world-main-agent-016",
+      "capability": "obligations.list",
+      "error": "periodic-obligations-not-enabled"
+    },
+    {
+      "sequence": 406,
+      "actorId": "smoke-25-world-main-agent-016",
+      "capability": "world.work",
+      "error": "agent job none does not match Waiter"
+    },
+    {
+      "sequence": 444,
+      "actorId": "smoke-25-world-main-agent-018",
+      "capability": "world.study",
+      "error": "agent is busy with travel until simulation time 4139000 (now 3344000)"
+    },
+    {
+      "sequence": 489,
+      "actorId": "smoke-25-world-main-agent-020",
+      "capability": "production.gather",
+      "error": "material-stock-revision-conflict"
+    },
+    {
+      "sequence": 503,
+      "actorId": "smoke-25-world-main-agent-021",
+      "capability": "governance.employment",
+      "error": "public-employment-not-enabled"
+    },
+    {
+      "sequence": 505,
+      "actorId": "smoke-25-world-main-agent-021",
+      "capability": "world.apply_job",
+      "error": "application quota exceeded: allowed 1, used 1"
+    },
+    {
+      "sequence": 522,
+      "actorId": "smoke-25-world-main-agent-021",
+      "capability": "world.study",
+      "error": "actual-scenario-course-location-required"
+    },
+    {
+      "sequence": 552,
+      "actorId": "smoke-25-world-main-agent-022",
+      "capability": "world.apply_job",
+      "error": "agent is busy with production until simulation time 3348600 (now 3348000)"
+    },
+    {
+      "sequence": 567,
+      "actorId": "smoke-25-world-main-agent-023",
+      "capability": "production.read",
+      "error": "production-not-readable"
+    }
+  ],
+  "eventCounts": {
+    "worldEvents/ResidentMaterialsCommitted": 123,
+    "worldEvents/SimulationTimeAdvanced": 13,
+    "worldEvents/JobApplicationSubmitted": 3,
+    "worldEvents/ShortTermMemoryRecorded": 13,
+    "worldEvents/AgentTravelStarted": 4,
+    "worldEvents/AgentActivityTimeCommitted": 5,
+    "worldEvents/ActionRejected": 5,
+    "worldEvents/ResidentRestSessionChanged": 9,
+    "informationEvents/SpaceCreated": 1,
+    "distributionEvents/PublicationRecorded": 1,
+    "informationEvents/DocumentCreated": 1
+  },
+  "materialOperations": {
+    "create-stock": 8,
+    "create-extraction": 10,
+    "start-production": 8,
+    "production-progress": 97
+  },
+  "newMaterialConversions": [],
+  "limitations": [
+    "Facts cover this suffix only; existing institutions and assets are not new emergent outcomes.",
+    "Counts, names and model text do not prove cooperation or stable institutions.",
+    "A travel start is not arrival; enrollment is not completed learning.",
+    "Provider token categories are preserved separately and may overlap."
+  ],
+  "replayMatched": true,
+  "reopenDidNotAppend": true,
+  "providerSummary": [
+    {
+      "actorId": "smoke-25-world-main-agent-011",
+      "turnId": "turn-260-smoke-25-world-main-agent-011",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 122056,
+      "sha256": "558eea6a398a0993a074b860f7ae7421debf66256b5892093c5050c9489be3cc"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-012",
+      "turnId": "turn-279-smoke-25-world-main-agent-012",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 88710,
+      "sha256": "e38efa57901ee0c2169a5da082c6cb995a0a07a114b97edc9a4caa23aa41e0da"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-013",
+      "turnId": "turn-313-smoke-25-world-main-agent-013",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 93824,
+      "sha256": "ffdb5d2183b61b0f975870be94e4bbb9d65154bd4fa330aaaa73aaa3205146d0"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-014",
+      "turnId": "turn-342-smoke-25-world-main-agent-014",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 143035,
+      "sha256": "f1093d2f830e55287ba5fbc9a94791b8bc75a6cd238b12b23d1b914963b3b238"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-015",
+      "turnId": "turn-371-smoke-25-world-main-agent-015",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 49232,
+      "sha256": "3488d2daa20843e1d78756d9da04b29cfab82e7a772d33c7b522bc7668361fc6"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-016",
+      "turnId": "turn-387-smoke-25-world-main-agent-016",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 277965,
+      "sha256": "28cf33f2095ab38e884fc1c0775f26a977d6720ca66647e04129817e869b5e5f"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-017",
+      "turnId": "turn-415-smoke-25-world-main-agent-017",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 130863,
+      "sha256": "a6fb5ba58b824487722218fec765a251a57363026afcf47801a1f9f312bba22f"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-018",
+      "turnId": "turn-435-smoke-25-world-main-agent-018",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 66113,
+      "sha256": "a782b1010840216376d3dd9cedd368266bf90737617d41a87ea09bd9c2fd6c18"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-019",
+      "turnId": "turn-448-smoke-25-world-main-agent-019",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 87859,
+      "sha256": "38f2d674e4ee0589a4fe29eb2ae7e4352b8f43a964a48e418a120b38ca7130e9"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-020",
+      "turnId": "turn-478-smoke-25-world-main-agent-020",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 296386,
+      "sha256": "0853656328c5d36bd55c75e5348c4c0e677ee152f573fdf7d07ba307be770205"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-021",
+      "turnId": "turn-498-smoke-25-world-main-agent-021",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 93897,
+      "sha256": "37df56a1b229fa8b57b8bebc3efdc45ab9472ef8450e7cf703348f24542a23f5"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-022",
+      "turnId": "turn-528-smoke-25-world-main-agent-022",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 152597,
+      "sha256": "5e3b0da8c011553f5f120f0a2e4a2fec949d1c63f810f78dd2b960635e8893e4"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-023",
+      "turnId": "turn-556-smoke-25-world-main-agent-023",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "provider-error",
+      "termination": {
+        "exitSignal": "SIGTERM",
+        "aborted": true,
+        "abortReason": "TimeoutError",
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 299527,
+      "sha256": "6bf236e47b5242ac5dfd67447d962c004b0c8e7be15b5f3a42f4ec46424c0b97"
+    }
+  ],
+  "plannedOpportunities": 24,
+  "completedProviderTurns": 12,
+  "remainingPlannedOpportunities": 11,
+  "sourceReport": ".local/canonical-cutover-20261007/continuous-free-observation.json"
+}

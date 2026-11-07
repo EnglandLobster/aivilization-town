@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "independent-service-authority-evidence-v1",
+  "sourceSha256": {
+    "packages/services/src/servicePrincipalModel.ts": "44214a912a82f4df3aafe0cccb7bcb3a662a45eab1581b2e3483ed0f6b86334c",
+    "packages/services/src/servicePrincipals.ts": "8f1baa1049f81143137f7017ee7255c2e92147b116ce796050a1aca7f4cd7841",
+    "packages/services/src/servicePrincipals.test.ts": "2c09c6c0f4e1a57e413339a43bd387feb45807a5591ca9d728f6a3d051fdd951",
+    "packages/services/src/model.ts": "aa0fce5a220f0ebab4a99d30f2d14d05137013a5b00b4847c7eb0af2cd7b83ee",
+    "packages/world/src/servicePrincipals.ts": "1a14ab48f94f35c5fcf5550182959298474c6187bd7a531965d4d24093c6bbb8",
+    "packages/world/src/serviceSupply.ts": "4cc94c152ab8330fd9afb22f80ef7276acb8f12feb6f886f60710db7559947f2",
+    "packages/world/src/serviceAffiliation.ts": "ad030dfb1c299f61abf49bade8b8bf8e67dcac6402007c2701e8d47dfc2a6099",
+    "packages/world/src/serviceSupplyRelations.ts": "fafedac42e42356190995e312a393e7fc87c34896968e08767cdde0f418ad5d5",
+    "apps/worker/src/openSociety/runtime.ts": "1978833aee8c24782afbdce137d029f94ae0dfa2a7e1c3e82f0197f7337432a3",
+    "apps/worker/src/openSociety/state.ts": "3199af2a2b2b3f6d807ac9cf6748cb919adbb878b86ed03716966470c16ae4eb",
+    "apps/worker/src/openSociety/context.ts": "cd18acf06c0b7c77e8a39f27c444598691a52ff8e3adb760ef7cba791ec90ab2",
+    "apps/worker/src/openSociety/societyActivation.ts": "422445c4cedee0605b7ead46472a4852fed20e56058227f0f646b3a48a197b8c",
+    "apps/worker/src/openSociety/societyActivation.test.ts": "17712ff93b530f6308c9fa9e6a39f3f78f47a013d7af1f45e36f033a910ec8dd",
+    "apps/worker/src/openSociety/serviceSupply.test.ts": "91e81ee323f641411b053df589dc8674ea524fdbd85b8aa7a0d65eea0d89e661",
+    "apps/residents/src/cli.ts": "b28ee4003c0a2110c8d1519e803f63e89edfe7b041656a2ae032a95f4968a3f7",
+    "apps/server/scripts/verify-independent-service-authority.mjs": "608dfe99638134a0756018ac05517602cf6d021f50a83daf0242bf85c3f3edd1"
+  },
+  "realMigratedWorld": {
+    "passed": true,
+    "root": "/home/dev/aivilization-town/.local/canonical-cutover-20261007/society",
+    "activation": {
+      "version": "society-services-activation-v2",
+      "status": "enabled",
+      "completed": [
+        "providers",
+        "service-control",
+        "service-principals",
+        "service-supply",
+        "service-affiliations",
+        "service-relations"
+      ],
+      "features": [
+        {
+          "feature": "providers",
+          "enabled": true
+        },
+        {
+          "feature": "service-control",
+          "enabled": true
+        },
+        {
+          "feature": "service-principals",
+          "enabled": true
+        },
+        {
+          "feature": "service-supply",
+          "enabled": true
+        },
+        {
+          "feature": "service-affiliations",
+          "enabled": true
+        },
+        {
+          "feature": "service-relations",
+          "enabled": true
+        }
+      ],
+      "scope": "service-directory-no-public-grants-providers-or-facilities"
+    },
+    "previousRevision": 41,
+    "revision": 42,
+    "worldAndPublicGrantsUnchanged": true,
+    "originalManifestUnchanged": true,
+    "serviceAgreementsUnchanged": true,
+    "retryCreatedNoCommits": true,
+    "replayMatched": true,
+    "scope": "operator-transition-not-emergence"
+  },
+  "realOpenCode": {
+    "completed": true,
+    "opportunities": 1,
+    "calls": 5,
+    "providerExitCode": 0,
+    "model": "opencode-go/deepseek-v4.1-flash",
+    "journalCommits": 50,
+    "journalSha256": "7cbeace921817c73864e0292167c1472ad20d4e5d3cf96303345b69922c144b2",
+    "worldEventCounts": {
+      "AgentTravelStarted": 1,
+      "AgentActivityTimeCommitted": 1,
+      "ShortTermMemoryRecorded": 1,
+      "SimulationTimeAdvanced": 1
+    },
+    "rejections": [
+      {
+        "capability": "sources.list",
+        "error": "finite-material-sources-not-enabled"
+      }
+    ],
+    "reopenedWithoutNewCommits": true,
+    "replayMatched": true,
+    "writerReleased": true,
+    "limitations": [
+      "One unprompted opportunity, not emergence evidence.",
+      "No autonomous service adoption observed.",
+      "Finite physical material sources remain explicitly disabled.",
+      "Travel began; no arrival event in this run."
+    ]
+  },
+  "validation": {
+    "targeted": {
+      "passed": 17,
+      "log": "/tmp/independent-services-tests3.log"
+    },
+    "tests": {
+      "passed": 3274,
+      "skipped": 1,
+      "filesPassed": 496,
+      "filesSkipped": 1,
+      "log": "/tmp/independent-services-full-tests.log"
+    },
+    "lint": {
+      "passed": true,
+      "logs": ["/tmp/independent-services-lint.log", "/tmp/independent-services-final-lint.log"]
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/independent-services-typecheck2.log"
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/independent-services-build.log"
+    },
+    "format": {
+      "passed": true,
+      "log": "/tmp/independent-services-final-format.log"
+    }
+  },
+  "initialFailures": [
+    "Runtime restart still equated principal policy with public grant; explicit v3 replay branch now preserves independent directory and old v2 checks.",
+    "Test fixture location was nullable; added an explicit fixture assertion before building service request."
+  ],
+  "limitations": [
+    "Explicit new phase only; old manifest and v1 phase unchanged.",
+    "Other resource principal modules retain separate public-grant coupling pending review.",
+    "Independent-start directories do not implicitly receive public grants; enabling later public service procurement needs an explicit grant-registration path.",
+    "Finite materials and actual bodily time on migrated policy remain next integration work.",
+    "No proof of stable emergence or all 25 capabilities complete."
+  ]
+}

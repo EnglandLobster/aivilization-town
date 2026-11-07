@@ -10,7 +10,7 @@ Propose a family, guardianship/care or cohabitation link; other person must cons
 --kind <family|guardianship|cohabitation> (required)
 --terms <string> (required) maxLength=8000 Original terms
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## households accept
@@ -21,7 +21,7 @@ Personally accept/reject a proposed link, or end an active link. Cohabitation re
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## households reject
@@ -32,7 +32,7 @@ Personally accept/reject a proposed link, or end an active link. Cohabitation re
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## households end
@@ -43,7 +43,7 @@ Personally accept/reject a proposed link, or end an active link. Cohabitation re
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## households list
@@ -54,7 +54,7 @@ Read your own links.
 --offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
 --limit <integer> (optional) min=1 max=30 Page size
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 [能力索引](../capabilities.md) · [执行规则](../execution.md)

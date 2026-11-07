@@ -1,9 +1,115 @@
+import type { FreightCustodyCollectivePort } from './freightCustodyAuthority';
+import type { InterruptedResidentTravel } from './residentTransportInterruption';
+import {
+  applyServiceClosurePolicy,
+  assertServiceClosurePolicy,
+  type ServiceClosurePolicy,
+} from './serviceClosurePolicy';
+import { applyPeriodicAccessProjection, type PeriodicAccessPolicy } from './periodicAccess';
+import { applyResourceAdaptersProjection, type ResourceAdapterPolicy } from './resourceAdapters';
+import { applyServiceFacilitiesRegistration } from './serviceFacilityRegistration';
+import { applyResidentLaborTermsProjection } from './residentLaborTerms';
+import { applyConstructionTradeProjection } from './residentConstructionTrade';
+import {
+  applyResidentAdmissionProjection,
+  assertResidentAdmissionSnapshot,
+  residentIdentityAdmissionRejection,
+} from './residentAdmission';
+import type { RESIDENT_ADMISSION_POLICY } from '@aivilization/society';
+import {
+  applyResidentEstateCreditProjection,
+  assertResidentEstateCreditSnapshot,
+  applyEstateCreditDeparture,
+  nextResidentEstateCreditDueAt,
+} from './residentEstateCredit';
+import type { EstateCreditState } from '@aivilization/credit';
+import type { SuccessionControlExecutionsState } from '@aivilization/society';
+import {
+  applyResidentSuccessionProjection,
+  assertResidentSuccessionSnapshot,
+} from './residentSuccession';
+import { applyResidentExitCapture } from './residentExitCapture';
+import { applyResourceSalesProjection } from './resourceSales';
+import { assertResidentExitSnapshot, type ResidentExitState } from './residentExitPreservation';
+import { applyPeriodicObligationsProjection } from './periodicObligations';
+import { assertPeriodicEnterpriseProjection } from './periodicEnterpriseAccounting';
+import {
+  assertPeriodicObligationsState,
+  type PeriodicObligationsState,
+} from '@aivilization/commerce';
+import type { ResourceSalesState } from '@aivilization/commerce';
+import {
+  applyPhysicalHousingRestProjection,
+  assertPhysicalHousingRestEvidence,
+} from './physicalHousingRest';
+import type { PhysicalHousingRestPolicy } from '@aivilization/society';
+import { applyServiceSupplyRelationsProjection } from './serviceSupplyRelations';
+import { applyServiceAffiliationProjection } from './serviceAffiliation';
+import type { ServicesState } from '@aivilization/services';
+import { applyServicePrincipalsProjection } from './servicePrincipals';
+import { assertEnterpriseServiceClosure } from './servicePrincipalEstate';
+import { applyServiceSupplyProjection } from './serviceSupply';
+import { applyVehiclePrincipalsProjection } from './vehiclePrincipals';
+import { applyPrincipalEvidenceTradeProjection } from './principalEvidenceTrade';
+import { applyPrincipalPremisesRightsProjection } from './principalPremisesRights';
+import type { PrincipalCollectivePort } from './principalCollectivePort';
+import {
+  applyHousingOccupancyProjection,
+  advanceHousingOccupancyRevision,
+} from './housingOccupancy';
+import type { HousingOccupancyState } from '@aivilization/society';
+import { assertPublicHousingEventSource } from './publicHousing';
+import type { PublicHousingState } from '@aivilization/society';
+import { applyHousingChoiceProjection, advanceHousingChoiceRevision } from './housingChoice';
+import type { HousingChoiceState } from '@aivilization/society';
+import { applyResidentCapitalProjection } from './capitalSettlement';
+import type { CapitalWorldState } from './capitalModel';
+import type { PublicEmploymentState } from '@aivilization/society';
+import { assertPublicEmploymentEventSource } from './publicEmployment';
+import {
+  applyEnterpriseControlProjection,
+  assertEnterpriseOperationSource,
+} from './enterpriseControl';
+import type { PublicLaborWorldState } from './publicLaborModel';
+import { applyPublicLaborProjection } from './projectionReducers/publicLabor';
+import { applyServiceBusinessAuthorization } from './serviceBusinessAuthorization';
+import type { ServiceEmploymentState } from './serviceEmploymentModel';
+import { assertInventoryQuantityEvidence } from './inventoryQuantityEvidence';
+import { applyServiceTimeProjection, type ServiceTimeState } from './serviceTime';
+import {
+  educationAuthorityFactsEqual,
+  applyEducationAuthorityProjection,
+  assertFormalPromotion,
+  type EducationAuthorityState,
+} from './educationAuthority';
+import type { QualificationOrigin } from '@aivilization/society';
+import type { ServiceEngagementsState } from '@aivilization/services';
+import type { ResidentStudyState } from './residentStudyModel';
+import type { ResidentLaborWorldState } from './residentLaborModel';
+import type { ProductiveEmploymentState } from './productiveEmploymentModel';
+import { applyProductiveEmploymentProjection } from './productiveEmployment';
+import { applyResidentLaborProjection } from './projectionReducers/residentLabor';
+import { applyResidentStudyProjection } from './projectionReducers/residentStudy';
+import type { LogisticsState } from '@aivilization/logistics';
+import { applyLogisticsProjection } from './projectionReducers/logistics';
+import { applyServiceEngagementsProjection } from './projectionReducers/serviceEngagements';
+import type { PremisesState, PremisesRightsState } from '@aivilization/premises';
+import { applyPremisesRightsProjection } from './projectionReducers/premisesRights';
+import { applyPremisesProvisionProjection } from './residentPremisesProvision';
+import { applyPremisesProjection } from './projectionReducers/premises';
+import type { MaterialsState } from '@aivilization/materials';
+import { applyMaterialsProjection } from './projectionReducers/materials';
+import type { CommonAccountsState } from '@aivilization/economy';
+import { applyCommonAccountsProjection } from './projectionReducers/commonAccounts';
 import type { MobilityState } from '@aivilization/mobility';
 import { applyResidentMobilityProjection } from './projectionReducers/residentMobility';
 import { applyResidentParticipationEnded } from './projectionReducers/residentParticipation';
 import type { ResidentLeaseState } from '@aivilization/society';
+import type { ResidentRestState } from '@aivilization/society';
+import { applyResidentRestProjection } from './projectionReducers/residentRest';
 import { applyResidentLeaseProjection } from './projectionReducers/residentLeases';
-import type { CommerceState } from '@aivilization/commerce';
+import type { CommerceState, EvidenceTradeState } from '@aivilization/commerce';
+import { applyEvidenceTradeProjection } from './projectionReducers/evidenceTrade';
 import { applyResidentCommerceProjection } from './projectionReducers/residentCommerce';
 import {
   addInventory,
@@ -20,6 +126,7 @@ import type { ShortTermMemoryRecord } from '@aivilization/memory';
 import type { AgentId, ConversationId, LocationId, SimulationClock } from '@aivilization/sim-core';
 import type { HumanCommandAttribution } from '@aivilization/sim-core';
 import {
+  recognizeInitialQualification,
   classifySocialCommitmentIntent,
   createDirectedSocialRelationKey,
   decaySocialRelation,
@@ -100,6 +207,7 @@ export type WorldAgentState = {
    * thresholds.
    */
   readonly educationLevel?: EducationLevel;
+  readonly qualificationOrigin?: QualificationOrigin;
   /**
    * Academic/vocational track, assigned when an exam-gated promotion splits
    * tracks (planned later stage). Absent means the default academic track.
@@ -203,6 +311,7 @@ export type WorldLocationState = {
 export type WorldLocationStateInput = WorldLocationState;
 
 export type WorldJobApplicationState = {
+  readonly publicEmploymentRevision?: number;
   readonly applicationId: string;
   readonly cycleNumber: number;
   readonly agentId: AgentId;
@@ -218,6 +327,7 @@ export type WorldJobApplicationState = {
 };
 
 export type WorldRecruitmentCycleState = {
+  readonly publicEmploymentRevision?: number;
   readonly cycleNumber: number;
   readonly cycleStartedAt: number;
   readonly cycleEndedAt: number;
@@ -240,6 +350,7 @@ export type WorldEducationExamApplicationState = {
   readonly status: 'pending' | EducationExamResolutionStatus;
   readonly resolvedAt?: number;
   readonly resolutionReason?: string;
+  readonly admittedTrack?: EducationTrack;
 };
 
 export type WorldEducationExamCycleState = {
@@ -280,6 +391,10 @@ export type WorldEconomicCompositionState = {
     readonly enterprises: number;
     readonly treasury: number;
     readonly bank: number;
+    readonly publicServices?: number;
+    readonly collectives?: number;
+    /** Actual preserved personal cash; absent on legacy observations. */
+    readonly estates?: number;
     readonly ammPoolCurrency: number;
     readonly ammPoolCommodityValue: number;
     readonly externalNetInflow: number;
@@ -408,6 +523,40 @@ export type WorldResourceFlowMetricsState = {
 };
 
 export type WorldProjection = {
+  readonly residentExits?: ResidentExitState;
+  readonly residentAdmissionPolicy?: typeof RESIDENT_ADMISSION_POLICY;
+  readonly estateCredit?: EstateCreditState;
+  readonly successionControlExecutions?: SuccessionControlExecutionsState;
+  readonly publicHousing?: PublicHousingState;
+  readonly physicalHousingRest?: PhysicalHousingRestPolicy;
+  readonly housingOccupancy?: HousingOccupancyState;
+  readonly housingChoice?: HousingChoiceState;
+  readonly residentRest?: ResidentRestState;
+  readonly residentStudy?: ResidentStudyState;
+  readonly publicLabor?: PublicLaborWorldState;
+  readonly residentLabor?: ResidentLaborWorldState;
+  readonly productiveEmployment?: ProductiveEmploymentState;
+  readonly educationAuthority?: EducationAuthorityState;
+  readonly serviceTime?: ServiceTimeState;
+  readonly serviceEmployment?: ServiceEmploymentState;
+  readonly capitalAgreements?: CapitalWorldState;
+  readonly publicEmployment?: PublicEmploymentState;
+  readonly publicGovernance?: {
+    readonly authority: PublicGovernanceState;
+    readonly institutionPolicy: TownGovernancePolicy;
+  };
+  readonly materials?: MaterialsState;
+  readonly premises?: PremisesState;
+  readonly premisesRights?: PremisesRightsState;
+  readonly commonAccounts?: CommonAccountsState;
+  readonly serviceEngagements?: ServiceEngagementsState;
+  readonly logistics?: LogisticsState;
+  readonly resourceSales?: ResourceSalesState;
+  readonly resourceAdapters?: ResourceAdapterPolicy;
+  readonly serviceClosurePolicy?: ServiceClosurePolicy;
+  readonly periodicAccess?: PeriodicAccessPolicy;
+  readonly periodicObligations?: PeriodicObligationsState;
+  readonly residentTrade?: EvidenceTradeState;
   readonly residentLeases?: ResidentLeaseState;
   readonly residentCommerce?: CommerceState;
   readonly residentMobility?: MobilityState;
@@ -466,6 +615,7 @@ export type WorldProjection = {
   readonly conversationRecords: readonly WorldConversationRecordState[];
   readonly socialCommitments: Readonly<Record<string, WorldSocialCommitmentState>>;
   readonly activityTimeByAgent: Readonly<Record<string, WorldAgentActivityTimeState>>;
+  readonly interruptedTravelByAgent?: Readonly<Record<string, InterruptedResidentTravel>>;
   readonly transitByAgent?: Readonly<Record<string, WorldAgentTransitState>>;
   /**
    * Last simulation time each agent's per-agent time effects were settled.
@@ -610,6 +760,16 @@ export function normalizeLegacyWorldProjectionSnapshot(
   projection: WorldProjection,
 ): WorldProjection {
   validateSpatialLocations(projection.locations);
+  assertResidentExitSnapshot(projection);
+  assertResidentAdmissionSnapshot(projection);
+  assertResidentEstateCreditSnapshot(projection);
+  assertResidentSuccessionSnapshot(projection);
+  if (projection.periodicObligations) {
+    assertPeriodicObligationsState(projection.periodicObligations);
+    if (!projection.publicGovernance?.authority.grant.periodicObligations)
+      throw Error('periodic-snapshot-original-scope-required');
+  }
+  assertPeriodicEnterpriseProjection(projection);
   assertAgentLocationReferencesValid(projection.agents, projection.locations);
   assertPhysicalLocationCapacityNotExceeded(projection.agents, projection.locations);
   assertResidentialCapacityNotExceeded(projection.agents, projection.locations);
@@ -660,6 +820,7 @@ export function createWorldProjection(input: {
    * by snapshot hydration and tests. Omitted keeps the projection
    * transit-free until a move command creates state.
    */
+  readonly interruptedTravelByAgent?: Readonly<Record<string, InterruptedResidentTravel>>;
   readonly transitByAgent?: Readonly<Record<string, WorldAgentTransitState>>;
   readonly treasury?: number;
   /**
@@ -798,6 +959,9 @@ export function createWorldProjection(input: {
     ),
     activityTimeByAgent: {},
     transitByAgent: {},
+    ...(input.interruptedTravelByAgent
+      ? { interruptedTravelByAgent: structuredClone(input.interruptedTravelByAgent) }
+      : {}),
     ...(input.weather === undefined ? {} : { weather: { ...input.weather } }),
     ...(input.transitByAgent === undefined
       ? {}
@@ -950,6 +1114,72 @@ export function applyWorldEvent(
   sourceProjection: WorldProjection,
   event: WorldEvent,
 ): WorldProjection {
+  return applyWorldEventWithPrincipalAuthority(sourceProjection, event);
+}
+/** Composition may supply the authoritative collective journal; ordinary world replay grants no such authority. */
+export function applyWorldEventWithPrincipalAuthority(
+  sourceProjection: WorldProjection,
+  event: WorldEvent,
+  collective?: PrincipalCollectivePort,
+  serviceDirectory?: ServicesState,
+  custodyAuthority?: FreightCustodyCollectivePort,
+): WorldProjection {
+  assertServiceClosurePolicy(sourceProjection);
+  const serviceClosure = applyServiceClosurePolicy(sourceProjection, event, serviceDirectory);
+  if (serviceClosure) return serviceClosure;
+  const facilities = applyServiceFacilitiesRegistration(sourceProjection, event);
+  if (facilities) return facilities;
+  const laborTerms = applyResidentLaborTermsProjection(sourceProjection, event, collective);
+  if (laborTerms) return laborTerms;
+  const estateCredit = applyResidentEstateCreditProjection(sourceProjection, event);
+  if (estateCredit) return estateCredit;
+  const succession = applyResidentSuccessionProjection(sourceProjection, event);
+  if (succession) return succession;
+  assertEnterpriseServiceClosure(sourceProjection, event, serviceDirectory);
+  const serviceSupplyRelations = applyServiceSupplyRelationsProjection(
+    sourceProjection,
+    event,
+    serviceDirectory,
+    undefined,
+    collective,
+  );
+  if (serviceSupplyRelations) return serviceSupplyRelations;
+  const servicePrincipal = applyServicePrincipalsProjection(
+    sourceProjection,
+    event,
+    serviceDirectory,
+    undefined,
+    collective,
+  );
+  if (servicePrincipal) return servicePrincipal;
+  const serviceAffiliation = applyServiceAffiliationProjection(
+    sourceProjection,
+    event,
+    serviceDirectory,
+    undefined,
+    collective,
+  );
+  if (serviceAffiliation) return serviceAffiliation;
+  const serviceSupply = applyServiceSupplyProjection(
+    sourceProjection,
+    event,
+    serviceDirectory,
+    undefined,
+    collective,
+  );
+  if (serviceSupply) return serviceSupply;
+  const physicalHousing = applyPhysicalHousingRestProjection(sourceProjection, event);
+  if (physicalHousing) return physicalHousing;
+  assertPhysicalHousingRestEvidence(sourceProjection, event);
+  const occupancy = applyHousingOccupancyProjection(sourceProjection, event);
+  if (occupancy) return occupancy;
+  const housingChoice = applyHousingChoiceProjection(sourceProjection, event);
+  if (housingChoice) return housingChoice;
+  const capitalProjection = applyResidentCapitalProjection(sourceProjection, event);
+  if (capitalProjection) return capitalProjection;
+  assertPublicEmploymentEventSource(sourceProjection, event);
+  assertPublicHousingEventSource(sourceProjection, event);
+  assertInventoryQuantityEvidence(sourceProjection, event);
   // Town-pulse ring first: it snapshots subject names from the PRE-event
   // state (death/emigration remove the agent, closure may drop the
   // enterprise), so it must run before every event-specific reducer below.
@@ -966,10 +1196,98 @@ export function applyWorldEvent(
     townPulse === sourceProjection.townPulse
       ? sourceProjection
       : { ...sourceProjection, townPulse };
+  const restProjection = applyResidentRestProjection(projection, event);
+  const studyProjection = applyResidentStudyProjection(projection, event);
+  assertEnterpriseOperationSource(projection, event);
+  const enterpriseControlProjection = applyEnterpriseControlProjection(projection, event);
+  if (enterpriseControlProjection) return enterpriseControlProjection;
+  const publicLaborProjection = applyPublicLaborProjection(projection, event);
+  if (publicLaborProjection) return publicLaborProjection;
+  const laborProjection = applyResidentLaborProjection(projection, event);
+  const serviceBusinessProjection = applyServiceBusinessAuthorization(projection, event);
+  if (serviceBusinessProjection) return serviceBusinessProjection;
+  const serviceTimeProjection = applyServiceTimeProjection(projection, event);
+  if (serviceTimeProjection) return serviceTimeProjection;
+  const educationAuthorityProjection = applyEducationAuthorityProjection(projection, event);
+  if (educationAuthorityProjection) return educationAuthorityProjection;
+  const productiveProjection = applyProductiveEmploymentProjection(projection, event);
+  if (productiveProjection) return productiveProjection;
+  if (laborProjection) return laborProjection;
+  if (studyProjection) return studyProjection;
+  const publicProjection = applyResidentPublicGovernanceProjection(
+    projection,
+    event,
+    collective,
+    serviceDirectory,
+  );
+  if (publicProjection) return publicProjection;
+  if (restProjection) return restProjection;
+  const serviceEngagementsProjection = applyServiceEngagementsProjection(projection, event);
+  if (serviceEngagementsProjection) return serviceEngagementsProjection;
+  const vehiclePrincipalsProjection = applyVehiclePrincipalsProjection(
+    projection,
+    event,
+    undefined,
+    collective,
+  );
+  if (vehiclePrincipalsProjection) return vehiclePrincipalsProjection;
+  const periodicAccessProjection = applyPeriodicAccessProjection(projection, event);
+  if (periodicAccessProjection) return periodicAccessProjection;
+  const resourceAdaptersProjection = applyResourceAdaptersProjection(projection, event);
+  if (resourceAdaptersProjection) return resourceAdaptersProjection;
+  const resourceSalesProjection = applyResourceSalesProjection(
+    projection,
+    event,
+    undefined,
+    collective,
+  );
+  if (resourceSalesProjection) return resourceSalesProjection;
+  const periodicProjection = applyPeriodicObligationsProjection(
+    projection,
+    event,
+    undefined,
+    collective,
+  );
+  if (periodicProjection) return periodicProjection;
+  const constructionTradeProjection = applyConstructionTradeProjection(
+    projection,
+    event,
+    undefined,
+    collective,
+  );
+  if (constructionTradeProjection) return constructionTradeProjection;
+  const principalTradeProjection = applyPrincipalEvidenceTradeProjection(
+    projection,
+    event,
+    undefined,
+    collective,
+  );
+  if (principalTradeProjection) return principalTradeProjection;
+  const tradeProjection = applyEvidenceTradeProjection(projection, event);
+  if (tradeProjection) return tradeProjection;
+  const logisticsProjection = applyLogisticsProjection(projection, event, custodyAuthority);
+  if (logisticsProjection) return logisticsProjection;
   const leaseProjection = applyResidentLeaseProjection(projection, event);
   if (leaseProjection !== undefined) return leaseProjection;
   const mobilityProjection = applyResidentMobilityProjection(projection, event);
   if (mobilityProjection !== undefined) return mobilityProjection;
+  const premisesProjection = applyPremisesProjection(projection, event, undefined, collective);
+  if (premisesProjection) return premisesProjection;
+  const principalPermitsProjection = applyPrincipalPremisesRightsProjection(
+    projection,
+    event,
+    undefined,
+    collective,
+  );
+  if (principalPermitsProjection) return principalPermitsProjection;
+  const premisesRightsProjection = applyPremisesRightsProjection(projection, event);
+  if (premisesRightsProjection) return premisesRightsProjection;
+  const premisesProvisionProjection = applyPremisesProvisionProjection(projection, event);
+  if (premisesProvisionProjection) return premisesProvisionProjection;
+  const materialsProjection = applyMaterialsProjection(projection, event, undefined, collective);
+  if (materialsProjection !== undefined) return materialsProjection;
+  const commonAccountsProjection = applyCommonAccountsProjection(projection, event);
+  if (commonAccountsProjection !== undefined) return commonAccountsProjection;
   const commerceProjection = applyResidentCommerceProjection(projection, event);
   if (commerceProjection !== undefined) return commerceProjection;
   const enterpriseProjection = applyEnterpriseProjectionEvent(projection, event);
@@ -993,11 +1311,34 @@ export function applyWorldEvent(
     return governanceProjection;
   }
   switch (event.type) {
+    case 'ResidentAdmissionEnabled':
+      return applyResidentAdmissionProjection(projection, event)!;
     case 'AgentRegistered': {
+      const admissionRejection = residentIdentityAdmissionRejection(
+        projection,
+        event.payload.agentId,
+      );
+      if (admissionRejection) throw Error(admissionRejection);
       if (projection.agents[event.payload.agentId] !== undefined) {
         throw new Error(`cannot replay duplicate agent registration ${event.payload.agentId}`);
       }
       const initialState = event.payload.initialState;
+      if (projection.educationAuthority) {
+        const origin = recognizeInitialQualification({
+          educationScore: initialState.educationScore,
+          ...(initialState.educationLevel === undefined
+            ? {}
+            : { educationLevel: initialState.educationLevel }),
+          at: event.occurredAt,
+          mode: 'registration',
+          policy: projection.educationAuthority.institution,
+        });
+        if (
+          initialState.educationLevel !== 0 ||
+          !educationAuthorityFactsEqual(initialState.qualificationOrigin, origin)
+        )
+          throw Error('registration-requires-recorded-qualification');
+      }
       if (
         initialState.residenceLocationId !== undefined &&
         initialState.residenceLocationId !== null
@@ -1072,6 +1413,7 @@ export function applyWorldEvent(
         ],
       };
     case 'RenewableResourceRegenerated':
+      if (projection.materials?.extraction) throw Error('legacy-resource-pool-disabled');
       return updateRenewableResource(projection, {
         regionId: event.payload.regionId,
         commodityName: event.payload.commodityName,
@@ -1082,6 +1424,7 @@ export function applyWorldEvent(
         updatedAt: event.payload.settledThrough,
       });
     case 'RenewableResourceExtracted':
+      if (projection.materials?.extraction) throw Error('legacy-resource-pool-disabled');
       return {
         ...updateRenewableResource(projection, {
           regionId: event.payload.regionId,
@@ -1104,6 +1447,7 @@ export function applyWorldEvent(
         },
       };
     case 'CommodityProduced':
+      if (projection.materials?.extraction) throw Error('legacy-instant-production-disabled');
       return updateAgent(
         event.payload.enterpriseId === undefined
           ? projection
@@ -1437,6 +1781,9 @@ export function applyWorldEvent(
             ...(event.payload.effectiveEducationScore === undefined
               ? {}
               : { effectiveEducationScore: event.payload.effectiveEducationScore }),
+            ...(event.payload.publicEmploymentRevision === undefined
+              ? {}
+              : { publicEmploymentRevision: event.payload.publicEmploymentRevision }),
             submittedAt: event.occurredAt,
             status: 'pending',
           },
@@ -1480,6 +1827,9 @@ export function applyWorldEvent(
             cycleEndedAt: event.payload.cycleEndedAt,
             completedAt: event.occurredAt,
             policyVersion: event.payload.policyVersion,
+            ...(event.payload.publicEmploymentRevision === undefined
+              ? {}
+              : { publicEmploymentRevision: event.payload.publicEmploymentRevision }),
             applicationCount: event.payload.applicationCount,
             acceptedCount: event.payload.acceptedCount,
             rejectedCount: event.payload.rejectedCount,
@@ -1518,6 +1868,9 @@ export function applyWorldEvent(
                 status: event.payload.status,
                 resolvedAt: event.occurredAt,
                 resolutionReason: event.payload.reason,
+                ...(projection.educationAuthority && event.payload.track !== undefined
+                  ? { admittedTrack: event.payload.track }
+                  : {}),
               }
             : application,
         ),
@@ -1553,15 +1906,18 @@ export function applyWorldEvent(
     case 'ResidentialTierUpgraded':
       // The upgrade fee is burned: it leaves circulation entirely.
       return updateAgent(
-        applyMoneyTransferToSupply(projection, {
-          transactionId: event.id,
-          reason: 'residential-tier-upgrade',
-          fromSector: 'agent',
-          fromId: event.payload.agentId,
-          toSector: 'external',
-          toId: 'housing-construction',
-          amount: event.payload.currencyCost,
-        }),
+        applyMoneyTransferToSupply(
+          advanceHousingChoiceRevision(projection, event.payload.agentId),
+          {
+            transactionId: event.id,
+            reason: 'residential-tier-upgrade',
+            fromSector: 'agent',
+            fromId: event.payload.agentId,
+            toSector: 'external',
+            toId: 'housing-construction',
+            amount: event.payload.currencyCost,
+          },
+        ),
         event.payload.agentId,
         (agent) => ({
           ...agent,
@@ -1593,15 +1949,19 @@ export function applyWorldEvent(
           `residence ${residence.locationId} occupancy expected ${event.payload.occupancyBefore}, available ${occupied}`,
         );
       }
-      return updateAgent(projection, event.payload.agentId, (agent) => {
-        const previous = resolveAgentResidenceLocationId(projection, agent);
-        if (previous !== event.payload.previousResidenceLocationId) {
-          throw new Error(
-            `agent ${agent.agentId} residence expected ${String(event.payload.previousResidenceLocationId)}, available ${String(previous)}`,
-          );
-        }
-        return { ...agent, residenceLocationId: event.payload.nextResidenceLocationId };
-      });
+      return updateAgent(
+        advanceHousingOccupancyRevision(projection, event.payload.agentId),
+        event.payload.agentId,
+        (agent) => {
+          const previous = resolveAgentResidenceLocationId(projection, agent);
+          if (previous !== event.payload.previousResidenceLocationId) {
+            throw new Error(
+              `agent ${agent.agentId} residence expected ${String(event.payload.previousResidenceLocationId)}, available ${String(previous)}`,
+            );
+          }
+          return { ...agent, residenceLocationId: event.payload.nextResidenceLocationId };
+        },
+      );
     }
     case 'HousingCapacityExpanded': {
       const location = projection.locations[event.payload.locationId];
@@ -1634,11 +1994,15 @@ export function applyWorldEvent(
       };
     }
     case 'ResidentialTierDowngraded':
-      return updateAgent(projection, event.payload.agentId, (agent) => ({
-        ...agent,
-        residentialTier: event.payload.nextResidentialTier,
-        upkeepArrears: 0,
-      }));
+      return updateAgent(
+        advanceHousingChoiceRevision(projection, event.payload.agentId),
+        event.payload.agentId,
+        (agent) => ({
+          ...agent,
+          residentialTier: event.payload.nextResidentialTier,
+          upkeepArrears: 0,
+        }),
+      );
     case 'ResidentialUpkeepArrearsUpdated':
       return updateAgent(projection, event.payload.agentId, (agent) => ({
         ...agent,
@@ -1695,6 +2059,8 @@ export function applyWorldEvent(
         },
       };
     case 'AgentTravelStarted': {
+      if (projection.interruptedTravelByAgent?.[event.payload.agentId])
+        throw Error('interrupted-travel-requires-resumption-protocol');
       const agent = projection.agents[event.payload.agentId];
       if (agent === undefined) {
         throw new Error(`unknown agent ${event.payload.agentId}`);
@@ -1724,6 +2090,8 @@ export function applyWorldEvent(
       };
     }
     case 'AgentLocationChanged':
+      if (projection.interruptedTravelByAgent?.[event.payload.agentId])
+        throw Error('interrupted-travel-requires-resumption-protocol');
       return {
         ...updateAgent(projection, event.payload.agentId, (agent) => ({
           ...agent,
@@ -1791,6 +2159,7 @@ export function applyWorldEvent(
         wellbeing: event.payload.next,
       }));
     case 'EducationInvestmentPaid':
+      if (projection.residentStudy) throw Error('elapsed-study-requires-process-settlement');
       return updateAgent(
         applyMoneyTransferToSupply(projection, {
           transactionId: event.id,
@@ -1809,17 +2178,21 @@ export function applyWorldEvent(
         }),
       );
     case 'EducationChanged':
+      if (projection.residentStudy && event.payload.reason === 'study')
+        throw Error('elapsed-study-requires-process-settlement');
       return updateAgent(projection, event.payload.agentId, (agent) => ({
         ...agent,
         educationScore: event.payload.nextEducationScore,
       }));
     case 'EducationLevelChanged':
+      assertFormalPromotion(projection, event);
       return updateAgent(projection, event.payload.agentId, (agent) => ({
         ...agent,
         educationLevel: event.payload.nextLevel,
         ...(event.payload.track === undefined ? {} : { educationTrack: event.payload.track }),
       }));
     case 'EducationCompulsoryFeeCovered': {
+      if (projection.residentStudy) throw Error('elapsed-study-requires-process-settlement');
       // Treasury-covered tuition follows the PublicBudgetSpent treatment: a
       // transfer from the treasury into the public education service account
       // that leaves moneySupply unchanged. The self-paid share follows the
@@ -2065,6 +2438,8 @@ export function applyWorldEvent(
       );
     }
     case 'PublicBudgetSpent':
+      if (projection.publicGovernance?.authority.grant.procurement)
+        throw Error('abstract-budget-disabled-by-public-procurement');
       return applyMoneyTransferToSupply(
         {
           ...projection,
@@ -2104,6 +2479,11 @@ export function applyWorldEvent(
         ],
       };
     case 'SimulationTimeAdvanced':
+      {
+        const estateCreditDueAt = nextResidentEstateCreditDueAt(projection);
+        if (estateCreditDueAt !== undefined && event.payload.next.now > estateCreditDueAt)
+          throw new Error('estate-credit-cadence-must-be-settled-before-time-advance');
+      }
       if (
         event.payload.socialRelationDecayPolicyVersion !== undefined &&
         event.payload.socialRelationDecayPolicyVersion !== 'social-relation-decay-v1'
@@ -2211,10 +2591,31 @@ export function applyWorldEvent(
           balance: event.payload.nextBalance,
         }),
       );
-    case 'AgentDied':
-      return applyAgentDeparture(
+    case 'AgentDied': {
+      if (!!projection.residentExits !== !!event.payload.exitPreservation)
+        throw Error('resident-exit-population-protocol-mismatch');
+      const preserved = event.payload.exitPreservation
+        ? {
+            ...projection,
+            ...(projection.estateCredit
+              ? {
+                  estateCredit: applyEstateCreditDeparture(
+                    projection,
+                    event,
+                    event.payload.exitPreservation.creditEvents,
+                  )!,
+                }
+              : {}),
+            residentExits: applyResidentExitCapture(
+              projection,
+              event,
+              event.payload.exitPreservation,
+            ),
+          }
+        : projection;
+      const departed = applyAgentDeparture(
         {
-          ...projection,
+          ...preserved,
           survivalOutcomes: {
             deathsByCause: incrementMetric(
               projection.survivalOutcomes?.deathsByCause,
@@ -2228,10 +2629,37 @@ export function applyWorldEvent(
         event.payload.estate,
         event.id,
       );
-    case 'AgentEmigrated':
-      return applyAgentDeparture(
+      assertResidentExitSnapshot(departed);
+      assertResidentAdmissionSnapshot(departed);
+      assertResidentEstateCreditSnapshot(departed);
+      assertResidentSuccessionSnapshot(departed);
+      return departed;
+    }
+    case 'AgentEmigrated': {
+      if (!!projection.residentExits !== !!event.payload.exitPreservation)
+        throw Error('resident-exit-population-protocol-mismatch');
+      const preserved = event.payload.exitPreservation
+        ? {
+            ...projection,
+            ...(projection.estateCredit
+              ? {
+                  estateCredit: applyEstateCreditDeparture(
+                    projection,
+                    event,
+                    event.payload.exitPreservation.creditEvents,
+                  )!,
+                }
+              : {}),
+            residentExits: applyResidentExitCapture(
+              projection,
+              event,
+              event.payload.exitPreservation,
+            ),
+          }
+        : projection;
+      const departed = applyAgentDeparture(
         {
-          ...projection,
+          ...preserved,
           survivalOutcomes: {
             deathsByCause: { ...projection.survivalOutcomes?.deathsByCause },
             emigrated: (projection.survivalOutcomes?.emigrated ?? 0) + 1,
@@ -2241,6 +2669,12 @@ export function applyWorldEvent(
         event.payload.estate,
         event.id,
       );
+      assertResidentExitSnapshot(departed);
+      assertResidentAdmissionSnapshot(departed);
+      assertResidentEstateCreditSnapshot(departed);
+      assertResidentSuccessionSnapshot(departed);
+      return departed;
+    }
     case 'BulletinScheduled': {
       const bulletins = projection.bulletins ?? [];
       if (bulletins.some((bulletin) => bulletin.bulletinId === event.payload.bulletin.bulletinId)) {
@@ -2513,6 +2947,8 @@ export function applyWorldEvent(
         ],
       };
     case 'AgentOwnershipDeparted': {
+      if (projection.residentAdmissionPolicy || projection.estateCredit)
+        throw Error('resident-exit-partition-reservation-transfer-not-supported');
       const agent = projection.agents[event.payload.agentId];
       if (agent === undefined) {
         throw new Error(
@@ -2560,6 +2996,15 @@ export function applyWorldEvent(
       };
     }
     case 'AgentOwnershipArrived': {
+      const admissionRejection = residentIdentityAdmissionRejection(
+        projection,
+        event.payload.agentId,
+      );
+      if (admissionRejection) throw Error(admissionRejection);
+      if (projection.residentAdmissionPolicy || projection.estateCredit)
+        throw Error('resident-exit-partition-reservation-transfer-not-supported');
+      if (projection.educationAuthority)
+        throw Error('education-authority-partition-migration-not-supported');
       if (projection.agents[event.payload.agentId] !== undefined) {
         throw new Error(
           `cannot replay duplicate ownership arrival for agent ${event.payload.agentId}`,
@@ -2679,6 +3124,12 @@ export function resolveAgentResidenceLocationId(
   agent: Pick<WorldAgentState, 'locationId' | 'residenceLocationId'>,
 ): LocationId | null {
   if (agent.residenceLocationId !== undefined) return agent.residenceLocationId;
+  // New constructed space has explicit use grants. A visit must not acquire legacy implicit tenure.
+  if (
+    agent.locationId !== null &&
+    projection.locations[agent.locationId]?.source?.startsWith('resident-premises:')
+  )
+    return null;
   if (agent.locationId !== null && projection.locations[agent.locationId]?.kind === 'residence') {
     return agent.locationId;
   }
@@ -3390,3 +3841,6 @@ function withoutPendingApplicationsOf<
     (application) => application.agentId !== agentId || application.status !== 'pending',
   );
 }
+import type { PublicGovernanceState } from '@aivilization/governance';
+import type { TownGovernancePolicy } from '@aivilization/society';
+import { applyResidentPublicGovernanceProjection } from './projectionReducers/publicGovernance';

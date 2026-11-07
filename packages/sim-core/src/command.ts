@@ -11,6 +11,9 @@ import {
 import type { SimulationTimestamp } from './time';
 
 export type CoreCommandType =
+  | 'ResidentConstructionWork'
+  | 'ResidentServiceWork'
+  | 'ResidentMaterialWork'
   | 'ResidentParticipate'
   | 'AgentProduce'
   | 'AgentTrade'
@@ -21,6 +24,10 @@ export type CoreCommandType =
   | 'AgentObserveLocation'
   | 'AgentStartConversation'
   | 'AgentSleep'
+  | 'AgentStopRest'
+  | 'AgentStopStudy'
+  | 'AgentStopWork'
+  | 'AgentClaimWage'
   | 'AgentSeeDoctor'
   | 'AgentStudy'
   | 'AgentApplyJob'

@@ -1,0 +1,40 @@
+{
+  "ok": true,
+  "scope": "vehicle-departure-world-candidate",
+  "transportAcceptance": false,
+  "quality": {
+    "targetedTestsPassed": 6,
+    "newTestCases": 3,
+    "testsPassed": 3361,
+    "testsSkipped": 1,
+    "lint": true,
+    "typecheck": true,
+    "build": "worker-and-dependencies-passed"
+  },
+  "assertions": [
+    "zero and mid-journey actual departure candidate interrupts before capture",
+    "each co-traveller transit and time reservation verified atomically",
+    "route source retained after body removal and snapshot hydration",
+    "backpack capture no longer claims origin node",
+    "surviving passenger remains interrupted after actual time advance",
+    "ordinary movement cannot teleport unplaced interrupted passenger",
+    "original cargo logistics and ride escrow preserved",
+    "cash conserved and input unchanged",
+    "missing packet missing transit repeated events rejected"
+  ],
+  "limitations": [
+    "Physical handoff and journey resumption pending",
+    "Walking and parked cargo departure continuity pending",
+    "Passenger-as-departing-subject combination pending",
+    "Actual runtime journal transaction and natural population not integrated",
+    "No canonical activation or OpenCode/free-run experiment"
+  ],
+  "logs": {
+    "target": "/tmp/transport-world-target.log",
+    "lint": "/tmp/transport-world-lint.log",
+    "typecheck": "/tmp/transport-world-typecheck.log",
+    "tests": "/tmp/transport-world-tests.log",
+    "build": "/tmp/transport-world-build.log",
+    "final-lint": "/tmp/transport-world-final-lint.log"
+  }
+}

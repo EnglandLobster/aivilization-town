@@ -1,0 +1,29 @@
+{
+  "kind": "explicit-service-principals-activation",
+  "afterOpportunities": 608,
+  "simulationTime": 690515000,
+  "commitsBefore": 4387,
+  "commitsAfter": 4388,
+  "implementation": {
+    "root": "/tmp/aivilization-service-principals-20261006",
+    "versions": {
+      "catalog": 55,
+      "skill": 54,
+      "rulebook": 44
+    },
+    "fingerprints": 81,
+    "validation": {
+      "command": "pnpm check",
+      "testsPassed": 2898,
+      "testsSkipped": 1,
+      "compiledCalls": 26,
+      "expectedRefusals": 8
+    }
+  },
+  "source": "operator-capability-migration",
+  "retainsOriginalManifest": true,
+  "prescribedSocialGoal": false,
+  "addsAssetsOrCatalogOrProviderShifts": false,
+  "replayMatches608FullState": true,
+  "originalDirectoryAndWorldUnchanged": true
+}

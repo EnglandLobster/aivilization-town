@@ -348,6 +348,16 @@ describe('FileEventStore', () => {
     const legacySerialized = `${JSON.stringify(legacyRecord)}\n`;
     writeFileSync(join(rootDir, 'idempotency.jsonl'), legacySerialized, 'utf8');
 
+    expect(new FileEventStore({ rootDir }).readIdempotentAppends()).toEqual([
+      {
+        idempotencyKey: request.idempotencyKey,
+        streamName: request.streamName,
+        expectedVersion: 0,
+        appendedEvents: request.events,
+        streamVersion: 1,
+      },
+    ]);
+    expect(readFileSync(join(rootDir, 'idempotency.jsonl'), 'utf8')).toBe(legacySerialized);
     const migrated = migrateFileEventStoreIdempotencyV1ToV2({ rootDir });
     expect(migrated).toMatchObject({
       schemaVersion: 'file-event-idempotency-migration-v1',
@@ -566,4 +576,33 @@ describe('FileEventStore', () => {
       }),
     ).toThrow('event sequence 3 must equal next stream sequence 2');
   });
+});
+
+test('exports complete original receipts beyond the hot cache in both formats, refusing incomplete tails', () => {
+  for (const format of ['legacy-jsonl-v1', 'compact-deflate-frames-v1'] as const) {
+    const rootDir = createRootDir();
+    const store = new FileEventStore({
+      rootDir,
+      eventStreamWriterFormat: format,
+      recentIdempotencyLimit: 1,
+    });
+    const expected = Array.from({ length: 4 }, (_, i) => ({
+      streamName: partition.eventStreamName,
+      expectedVersion: i,
+      idempotencyKey: `history-${i}`,
+      events: [timeAdvancedEvent({ id: `history-${i}`, sequence: i + 1, now: i + 1 })],
+    }));
+    for (const request of expected) store.appendToStream(request);
+    const restarted = new FileEventStore({ rootDir, recentIdempotencyLimit: 1 });
+    expect(restarted.readIdempotentAppends()).toEqual(
+      expected.map(({ events, ...rest }, i) => ({
+        ...rest,
+        appendedEvents: events,
+        streamVersion: i + 1,
+      })),
+    );
+    const path = join(rootDir, 'idempotency.deflate');
+    appendFileSync(path, Buffer.from([0, 0, 0]));
+    expect(() => restarted.readIdempotentAppends()).toThrow('incomplete frame header');
+  }
 });

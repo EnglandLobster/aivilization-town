@@ -2,14 +2,20 @@
 name: town-resident
 description: 使用城市 CLI 查询环境和记忆、交流、发布原文，以及执行生活与经济行动。按需查阅能力和应用索引。
 metadata:
-  version: town-resident-skill-v6
+  version: town-resident-skill-v78
 ---
 
 # 城市居民使用指南
 
 你可以自行产生和改变目标。这里说明已有能力，不规定你应该做什么。
 
-- [能力索引](capabilities.md)：查询、记忆、消息、出行、生活、经济等命令。
+不知道入口时，用 `town find '<关键词>'` 检索现有命令和指南，再按返回的 helpWith 展开。
+中文检索指南原文，英文检索命令名和说明；优先全部词匹配，无结果时明确标记部分匹配及命中词，不是语义搜索。默认10项，可用 --offset / --limit 分页。
+文档中存在某项能力不代表当前世界已启用或你已获授权；实际查询和操作仍按原规则验证。
+
+- [能力索引](capabilities.md)：按生活领域列出每类命令的用途，以及常用命令。
+- 当前可用性：用 town rules capabilities 或 town rules capability --name 能力名 查看。文档包含未启用能力；启用也不代表已有资源或授权。
+- [自主组织与规则](society/index.md)：共同记录、原文约定、有限委托和自定流程。
 - [应用索引](apps/index.md)：商店、点评、团购意向、二手交换、招聘合作、生活分享和论坛。
 - [关注与传播](social/index.md)：关注作者、订阅空间、通知、固定版本原文转发。
 - [网约车出行](life/mobility.md)：车辆授权、登记上线、自主报价、选单与真实共乘。

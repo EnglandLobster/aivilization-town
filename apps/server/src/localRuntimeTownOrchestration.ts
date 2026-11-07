@@ -317,11 +317,33 @@ export function startLocalRuntimeTownOrchestration(
 }
 
 export function stopLocalRuntimeTownOrchestration(
-  orchestration: LocalRuntimeTownOrchestration,
+  orchestration: Pick<
+    LocalRuntimeTownOrchestration,
+    'runQueueWorkerHost' | 'runQueueSchedulerHost' | 'runQueueRecoveryHost'
+  >,
 ): void {
   orchestration.runQueueWorkerHost.stop();
   orchestration.runQueueSchedulerHost?.stop();
   orchestration.runQueueRecoveryHost?.stop();
+}
+
+/** Drain producers before the queue consumer so admitted recovery work can finish. */
+export async function shutdownLocalRuntimeTownOrchestration(
+  orchestration: Pick<
+    LocalRuntimeTownOrchestration,
+    'runQueueWorkerHost' | 'runQueueSchedulerHost' | 'runQueueRecoveryHost'
+  >,
+): Promise<void> {
+  stopLocalRuntimeTownOrchestration(orchestration);
+  const producers = await Promise.allSettled([
+    orchestration.runQueueSchedulerHost?.shutdown(),
+    orchestration.runQueueRecoveryHost?.shutdown(),
+  ]);
+  const consumer = await Promise.allSettled([orchestration.runQueueWorkerHost.shutdown()]);
+  const failures = [...producers, ...consumer]
+    .filter((r) => r.status === 'rejected')
+    .map((r) => r.reason as unknown);
+  if (failures.length) throw new AggregateError(failures, 'runtime-orchestration-shutdown-failed');
 }
 
 async function getLocalRuntimeTownDaemonStatus(

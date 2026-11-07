@@ -1,0 +1,183 @@
+{
+  "phase": "agreed-enterprise-labor-open-integration",
+  "status": "engineering-gates-passed-free-model-opportunity-timed-out",
+  "boundary": "Residents choose pay and independently consent. Shared world source freezes actual work pay; collective proofs commit atomically. No employer or worker intention is seeded.",
+  "capabilities": {
+    "catalog": "open-capabilities-v65",
+    "skill": "town-resident-skill-v66",
+    "rules": "society-rulebook-v54",
+    "residentToolsAdded": 2,
+    "compensationSource": "accepted-enterprise-labor-terms-v1"
+  },
+  "targeted": {
+    "files": 4,
+    "tests": 14,
+    "log": "/tmp/agreed-labor-final-path-tests2.log"
+  },
+  "cli": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-http-cli-not-free-emergence",
+    "calls": 11,
+    "results": [
+      {
+        "route": "business found",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business post-job",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business join",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business change-labor-terms",
+        "ok": false,
+        "exitCode": 1,
+        "error": "labor-offer-employer-authority-required"
+      },
+      {
+        "route": "business change-labor-terms",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business labor-terms",
+        "ok": false,
+        "exitCode": 1,
+        "error": "labor-offer-not-found"
+      },
+      {
+        "route": "business change-labor-terms",
+        "ok": false,
+        "exitCode": 1,
+        "error": "labor-offer-personal-current-consent-required"
+      },
+      {
+        "route": "business change-labor-terms",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business labor-terms",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business work",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "life stop-work",
+        "ok": true,
+        "exitCode": 0
+      }
+    ],
+    "earnedMicros": 5000000,
+    "replayEqual": true,
+    "moneySupplyConserved": true
+  },
+  "activation": {
+    "passed": true,
+    "previousRevision": 73,
+    "revision": 74,
+    "activation": {
+      "ok": true,
+      "data": {
+        "enabled": true,
+        "version": "resident-enterprise-labor-v1"
+      },
+      "revision": 74,
+      "simulationTime": 2731000
+    },
+    "originalManifestUnchanged": true,
+    "noResidentConsentInvented": true,
+    "noMoneyBodyTimeOrGoodsChanged": true,
+    "replayMatched": true,
+    "retryCreatedNoCommits": true,
+    "limitations": [
+      "Only enterprise mutual terms enabled; no initial-job wage period invented.",
+      "No resident offer, acceptance or work performed by activation.",
+      "Existing elapsed-labor mode transition and full original-mode integration remain incomplete.",
+      "Not emergence evidence."
+    ]
+  },
+  "gates": {
+    "lint": "/tmp/agreed-labor-lint-final.log",
+    "latestChangedLint": "/tmp/agreed-labor-final-changed-lint.log",
+    "proofLint": "/tmp/agreed-labor-proof-lint.log",
+    "typecheck": "/tmp/agreed-labor-typecheck-final.log",
+    "workerTypecheckAfterProofTest": "/tmp/agreed-labor-worker-final-typecheck.log",
+    "build": "/tmp/agreed-labor-build.log",
+    "latestWorldBuild": "/tmp/agreed-labor-world-final-build2.log",
+    "fullTests": "/tmp/agreed-labor-full-tests.log"
+  },
+  "sourceSha256": {
+    "packages/enterprise/src/laborTerms.ts": "e41b91f627c932ff1b5691f849ff8705261b462bca7d30ff462425d1f10b5d29",
+    "packages/enterprise/src/productionEmployment.ts": "5d29e41168dc5b8721d47042e8b3e5af79606ffade0c7af356c30e102c803195",
+    "packages/enterprise/src/serviceBusiness.ts": "e84be98ca0ff71bff7e0a1f924edd56cccb529274828a6c27d15b18d9d95b98c",
+    "packages/world/src/laborCompensationSource.ts": "4544081036b48d57e71a555bb52cbff70a282139bc593a4458c7e86a2101d4b1",
+    "packages/world/src/residentLaborTerms.ts": "caf9e24384316fb0ad2354ee58b405a05f3d0f8d3a180f4dbe72441d93e494ce",
+    "apps/worker/src/openSociety/laborTermsTools.ts": "332144faa47a4ea62a939f194e66d3c61675f07ae55ec0c447aad6e520c7f721",
+    "apps/worker/src/openSociety/agreedLabor.test.ts": "432b810b3fa9cc92e6c1f29218cea539addc8f5ec3a439c483b0a0e07d2cd71d",
+    "apps/residents/scripts/verify-agreed-labor.mjs": "2583c65aeb47bdf919b94b02b5b67c3c675d6dd7366c1f4b4b86a29444959981",
+    "apps/server/scripts/verify-canonical-agreed-labor.mjs": "7ebde5cc2bce1b36317c162f4701fdfa4cab12c85cc74f4375c2d4a3fe321983"
+  },
+  "limitations": [
+    "Existing elapsed-labor mode cannot yet explicitly transition to mutual terms.",
+    "Initial non-enterprise job pay and full original runtime/partition integration are incomplete.",
+    "OpenCode independent observation is separate from directed acceptance evidence.",
+    "No stable social emergence or full W06 completion claim."
+  ],
+  "fullRegression": {
+    "filesPassed": 498,
+    "filesSkipped": 1,
+    "testsPassed": 3286,
+    "testsSkipped": 1,
+    "durationSeconds": 62.22
+  },
+  "freeModel": {
+    "completed": false,
+    "status": "provider-error",
+    "termination": {
+      "exitSignal": "SIGTERM",
+      "aborted": true,
+      "abortReason": "TimeoutError",
+      "providerErrorEvent": false
+    },
+    "elapsedMs": 179495,
+    "model": "opencode-go/deepseek-v4.1-flash",
+    "opportunities": 1,
+    "calls": 35,
+    "previousRevision": 74,
+    "revision": 111,
+    "journalCommits": 111,
+    "journalSha256": "953661cf98e314e2cdc57b9690aa64f5685f786e46d45bdd15cf0cc0f7f0361b",
+    "worldEventCounts": {
+      "JobApplicationSubmitted": 1,
+      "ShortTermMemoryRecorded": 1,
+      "ResidentMaterialsCommitted": 3
+    },
+    "materialOperations": {
+      "create-stock": 1,
+      "create-extraction": 1,
+      "start-production": 1
+    },
+    "rejections": [],
+    "replayMatched": true,
+    "reopenedWithoutNewCommits": true,
+    "writerReleased": true,
+    "limitations": [
+      "Configured 180000ms deadline aborted this opportunity; not a successful completed model run.",
+      "No enterprise labor offer or acceptance observed.",
+      "Extraction was started but no time advance or usable output observed.",
+      "One opportunity is not stable social emergence."
+    ]
+  },
+  "formatCheck": "/tmp/agreed-labor-format-final.log"
+}

@@ -1,0 +1,367 @@
+{
+  "schemaVersion": "society-free-checkpoint-evidence-v1",
+  "opportunities": 576,
+  "journalCommits": 4158,
+  "capabilityCalls": 2049,
+  "simulationTime": 655103000,
+  "journalSha256": "03c6e1bbc38ebb3717fcd875b1b089b7f2509c46399800e9f27b8cd583cdbafe",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFingerprints": 81,
+  "implementationVersions": {
+    "catalog": 53,
+    "skill": 52,
+    "rulebook": 42
+  },
+  "providerStatusCounts": {
+    "completed": 570,
+    "provider-error": 6
+  },
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 456.0000000000102,
+      "educationLevel": 5,
+      "residentialTier": 3,
+      "job": "Maintenance Worker",
+      "balance": 500,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 2,
+      "job": "Receptionist",
+      "balance": 500
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 331.6666666670056,
+      "educationLevel": 3,
+      "residentialTier": 4,
+      "job": "Chef",
+      "balance": 500
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 4,
+      "job": "Chef",
+      "balance": 500
+    }
+  ],
+  "jobApplications": [
+    {
+      "cycleNumber": 0,
+      "agentId": "resident-001",
+      "occupationName": "Cleaner",
+      "submittedAt": 3739000,
+      "status": "rejected"
+    },
+    {
+      "cycleNumber": 0,
+      "agentId": "resident-002",
+      "occupationName": "Cleaner",
+      "submittedAt": 10039000,
+      "status": "accepted"
+    },
+    {
+      "cycleNumber": 0,
+      "agentId": "resident-003",
+      "occupationName": "Waiter",
+      "submittedAt": 48000000,
+      "status": "accepted"
+    },
+    {
+      "cycleNumber": 1,
+      "agentId": "resident-001",
+      "occupationName": "Waiter",
+      "submittedAt": 86500000,
+      "status": "rejected"
+    },
+    {
+      "cycleNumber": 1,
+      "agentId": "resident-004",
+      "occupationName": "Waiter",
+      "submittedAt": 120435000,
+      "status": "accepted"
+    },
+    {
+      "cycleNumber": 2,
+      "agentId": "resident-001",
+      "occupationName": "Stock Clerk",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 172863000,
+      "status": "accepted"
+    },
+    {
+      "cycleNumber": 2,
+      "agentId": "resident-001",
+      "occupationName": "Waiter",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 172863000,
+      "status": "rejected"
+    },
+    {
+      "cycleNumber": 2,
+      "agentId": "resident-003",
+      "occupationName": "Receptionist",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 180200000,
+      "status": "accepted"
+    },
+    {
+      "cycleNumber": 3,
+      "agentId": "resident-002",
+      "occupationName": "Receptionist",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 309895000,
+      "status": "accepted"
+    },
+    {
+      "cycleNumber": 4,
+      "agentId": "resident-004",
+      "occupationName": "Chef",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 364460000,
+      "status": "rejected"
+    },
+    {
+      "cycleNumber": 4,
+      "agentId": "resident-001",
+      "occupationName": "Cashier",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 400760000,
+      "status": "accepted"
+    },
+    {
+      "cycleNumber": 4,
+      "agentId": "resident-003",
+      "occupationName": "Chef",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 429930000,
+      "status": "accepted"
+    },
+    {
+      "cycleNumber": 5,
+      "agentId": "resident-004",
+      "occupationName": "Chef",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 434680000,
+      "status": "accepted"
+    },
+    {
+      "cycleNumber": 6,
+      "agentId": "resident-001",
+      "occupationName": "Maintenance Worker",
+      "publicEmploymentRevision": 3,
+      "submittedAt": 525944000,
+      "status": "accepted"
+    }
+  ],
+  "adoption": {
+    "enterprises": 0,
+    "collectives": 0,
+    "programs": 0,
+    "sharedRecords": 0,
+    "constructionProjects": 0
+  },
+  "employmentInterpretation": {
+    "capacityMeaning": "new admissions per occupation within each recruitment cycle, not total incumbents",
+    "resident004ChefApplicationCycle": 5,
+    "resident004ChefApplicationPolicyRevision": 2,
+    "capacityProposalNewRevision": 3,
+    "capacityProposalEffectiveCycle": 6,
+    "newJobAttributedToProposal": false,
+    "sourcePointers": [
+      "packages/society/src/recruitment.ts:74",
+      "packages/world/src/handlers/timeAdvance.ts:2755",
+      "packages/society/src/publicEmployment.ts:291"
+    ]
+  },
+  "limitations": [
+    "工程收费能力已在阶段开始显式启用，但尚无新组织或收费订单自主采用的事件证据。",
+    "新增居民原文和通信是实际行为；约定共同做饭不是已经生产、付款或交付的证明。",
+    "车辆控制代码尚未混入本阶段；下一阶段在完整回放和显式能力迁移后使用独立车辆冻结引擎。",
+    "历史六次供应商失败保留；四名原居民的单世界观察不等同于全部社会、长期与多条件实验完成。"
+  ],
+  "proposals": [
+    {
+      "id": "proposal-001-employment-quota",
+      "status": "executed",
+      "actionKind": "set-employment",
+      "createdAt": 138387000,
+      "closesAt": 145000000,
+      "executedAt": 145000000,
+      "votes": [
+        {
+          "actorId": "resident-001",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-003",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-004",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-002",
+          "choice": "yes"
+        }
+      ]
+    },
+    {
+      "id": "proposal-003-housing-subsidy",
+      "status": "withdrawn",
+      "actionKind": "set-subsidy",
+      "createdAt": 311600000,
+      "closesAt": 320000000,
+      "votes": [
+        {
+          "actorId": "resident-003",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-004",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-001",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-002",
+          "choice": "yes"
+        }
+      ]
+    },
+    {
+      "id": "proposal-003-housing-subsidy-2",
+      "status": "executed",
+      "actionKind": "set-subsidy",
+      "createdAt": 311840000,
+      "closesAt": 325000000,
+      "executedAt": 326000000,
+      "votes": [
+        {
+          "actorId": "resident-003",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-004",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-001",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-002",
+          "choice": "yes"
+        }
+      ]
+    },
+    {
+      "id": "proposal-004-subsidy-500",
+      "status": "approved",
+      "actionKind": "set-subsidy",
+      "createdAt": 327560000,
+      "closesAt": 347560000,
+      "votes": [
+        {
+          "actorId": "resident-004",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-001",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-003",
+          "choice": "yes"
+        }
+      ]
+    },
+    {
+      "id": "proposal-003-subsidy-500-fix",
+      "status": "executed",
+      "actionKind": "set-subsidy",
+      "createdAt": 355400000,
+      "closesAt": 364000000,
+      "executedAt": 364000000,
+      "votes": [
+        {
+          "actorId": "resident-003",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-004",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-002",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-001",
+          "choice": "yes"
+        }
+      ]
+    },
+    {
+      "id": "proposal-004-chef-capacity-2",
+      "status": "executed",
+      "actionKind": "set-employment",
+      "createdAt": 434800000,
+      "closesAt": 454800000,
+      "executedAt": 463960000,
+      "votes": [
+        {
+          "actorId": "resident-004",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-001",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-002",
+          "choice": "yes"
+        },
+        {
+          "actorId": "resident-003",
+          "choice": "yes"
+        }
+      ]
+    }
+  ],
+  "newPhase": {
+    "fromOpportunities": 544,
+    "toOpportunities": 576,
+    "newProviderErrors": 0,
+    "verifiedFrozenEngineFingerprints": 81,
+    "newJournalCommits": 199,
+    "newCapabilityCalls": 92,
+    "newDocuments": 1,
+    "newMessages": 26,
+    "newTransfers": 1,
+    "newEnterpriseCount": 0,
+    "newSocialOrganizationCount": 0,
+    "newPrincipalOrders": 0,
+    "prescribedSocialGoal": false,
+    "actualTransfer": {
+      "from": "resident-004",
+      "to": "resident-003",
+      "commodity": "Flour",
+      "quantity": 1,
+      "commit": 4099,
+      "at": 653648000,
+      "noteSource": "resident-authored"
+    }
+  }
+}

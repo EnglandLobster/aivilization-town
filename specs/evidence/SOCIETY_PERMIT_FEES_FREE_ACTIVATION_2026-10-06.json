@@ -1,0 +1,28 @@
+{
+  "kind": "explicit-principal-permit-and-fee-activation",
+  "afterOpportunities": 544,
+  "simulationTime": 634864000,
+  "commitsBefore": 3957,
+  "commitsAfter": 3959,
+  "implementation": {
+    "root": "/tmp/aivilization-permit-fees-20261006",
+    "versions": {
+      "catalog": 53,
+      "skill": 52,
+      "rulebook": 42
+    },
+    "fingerprints": 81,
+    "validation": {
+      "testsPassed": 2877,
+      "testsSkipped": 1,
+      "compiledCalls": 98,
+      "expectedRefusals": 19
+    }
+  },
+  "source": "operator-capability-migration",
+  "retainsOriginalManifest": true,
+  "prescribedSocialGoal": false,
+  "addsAssets": false,
+  "replayMatches544FullState": true,
+  "preservedExistingAccountsAssetsBodiesEmploymentContracts": true
+}

@@ -1,0 +1,393 @@
+{
+  "date": "2026-10-05",
+  "scope": "same-world-free-192",
+  "simulationTime": 68091000,
+  "journalCommits": 1523,
+  "capabilityCalls": 868,
+  "newOpportunities": 32,
+  "completed": 32,
+  "providerErrors": 0,
+  "replayMatchesSavedReport": true,
+  "journalBytesUnchanged": true,
+  "fingerprintsVerified": 81,
+  "checkpoint": ".local/open-residents/society-elapsed-study-20261005/checkpoints/free-192",
+  "capabilityDelta": {
+    "world.observe/accepted": 8,
+    "files.read/accepted": 1,
+    "files.create/accepted": 1,
+    "messages.send/accepted": 20,
+    "schedule.wait/accepted": 32,
+    "messages.read/accepted": 12,
+    "cognition.update/accepted": 3,
+    "world.move/accepted": 9,
+    "services.list/accepted": 1,
+    "stocks.read/accepted": 4,
+    "production.gather/accepted": 1,
+    "production.start/accepted": 2,
+    "production.create/accepted": 1,
+    "world.trade/accepted": 3,
+    "orders.list/accepted": 1,
+    "offers.list/accepted": 3,
+    "world.eat/accepted": 1,
+    "sources.read/accepted": 1,
+    "stocks.withdraw/accepted": 2,
+    "world.sleep/accepted": 3,
+    "production.gather/refused": 1,
+    "world.export/accepted": 1,
+    "offers.publish/accepted": 3,
+    "offers.read/accepted": 1,
+    "orders.create/accepted": 1,
+    "orders.read/accepted": 4,
+    "orders.accept/accepted": 1,
+    "world.stop_rest/accepted": 1,
+    "orders.pay/accepted": 1,
+    "orders.deliver/accepted": 1,
+    "orders.confirm/accepted": 1,
+    "offers.withdraw/accepted": 1
+  },
+  "newRefusals": [
+    {
+      "sequence": 1325,
+      "actorId": "resident-002",
+      "capability": "production.gather",
+      "error": "material-source-location-or-revision-conflict"
+    }
+  ],
+  "orderEvidence": [
+    {
+      "sequence": 1420,
+      "actorId": "resident-004",
+      "capability": "orders.create",
+      "at": 66891000,
+      "status": "pending",
+      "worldEvents": [
+        {
+          "id": "commerce-fa6946fc3dd80a2c4fe0d5b69111bb2d:commerce",
+          "occurredAt": 66891000,
+          "payload": {
+            "events": [
+              {
+                "order": {
+                  "at": 66891000,
+                  "buyerId": "resident-004",
+                  "commodity": "Apple",
+                  "delivered": false,
+                  "deliveryMode": "in-person",
+                  "escrow": 0,
+                  "id": "order-004-apple-3",
+                  "kind": "goods",
+                  "offerId": "offer-001-apple-6",
+                  "offerRevision": 1,
+                  "paid": 0,
+                  "quantity": 3,
+                  "refunded": 0,
+                  "revision": 1,
+                  "sellerId": "resident-001",
+                  "statements": [],
+                  "status": "pending",
+                  "stockHeld": 0,
+                  "terms": "001出售苹果6个，单价6.5，作坊或广场当面交付。目前市场现货已跌至约4.5，故按此挂单；也接受少量议价。",
+                  "total": 19.5
+                },
+                "type": "OrderChanged"
+              }
+            ],
+            "policyVersion": "resident-commerce-v1",
+            "stockTransfers": [],
+            "transactions": []
+          },
+          "sequence": 9689,
+          "simulationId": "open-town",
+          "type": "ResidentCommerceCommitted"
+        }
+      ]
+    },
+    {
+      "sequence": 1429,
+      "actorId": "resident-001",
+      "capability": "orders.accept",
+      "at": 66951000,
+      "status": "accepted",
+      "worldEvents": [
+        {
+          "id": "commerce-5172288c838e3f951ce2d5a16a2833e2:commerce",
+          "occurredAt": 66951000,
+          "payload": {
+            "events": [
+              {
+                "order": {
+                  "at": 66891000,
+                  "buyerId": "resident-004",
+                  "commodity": "Apple",
+                  "delivered": false,
+                  "deliveryMode": "in-person",
+                  "escrow": 0,
+                  "id": "order-004-apple-3",
+                  "kind": "goods",
+                  "offerId": "offer-001-apple-6",
+                  "offerRevision": 1,
+                  "paid": 0,
+                  "quantity": 3,
+                  "refunded": 0,
+                  "revision": 2,
+                  "sellerId": "resident-001",
+                  "statements": [],
+                  "status": "accepted",
+                  "stockHeld": 3,
+                  "terms": "001出售苹果6个，单价6.5，作坊或广场当面交付。目前市场现货已跌至约4.5，故按此挂单；也接受少量议价。",
+                  "total": 19.5
+                },
+                "type": "OrderChanged"
+              }
+            ],
+            "policyVersion": "resident-commerce-v1",
+            "stockTransfers": [
+              {
+                "commodity": "Apple",
+                "from": "resident-001",
+                "quantity": 3,
+                "to": "escrow"
+              }
+            ],
+            "transactions": []
+          },
+          "sequence": 9707,
+          "simulationId": "open-town",
+          "type": "ResidentCommerceCommitted"
+        }
+      ]
+    },
+    {
+      "sequence": 1450,
+      "actorId": "resident-004",
+      "capability": "orders.pay",
+      "at": 67071000,
+      "status": "paid",
+      "worldEvents": [
+        {
+          "id": "commerce-152c7ef41ecd30bab922b84e81571083:commerce",
+          "occurredAt": 67071000,
+          "payload": {
+            "events": [
+              {
+                "order": {
+                  "at": 66891000,
+                  "buyerId": "resident-004",
+                  "commodity": "Apple",
+                  "delivered": false,
+                  "deliveryMode": "in-person",
+                  "escrow": 19.5,
+                  "id": "order-004-apple-3",
+                  "kind": "goods",
+                  "offerId": "offer-001-apple-6",
+                  "offerRevision": 1,
+                  "paid": 19.5,
+                  "quantity": 3,
+                  "refunded": 0,
+                  "revision": 3,
+                  "sellerId": "resident-001",
+                  "statements": [],
+                  "status": "paid",
+                  "stockHeld": 3,
+                  "terms": "001出售苹果6个，单价6.5，作坊或广场当面交付。目前市场现货已跌至约4.5，故按此挂单；也接受少量议价。",
+                  "total": 19.5
+                },
+                "type": "OrderChanged"
+              }
+            ],
+            "policyVersion": "resident-commerce-v1",
+            "stockTransfers": [],
+            "transactions": [
+              {
+                "entries": [
+                  {
+                    "account": {
+                      "accountId": "agent:resident-004",
+                      "sector": "agent"
+                    },
+                    "amount": -19.5
+                  },
+                  {
+                    "account": {
+                      "accountId": "public-service:resident-commerce",
+                      "sector": "public-service"
+                    },
+                    "amount": 19.5
+                  }
+                ],
+                "reason": "orders.pay",
+                "transactionId": "commerce-152c7ef41ecd30bab922b84e81571083"
+              }
+            ]
+          },
+          "sequence": 9749,
+          "simulationId": "open-town",
+          "type": "ResidentCommerceCommitted"
+        }
+      ]
+    },
+    {
+      "sequence": 1489,
+      "actorId": "resident-001",
+      "capability": "orders.deliver",
+      "at": 67791000,
+      "status": "delivered",
+      "worldEvents": [
+        {
+          "id": "commerce-92d00328a8598d05922e71a03f5bef0f:commerce",
+          "occurredAt": 67791000,
+          "payload": {
+            "events": [
+              {
+                "order": {
+                  "at": 66891000,
+                  "buyerId": "resident-004",
+                  "commodity": "Apple",
+                  "delivered": true,
+                  "deliveryMode": "in-person",
+                  "escrow": 19.5,
+                  "id": "order-004-apple-3",
+                  "kind": "goods",
+                  "offerId": "offer-001-apple-6",
+                  "offerRevision": 1,
+                  "paid": 19.5,
+                  "quantity": 3,
+                  "refunded": 0,
+                  "revision": 4,
+                  "sellerId": "resident-001",
+                  "statements": [
+                    {
+                      "at": 67791000,
+                      "authorId": "resident-001",
+                      "content": "在town-square当面交付 order-004-apple-3 的3个苹果给004，请查收确认。",
+                      "kind": "delivery"
+                    }
+                  ],
+                  "status": "delivered",
+                  "stockHeld": 0,
+                  "terms": "001出售苹果6个，单价6.5，作坊或广场当面交付。目前市场现货已跌至约4.5，故按此挂单；也接受少量议价。",
+                  "total": 19.5
+                },
+                "type": "OrderChanged"
+              }
+            ],
+            "policyVersion": "resident-commerce-v1",
+            "stockTransfers": [
+              {
+                "commodity": "Apple",
+                "from": "escrow",
+                "quantity": 3,
+                "to": "resident-004"
+              }
+            ],
+            "transactions": []
+          },
+          "sequence": 9903,
+          "simulationId": "open-town",
+          "type": "ResidentCommerceCommitted"
+        }
+      ]
+    },
+    {
+      "sequence": 1495,
+      "actorId": "resident-004",
+      "capability": "orders.confirm",
+      "at": 67851000,
+      "status": "completed",
+      "worldEvents": [
+        {
+          "id": "commerce-d34392180b31c35df5c3af6730acb245:commerce",
+          "occurredAt": 67851000,
+          "payload": {
+            "events": [
+              {
+                "order": {
+                  "at": 66891000,
+                  "buyerId": "resident-004",
+                  "commodity": "Apple",
+                  "delivered": true,
+                  "deliveryMode": "in-person",
+                  "escrow": 0,
+                  "id": "order-004-apple-3",
+                  "kind": "goods",
+                  "offerId": "offer-001-apple-6",
+                  "offerRevision": 1,
+                  "paid": 19.5,
+                  "quantity": 3,
+                  "refunded": 0,
+                  "revision": 5,
+                  "sellerId": "resident-001",
+                  "statements": [
+                    {
+                      "at": 67791000,
+                      "authorId": "resident-001",
+                      "content": "在town-square当面交付 order-004-apple-3 的3个苹果给004，请查收确认。",
+                      "kind": "delivery"
+                    }
+                  ],
+                  "status": "completed",
+                  "stockHeld": 0,
+                  "terms": "001出售苹果6个，单价6.5，作坊或广场当面交付。目前市场现货已跌至约4.5，故按此挂单；也接受少量议价。",
+                  "total": 19.5
+                },
+                "type": "OrderChanged"
+              }
+            ],
+            "policyVersion": "resident-commerce-v1",
+            "stockTransfers": [],
+            "transactions": [
+              {
+                "entries": [
+                  {
+                    "account": {
+                      "accountId": "public-service:resident-commerce",
+                      "sector": "public-service"
+                    },
+                    "amount": -19.5
+                  },
+                  {
+                    "account": {
+                      "accountId": "agent:resident-001",
+                      "sector": "agent"
+                    },
+                    "amount": 19.5
+                  }
+                ],
+                "reason": "orders.confirm",
+                "transactionId": "commerce-d34392180b31c35df5c3af6730acb245"
+              }
+            ]
+          },
+          "sequence": 9919,
+          "simulationId": "open-town",
+          "type": "ResidentCommerceCommitted"
+        }
+      ]
+    }
+  ],
+  "residentObjects": {
+    "spaces": 0,
+    "documents": 4,
+    "messages": 137,
+    "groups": 0,
+    "collectives": 0,
+    "registers": 0,
+    "views": 0,
+    "programs": 0,
+    "services": 0
+  },
+  "enterpriseCount": 0,
+  "activeProductionCount": 0,
+  "providerReported": {
+    "completedSteps": 137,
+    "elapsedMs": 1095690,
+    "cost": 0.217658976
+  },
+  "limitations": [
+    "4 residents, less than one simulation day",
+    "initial public and external market supply remains",
+    "no enterprise or service adoption",
+    "one completed peer order is not long-term institutional continuity",
+    "public wage changes are only in development and not in this frozen run"
+  ]
+}

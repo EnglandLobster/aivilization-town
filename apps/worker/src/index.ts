@@ -10,8 +10,19 @@ export * from './agentStateSummary';
 export * from './aivilizationWorldPolicies';
 export * from './openSociety/types';
 export * from './openSociety/catalog';
+export {
+  residentCapabilityRoute,
+  RESIDENT_CLI_VERSION,
+  RESIDENT_SKILL_VERSION,
+} from './openSociety/capabilityRoutes';
 export * from './openSociety/manifest';
+export * from './openSociety/runProfile';
+export * from './openSociety/commitDelivery';
 export * from './openSociety/runtime';
+export * from './openSociety/societyMetrics';
+export * from './openSociety/commandGrammar';
+export { recoverOpenSocietyJournal } from './openSociety/journal';
+export type { JournalRecoveryReport } from './openSociety/journalRecovery';
 export * from './experimentalFeatures';
 export * from './agentScheduling';
 export * from './agentCycleRunner';
@@ -90,3 +101,18 @@ export type WorkerBootContract = {
   readonly commodityCount: number;
   readonly commoditySample?: CommodityConfig;
 };
+
+export * from './canonicalSocietyBarrier';
+
+export * from './canonicalWorldComposition';
+
+export * from './canonicalPolicyContinuation';
+
+export * from './canonicalMemoryContinuation';
+
+export * from './canonicalCognitiveDocuments';
+export * from './canonicalSocietyCandidate';
+
+export * from './canonicalRequestHistory';
+
+export * from './openSociety/societyActivation';

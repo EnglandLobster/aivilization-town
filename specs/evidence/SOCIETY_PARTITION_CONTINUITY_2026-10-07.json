@@ -1,0 +1,244 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T20:26:09.428526+00:00",
+  "spec": "specs/SOCIETY_PARTITION_CONTINUITY_V1.md",
+  "status": "persistent-local-worker-and-controlled-handoff-recovery-verified-not-full-R01",
+  "newResidentCapabilities": 0,
+  "newDomainRules": 0,
+  "newTests": 6,
+  "fullTests": {
+    "passed": 3168,
+    "skipped": 1,
+    "filesPassed": 472,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "fullLint": {
+      "exitCode": 0,
+      "log": "/tmp/partition-continuity-lint.log"
+    },
+    "lastChangedFilesLint": {
+      "exitCode": 0,
+      "log": "/tmp/partition-continuity-preflight-lint.log"
+    },
+    "providerFilesLint": {
+      "exitCode": 0,
+      "log": "/tmp/partition-continuity-final-files-lint.log"
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "log": "/tmp/partition-continuity-typecheck-final.log"
+    },
+    "initialRelatedBuild": {
+      "exitCode": 0,
+      "log": "/tmp/partition-continuity-build.log"
+    },
+    "finalResidentsBuild": {
+      "exitCode": 0,
+      "log": "/tmp/partition-continuity-preflight-build.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/partition-continuity-tests-verified.log"
+    },
+    "format": {
+      "exitCode": 0,
+      "log": "/tmp/partition-continuity-format-final.log"
+    },
+    "realRecovery": {
+      "exitCode": 0,
+      "log": "/tmp/partition-continuity-opencode-final.log"
+    }
+  },
+  "realRecoveryRuns": [
+    {
+      "artifact": ".local/open-residents/partition-continuity-20261007/verification.json",
+      "sha256": "d0e4ccde46e83a0729dd55491fef5314dd53d4446d55d604d989007866f3324d",
+      "report": {
+        "passed": true,
+        "failure": null,
+        "evidenceClass": "controlled-real-interruption-and-persistent-free-continuation-not-emergence",
+        "injected": true,
+        "lostHandoff": true,
+        "processCode": 0,
+        "providers": [
+          {
+            "artifact": "/home/dev/aivilization-town/.local/open-residents/partition-continuity-20261007/compute/resident-001/turn-2-resident-001.json",
+            "sha256": "a64e0474bf5a15e5e51eb1fef25d6ba9105849bb59938b1d3b285ac193a8d829",
+            "status": "provider-error",
+            "sessionId": "ses_eed22ee0cffezkqFdz7ySry59K",
+            "task": "free-activity",
+            "elapsedMs": 4749,
+            "termination": {
+              "exitSignal": "SIGTERM",
+              "aborted": true,
+              "abortReason": "aborted",
+              "providerErrorEvent": false
+            }
+          },
+          {
+            "artifact": "/home/dev/aivilization-town/.local/open-residents/partition-continuity-20261007/compute/resident-001/turn-31-resident-001.json",
+            "sha256": "3109bdb04021d14638ecdf75f4ed31ee24adee17aeae425a07f67d9ec87fae4c",
+            "status": "completed",
+            "sessionId": "ses_eed22ee0cffezkqFdz7ySry59K",
+            "task": "free-activity",
+            "elapsedMs": 14886,
+            "termination": {
+              "exitSignal": null,
+              "aborted": false,
+              "abortReason": null,
+              "providerErrorEvent": false
+            }
+          },
+          {
+            "artifact": "/home/dev/aivilization-town/.local/open-residents/partition-continuity-20261007/compute/resident-001/turn-6-resident-001.json",
+            "sha256": "58627292a808cd21577d9c4e3d7a21297b636965ee8c20073f1f4710601dd518",
+            "status": "completed",
+            "sessionId": "ses_eed22ee0cffezkqFdz7ySry59K",
+            "task": "free-activity",
+            "elapsedMs": 64262,
+            "termination": {
+              "exitSignal": null,
+              "aborted": false,
+              "abortReason": null,
+              "providerErrorEvent": false
+            }
+          }
+        ],
+        "turns": [
+          {
+            "id": "turn-2-resident-001",
+            "actorId": "resident-001",
+            "status": "provider-error",
+            "sessionId": "ses_eed22ee0cffezkqFdz7ySry59K",
+            "calls": 1
+          },
+          {
+            "id": "turn-6-resident-001",
+            "actorId": "resident-001",
+            "status": "waiting",
+            "sessionId": "ses_eed22ee0cffezkqFdz7ySry59K",
+            "calls": 22
+          },
+          {
+            "id": "turn-31-resident-001",
+            "actorId": "resident-001",
+            "status": "waiting",
+            "sessionId": "ses_eed22ee0cffezkqFdz7ySry59K",
+            "calls": 2
+          }
+        ],
+        "simulationTime": 1740000,
+        "fullReplayEqual": true
+      }
+    },
+    {
+      "artifact": ".local/open-residents/partition-continuity-20261007-2/verification.json",
+      "sha256": "36b87eab6f0d188bba513e8a51de8f4d73e2d548e3bcc4342c1cf2ef22eaef65",
+      "report": {
+        "passed": true,
+        "failure": null,
+        "evidenceClass": "controlled-real-interruption-and-persistent-free-continuation-not-emergence",
+        "injected": true,
+        "lostHandoff": true,
+        "processCode": 0,
+        "providers": [
+          {
+            "artifact": "/home/dev/aivilization-town/.local/open-residents/partition-continuity-20261007-2/compute/resident-001/turn-2-resident-001.json",
+            "sha256": "b623895301e2006ebf1c9b5cf665b53477a89848fcaae950153711a92b3e2c72",
+            "status": "provider-error",
+            "sessionId": "ses_eed1e56afffeDhZKCkzNNsyEsA",
+            "task": "free-activity",
+            "elapsedMs": 4548,
+            "termination": {
+              "exitSignal": "SIGTERM",
+              "aborted": true,
+              "abortReason": "aborted",
+              "providerErrorEvent": false
+            }
+          },
+          {
+            "artifact": "/home/dev/aivilization-town/.local/open-residents/partition-continuity-20261007-2/compute/resident-001/turn-35-resident-001.json",
+            "sha256": "59fd1693fc45cd1db4e747c3b3fe70f18d3a070fa7bf2bf363f51e8cd967fbff",
+            "status": "completed",
+            "sessionId": "ses_eed1e56afffeDhZKCkzNNsyEsA",
+            "task": "free-activity",
+            "elapsedMs": 46288,
+            "termination": {
+              "exitSignal": null,
+              "aborted": false,
+              "abortReason": null,
+              "providerErrorEvent": false
+            }
+          },
+          {
+            "artifact": "/home/dev/aivilization-town/.local/open-residents/partition-continuity-20261007-2/compute/resident-001/turn-6-resident-001.json",
+            "sha256": "2fe9f29c7dbae14825662e7919a79b6078b216cf5c7450d7f83f2ec1d68747eb",
+            "status": "completed",
+            "sessionId": "ses_eed1e56afffeDhZKCkzNNsyEsA",
+            "task": "free-activity",
+            "elapsedMs": 92784,
+            "termination": {
+              "exitSignal": null,
+              "aborted": false,
+              "abortReason": null,
+              "providerErrorEvent": false
+            }
+          }
+        ],
+        "turns": [
+          {
+            "id": "turn-2-resident-001",
+            "actorId": "resident-001",
+            "status": "provider-error",
+            "sessionId": "ses_eed1e56afffeDhZKCkzNNsyEsA",
+            "calls": 1
+          },
+          {
+            "id": "turn-6-resident-001",
+            "actorId": "resident-001",
+            "status": "waiting",
+            "sessionId": "ses_eed1e56afffeDhZKCkzNNsyEsA",
+            "calls": 26
+          },
+          {
+            "id": "turn-35-resident-001",
+            "actorId": "resident-001",
+            "status": "waiting",
+            "sessionId": "ses_eed1e56afffeDhZKCkzNNsyEsA",
+            "calls": 6
+          }
+        ],
+        "simulationTime": 1740000,
+        "fullReplayEqual": true
+      }
+    }
+  ],
+  "sourceHashes": {
+    "apps/residents/src/durableComputeRecord.ts": "17cd3d5973c23ae315820bb91085eb5f50c9d3f61f19ee6b6733e5145203e484",
+    "apps/residents/src/partitionBindings.ts": "d9b1cf33f4b1e35165a24c75ef4b3ab07bd6118d304aee60efe214f08e56627d",
+    "apps/residents/src/partitionExecution.ts": "6678071a992d34e9a4e451b9ec6b70fabc12d6048f132a316171c676557998c4",
+    "apps/residents/src/server.ts": "d2695010bd337368d19e8ffcf7322b97b791c078689c889955282347df7a340e",
+    "apps/residents/src/openCode.ts": "e5d8be2825a233a653e06b5312f759a2d9f66bdc954163e640ab1abdc8029a81",
+    "apps/residents/src/partitionCheckpoint.ts": "48848ebc833f398256dba927f26c5379e3c5775e5d8096f0bb1eea8eb5b687b0",
+    "apps/residents/src/partitionRunner.ts": "09d0e2ef5318071a591d21c158c9dd8e27bcd69774c9cf85283acb5d526200a9",
+    "apps/residents/src/partitionWorker.ts": "97b461c6baa7bd6300add686ee85e95a76aaf003b065e5ef1ad81451e07e83c1",
+    "apps/residents/src/partitionWorker.test.ts": "9927162783368f26669e298ce0d42132c8b52b8296f169648da041c8c25bd746",
+    "apps/residents/src/openCodeSession.test.ts": "47abf82a3bd63a3626b17455841d72343c4a371f995e4139e00138051fe80372",
+    "apps/residents/src/cli.ts": "d6a278ee4e7b6769e05bac27c13b4e140c420ffc71cbabbc9d4ac08092cebaca",
+    "apps/residents/src/index.ts": "3e0a673a742cf959e8740fa2b4eb7c8d2931f52d63978ee06195a2745815c78b",
+    "apps/residents/scripts/verify-partition-continuity.mjs": "ef936e9a19a6f03025010414affd20f49d5d516f404e96eb6e08d82903b46db7"
+  },
+  "initialVerificationIssues": [
+    "test server was closed twice; fixed fixture teardown without suppressing runtime errors",
+    "test mocks used default object stringification and async without await; corrected",
+    "final review found compute binding happened after claim; added authenticated identity preflight and expected-authority fencing, proved wrong directory leaves authority unchanged, reran full gates and real provider experiment"
+  ],
+  "limitations": [
+    "controlled SIGTERM and lost finish handoff, not SIGKILL orphan-provider takeover",
+    "same compute directory and observed session required; no fabricated missing session IDs",
+    "single host/static partitions; multi-host deployment and dynamic migration incomplete",
+    "canonical old-world migration and complete 25-capability scope remain",
+    "interrupted engineering experiment followed by two unprompted opportunities is not natural society emergence"
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "schemaVersion": "canonical-society-cutover-evidence-v1",
+  "sourceSha256": {
+    "apps/server/src/canonicalSocietyArchive.ts": "e8785f5271c34938719fded4a4c3dc4d44804da29172d0e94a702ab0cf7c5dd0",
+    "apps/server/src/canonicalSocietyCutover.ts": "a3ba1349c275133325f5e5be418ff028234eff2075cf0de3064f16424f3f99ef",
+    "apps/server/src/canonicalSocietyCutoverCli.ts": "e45fac2db3ff7f27cc364f71494c3d64aaef77e8ad9ba397b0ba114d12f9d65e",
+    "apps/server/src/canonicalSocietySource.test.ts": "8e9fc6644f2a67b971636077bcd4e553d3c233d3821a45bc4a194e64174a02ae",
+    "apps/server/src/localRuntimeTownCliMain.ts": "739f6120a71cc2fd2940920bdb016ec41c54bed82c64ec53f59b7797b410bcd5",
+    "apps/server/src/index.ts": "8a550c40839d6074725d1b58804ce1392b14a5ab4be570fd19a4d75031942e50",
+    "apps/server/scripts/verify-canonical-cutover.mjs": "b381bb55e59c626b032733e64dbfa098a5d4929b70f2cb2a9ed5b4349553bc96"
+  },
+  "validation": {
+    "targeted": {
+      "passed": 7,
+      "log": "/tmp/canonical-cutover-tests.log"
+    },
+    "lint": {
+      "passed": true,
+      "log": "/tmp/canonical-cutover-lint.log"
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/canonical-cutover-typecheck.log"
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/canonical-cutover-build.log"
+    },
+    "tests": {
+      "passed": 3264,
+      "skipped": 1,
+      "filesPassed": 494,
+      "log": "/tmp/canonical-cutover-full-tests.log"
+    }
+  },
+  "realCutover": {
+    "passed": true,
+    "retiredFormalRestartRefused": true,
+    "archiveAfterRetirementUnchanged": true,
+    "publishedViaFormalCli": true,
+    "completedOriginalTrips": 22,
+    "targetReplayMatched": true,
+    "repeatedPublicationPreservedNewFacts": true,
+    "root": "/home/dev/aivilization-town/.local/canonical-cutover-20261007",
+    "actualDaemonStarted": true,
+    "archiveRefusedWhileWriterActive": true,
+    "refusalCreatedNoTarget": true,
+    "daemonExit": {
+      "code": 0,
+      "signal": null
+    },
+    "archiveAcceptedAfterGracefulExit": true,
+    "repeatedArchiveUnchanged": true,
+    "archiveCliCalls": 4,
+    "sourceTreeSha256": "8750e351dd0669e47fcd7454585dcac37382c84eaece3a397519ff59b3303741",
+    "limitations": [
+      "Controlled new source and target; original operating worlds untouched. Base source continuation published, new social policies not implicitly enabled.",
+      "Orderly error recovery tested separately; no SIGKILL lock recovery or multi-host claim.",
+      "Deterministic engineering daemon, not OpenCode or free social emergence.",
+      "Cooperative same-filesystem admission; no legacy-writer, multi-host or forced-crash recovery claim."
+    ]
+  },
+  "openCode": {
+    "passed": true,
+    "root": "/home/dev/aivilization-town/.local/canonical-cutover-20261007",
+    "opportunities": 1,
+    "completed": true,
+    "providerExitCode": 0,
+    "model": "opencode-go/deepseek-v4.1-flash",
+    "calls": 21,
+    "journalCommits": 25,
+    "journalSha256": "cf6eaf44c2f7cf366673bfd33cfb55ffed1a7d3131fb9ee4442b3eec4ed14cd4",
+    "simulationTime": 2729000,
+    "worldEventCounts": {
+      "JobApplicationSubmitted": 1,
+      "ShortTermMemoryRecorded": 2,
+      "AgentTravelStarted": 1,
+      "AgentActivityTimeCommitted": 1,
+      "SimulationTimeAdvanced": 1
+    },
+    "rejections": [
+      {
+        "capability": "world.observe",
+        "error": "unknown-rule-section"
+      },
+      {
+        "capability": "sources.list",
+        "error": "materials-not-enabled"
+      },
+      {
+        "capability": "stocks.list",
+        "error": "materials-not-enabled"
+      },
+      {
+        "capability": "production.recipes",
+        "error": "materials-not-enabled"
+      }
+    ],
+    "reopenedWithoutNewCommits": true,
+    "repeatedPublicationPreservedModelFacts": true,
+    "writerReleased": true,
+    "limitations": [
+      "One unprompted opportunity validates migrated CLI/provider usability, not stable emergence.",
+      "Base continuation has not enabled materials/complete social profile; recorded rejected queries are real remaining capability-discovery/activation gaps."
+    ]
+  },
+  "limitations": [
+    "First single-simulation source continuation; multiple simulations in one source root reject instead of stranding other worlds.",
+    "Current source reader limitations for later/exited identities, missing/pruned history and arbitrary source policy configurations remain.",
+    "New social policies and complete profile not implicitly activated; actual model queries returned materials-not-enabled three times.",
+    "Orderly rename failure recovery is tested; SIGKILL orphaned leases/locks and non-cooperating legacy writers are not solved.",
+    "Full old UI/interface and all runtime/partition integration plus complete 25-capability goal remain active."
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "canonical-cognitive-documents-evidence-v1",
+  "sourceSha256": {
+    "packages/memory/src/fileRepositories.ts": "f2544d5b26efcd11d1fdf559ec42cf60fbf5a031e56917c76c287e831a934451",
+    "apps/worker/src/canonicalCognitiveDocuments.ts": "9c97cc4136094c48e1df9cc1fce8f328d69a1e6c52f125e4af1d50ad479bdc79",
+    "apps/worker/src/canonicalCognitiveDocuments.test.ts": "c3b005494c71221cd08ed7e358bdc9517f18beb289273dbce1fdc0b3e90f37c2",
+    "apps/worker/src/openSociety/canonicalCognition.ts": "60e47d11442e86aa359d7f32f661e16289703284c502a174c7a3504c102aca36",
+    "apps/worker/src/openSociety/types.ts": "d6ee24879d6e9e8fc6014237b6414f1f691786b9f3f2f9bbd7bdc5aaac61dab6",
+    "apps/worker/src/openSociety/state.ts": "8ba2ff6da6ac802e7ecbf098485eb0727f0afc1e2e248214186d614933542b39",
+    "apps/worker/src/openSociety/context.ts": "ce04d8a5864a8877a53b1a02fec84aaf06b693c7d0a687b98a30d580fc8227cb",
+    "apps/residents/scripts/verify-canonical-cognition-continuity.mjs": "8b01c02adb9c5fe4eeea8afc42a60ba19e77f367751f2d9bbfaaa14991e1028d"
+  },
+  "validation": {
+    "lint": {
+      "passed": true,
+      "log": "/tmp/canonical-cognition-lint.log"
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/canonical-cognition-typecheck.log"
+    },
+    "build": {
+      "passed": true,
+      "logs": [
+        "/tmp/canonical-cognition-memory-build.log",
+        "/tmp/canonical-cognition-worker-build.log"
+      ]
+    },
+    "tests": {
+      "passed": 3248,
+      "skipped": 1,
+      "filesPassed": 490,
+      "log": "/tmp/canonical-cognition-full-tests.log"
+    }
+  },
+  "archive": {
+    "passed": true,
+    "archive": "/home/dev/aivilization-town/.local/canonical-ownership-20261007/archive",
+    "residents": 25,
+    "partitions": 1,
+    "ledgerRecords": 25,
+    "profileSnapshots": 25,
+    "intentionSnapshots": 25,
+    "documentsSha256": "4a80083c15a0522e93456a32931efc9784b7d0a1a993f24b2912631e0623907f",
+    "perResident": {
+      "smoke-25-world-main-agent-001": 1,
+      "smoke-25-world-main-agent-002": 1,
+      "smoke-25-world-main-agent-003": 1,
+      "smoke-25-world-main-agent-004": 1,
+      "smoke-25-world-main-agent-005": 1,
+      "smoke-25-world-main-agent-006": 1,
+      "smoke-25-world-main-agent-007": 1,
+      "smoke-25-world-main-agent-008": 1,
+      "smoke-25-world-main-agent-009": 1,
+      "smoke-25-world-main-agent-010": 1,
+      "smoke-25-world-main-agent-011": 1,
+      "smoke-25-world-main-agent-012": 1,
+      "smoke-25-world-main-agent-013": 1,
+      "smoke-25-world-main-agent-014": 1,
+      "smoke-25-world-main-agent-015": 1,
+      "smoke-25-world-main-agent-016": 1,
+      "smoke-25-world-main-agent-017": 1,
+      "smoke-25-world-main-agent-018": 1,
+      "smoke-25-world-main-agent-019": 1,
+      "smoke-25-world-main-agent-020": 1,
+      "smoke-25-world-main-agent-021": 1,
+      "smoke-25-world-main-agent-022": 1,
+      "smoke-25-world-main-agent-023": 1,
+      "smoke-25-world-main-agent-024": 1,
+      "smoke-25-world-main-agent-025": 1
+    },
+    "recordsSha256": "d5ffcca0f672f598722695907f15f35f4dfd3a3e67b2541bbd49d6bd8ee1f022",
+    "archiveUnchanged": true,
+    "limitations": [
+      "All ledger pages for current residents in all declared captured partitions; not proof of history for departed subjects.",
+      "Latest existing profiles and intentions decoded via original repositories; historical revisions and branch planning remain archived and require separate mapping.",
+      "No target activation or new model experiment."
+    ]
+  },
+  "archiveLog": "/tmp/canonical-cognition-archive.log",
+  "limits": [
+    "Latest existing states are not full revision histories; original raw revision and branch files remain archived.",
+    "No active cognition, reminders, new consent or actions inferred from old active planner state.",
+    "Historical documents use existing personal memory read/search, no default body injection.",
+    "Full canonical activation, retirement, departed subjects and whole 25-capability goal remain incomplete."
+  ]
+}

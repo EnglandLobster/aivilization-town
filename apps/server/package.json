@@ -42,6 +42,7 @@
     "@aivilization/sim-core": "workspace:*",
     "@aivilization/worker": "workspace:*",
     "@aivilization/web": "workspace:*",
-    "@aivilization/world": "workspace:*"
+    "@aivilization/world": "workspace:*",
+    "@aivilization/residents": "workspace:*"
   }
 }

@@ -124,9 +124,12 @@ function handleGovernanceCommand<TPayload extends GovernanceCommandMetadataPaylo
       authority.detail,
     );
   }
+  const command = toDomainCommand(parsed.payload, authority.authority);
+  if (input.projection.publicGovernance?.authority.grant.procurement && command.type === 'SetPublicBudget' && command.policy.allocations.length)
+    return rejectGovernanceCommand(input, 'invalid-policy', 'abstract-budget-disabled-by-public-procurement');
   const decision = decideGovernanceChange({
     state: input.projection.governance ?? createInitialTownGovernanceState(),
-    command: toDomainCommand(parsed.payload, authority.authority),
+    command,
     policy: input.governance,
   });
   if (decision.status === 'rejected') {
@@ -186,6 +189,8 @@ function resolveGovernanceAuthority(input: {
     };
   }
   const actorId = input.command.actorId;
+  if (input.projection.publicGovernance)
+    return { status: 'rejected', detail: 'exact public proposal approval and execution required; topic petitions do not authorize policy parameters' };
   if (actorId === undefined || input.projection.agents[actorId] === undefined) {
     return { status: 'rejected', detail: 'resident governance requires a known actorId' };
   }

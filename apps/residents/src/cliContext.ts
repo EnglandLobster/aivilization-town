@@ -39,6 +39,7 @@ export function residentCliContext(value: unknown) {
       skillVersion: RESIDENT_SKILL_VERSION,
       entry: 'town wiki',
       help: 'town help',
+      find: "town find '<keywords>'",
       applications: 'town apps',
     },
     contract: [

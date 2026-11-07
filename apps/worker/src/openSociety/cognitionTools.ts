@@ -32,7 +32,15 @@ export function executeCognitionTool(
     return {
       data: pageItems(
         items.map((entry) => ({
-          ...entry,
+          id: entry.id,
+          ownerId: entry.ownerId,
+          at: entry.at,
+          kind: entry.kind,
+          sourceIds: entry.sourceIds,
+          people: entry.people,
+          provenance: entry.provenance,
+          ...(entry.occurredAt === undefined ? {} : { occurredAt: entry.occurredAt }),
+          ...(entry.locationIds === undefined ? {} : { locationIds: entry.locationIds }),
           summary: entry.summary.slice(0, 700),
           expandedBy: 'memory.read',
         })),
@@ -63,6 +71,7 @@ export function executeCognitionTool(
     };
   }
   if (name !== 'cognition.update') throw new ToolRefusal('unknown-cognition-tool');
+  const evidenceIds = stringArrayArg(args, 'evidenceIds');
   const decision = decideCognitiveUpdate({
     state: cognition,
     policyVersion:
@@ -74,13 +83,18 @@ export function executeCognitionTool(
       kind: stringArg(args, 'kind') as CognitiveEntry['kind'],
       statement: stringArg(args, 'statement'),
       confidence: numberArg(args, 'confidence'),
-      evidenceIds: stringArrayArg(args, 'evidenceIds'),
+      evidenceIds,
       expectedRevision: numberArg(args, 'expectedRevision'),
       active: args.active === true,
       ...(args.pinned === undefined ? {} : { pinned: args.pinned === true }),
       ...(args.people === undefined ? {} : { people: stringArrayArg(args, 'people') }),
     },
-    visibleEvidenceIds: new Set(experiences.flatMap((entry) => [entry.id, ...entry.sourceIds])),
+    visibleEvidenceIds: new Set([
+      ...experiences.flatMap((entry) => [entry.id, ...entry.sourceIds]),
+      // An immutable message personally sent is firsthand evidence, even before rereading it.
+      // Other members' unread messages remain unavailable; this grants no raw-content access.
+      ...evidenceIds.filter((id) => state.communication?.messages[id]?.authorId === actorId),
+    ]),
   });
   if (!decision.accepted) throw new ToolRefusal(decision.reason);
   return { data: decision.event.entry, effects: { cognitiveEvents: [decision.event] } };

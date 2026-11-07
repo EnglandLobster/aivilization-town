@@ -1,0 +1,203 @@
+{
+  "date": "2026-10-05",
+  "scope": "W03/W06/W07/M09 actual enterprise service accounting and wages",
+  "versions": {
+    "catalog": 40,
+    "skill": 39,
+    "rulebook": 29,
+    "routes": 360
+  },
+  "validation": {
+    "command": "pnpm check",
+    "testsPassed": 2721,
+    "testsSkipped": 1,
+    "filesPassed": 384,
+    "filesSkipped": 1,
+    "log": "/tmp/service-employment-check-2.log",
+    "buildLog": "/tmp/service-employment-build.log"
+  },
+  "cli": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-http-cli-not-free-emergence",
+    "calls": 26,
+    "expectedRefusals": 7,
+    "results": [
+      {
+        "route": "business found",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business post-job",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business join",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements offer",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements accept",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements fund",
+        "ok": false,
+        "exitCode": 1,
+        "error": "exact-enterprise-service-authorization-required"
+      },
+      {
+        "route": "business authorize-service",
+        "ok": false,
+        "exitCode": 1,
+        "error": "enterprise-service-authorization-required"
+      },
+      {
+        "route": "business authorize-service",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business services",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business service",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business service",
+        "ok": false,
+        "exitCode": 1,
+        "error": "service-business-record-not-found"
+      },
+      {
+        "route": "engagements fund",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements start",
+        "ok": false,
+        "exitCode": 1,
+        "error": "exact-current-service-employment-acceptance-required"
+      },
+      {
+        "route": "engagements read",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements start",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements start",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements ledger",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements ledger",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements ledger",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business close",
+        "ok": false,
+        "exitCode": 1,
+        "error": "enterprise-service-contracts-require-settlement"
+      },
+      {
+        "route": "business layoff",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business claim-wage",
+        "ok": false,
+        "exitCode": 1,
+        "error": "own-service-wage-required"
+      },
+      {
+        "route": "city observe",
+        "ok": false,
+        "exitCode": 1,
+        "error": "own-labor-not-found"
+      },
+      {
+        "route": "business fund",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business claim-wage",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      }
+    ],
+    "independentCompanyPermission": true,
+    "independentWorkerAcceptance": true,
+    "actualWaitingDistinctFromService": true,
+    "serviceIncomeAndWagesSeparate": true,
+    "patientBodyPrivacy": true,
+    "layoffPreservesPersonalDebt": true,
+    "actualCashPaysOnlyCreditor": true,
+    "replayEqual": true,
+    "journalBytesUnchanged": true
+  },
+  "regressions": {
+    "publicLedgerNestedBodyLeak": "reproduced and fixed",
+    "automaticCommonReceiptIdAndIntervalTime": "reproduced and fixed",
+    "bankruptcyPrematureClosure": "reproduced and fixed",
+    "multiBoundaryBodyRelease": "reproduced and fixed in explicit employment mode",
+    "waitingExhaustionMs": 4999999,
+    "waitingWageMicros": 13888886
+  },
+  "migration": {
+    "ok": true,
+    "phase": "service-employment-after-free-160",
+    "priorTurns": 160,
+    "at": 53498000,
+    "sequences": [
+      1286,
+      1287
+    ],
+    "oldStateReplayEqual": true,
+    "originalManifestAndImplementationUnchanged": true,
+    "existingProductionAndBodiesAndSchedulesUnchanged": true
+  },
+  "freeExperiment": "32 new free opportunities started after 160; no adoption claim yet",
+  "remaining": [
+    "public wages",
+    "collective enterprise control",
+    "complete liquidation and long obligations",
+    "public property and construction",
+    "canonical and partition integration",
+    "long autonomous institutions"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "acceptance": false,
+  "diagnosticPassed": true,
+  "scope": "active-employed-production-and-service-after-preserved-departure",
+  "source": "real-runtime-generated-active-work-followed-by-isolated-population-capture",
+  "observations": [
+    {
+      "kind": "service",
+      "boundary": "same simulation time",
+      "operation": "advanceResidentServiceEngagements",
+      "error": "service-worker-required"
+    },
+    {
+      "kind": "productive",
+      "boundary": "one millisecond after captured departure",
+      "operation": "settleResidentMaterialEvent then world replay",
+      "error": "productive-worker-missing"
+    }
+  ],
+  "assertions": [
+    "actual prior earned claim exists and remains active",
+    "ordinary departed-person wage command refused",
+    "ended-debt settlement refuses active claim",
+    "owning settlement reaches missing-body wage reducer",
+    "source projection unchanged after failed candidate replay"
+  ],
+  "sourceOnlyFinding": "same-time productive tick returns no events before availability checks",
+  "quality": {
+    "lint": true,
+    "typecheck": true,
+    "targetedTestsPassed": 14,
+    "testsPassed": 3334,
+    "testsSkipped": 1,
+    "build": "not repeated: tests and documentation only"
+  },
+  "next": "atomic source-verified population boundary orchestration, not looser wage ownership checks",
+  "limitations": [
+    "No active departure implementation in this diagnostic change",
+    "No canonical population activation",
+    "No additional OpenCode or emergence evidence"
+  ],
+  "logs": {
+    "target": "/tmp/active-exit-diagnostic.log",
+    "lint": "/tmp/active-exit-lint.log",
+    "typecheck": "/tmp/active-exit-typecheck.log",
+    "tests": "/tmp/active-exit-tests.log"
+  }
+}

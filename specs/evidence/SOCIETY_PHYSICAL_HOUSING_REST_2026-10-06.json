@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "society-physical-housing-rest-evidence-v1",
+  "date": "2026-10-06",
+  "policy": "resident-physical-housing-rest-v1",
+  "catalog": 59,
+  "skill": 58,
+  "rulebook": 48,
+  "entrypoints": [
+    "housing occupancy",
+    "life sleep",
+    "life wake",
+    "enable-physical-housing-rest"
+  ],
+  "fullGate": {
+    "commands": [
+      "pnpm lint",
+      "pnpm -r --sort typecheck",
+      "pnpm test"
+    ],
+    "lintPassed": true,
+    "sortedRepositoryTypecheckPassed": true,
+    "testsPassed": 2937,
+    "testsSkipped": 1,
+    "note": "First pnpm check attempt found an unnecessary assertion. After fixing it the final separate full lint/typecheck/test commands all exited zero; no invariant was weakened."
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... --sort build",
+    "passed": true
+  },
+  "compiledCli": {
+    "ok": true,
+    "validation": "compiled-authenticated-HTTP-CLI-not-emergence",
+    "policy": "resident-physical-housing-rest-v1",
+    "checks": [
+      "explicit-activation-no-asset-or-body-rewrite",
+      "real-materials-labor-and-construction",
+      "independent-right-and-real-arrival",
+      "actual-location-not-registered-home",
+      "actual-sleep-not-prepaid",
+      "wear-boundary-and-source-evidence",
+      "rights-expiry-does-not-remove-roof",
+      "personal-departure-keeps-contracts-tier-and-arrears",
+      "outdoor-sleep-not-blocked",
+      "identity-refusals",
+      "exact-journal-replay"
+    ],
+    "calls": 23,
+    "refusals": 5
+  },
+  "logSha256": {
+    "lint": "5916ffad0518ced5d03a10f2db745faa61fd5dcdef8fb1a738e3a423b5e12e76",
+    "typecheck": "d33d8096ccfc8bd13696ae0ff18f51fe799aea71a3db3215544248e9729b729c",
+    "tests": "420568986450dce212c9e18c2d90d8f8a7a214b63aa1f5038073e6ec32f2e294",
+    "build": "f047780c3b597189e10acb8e979b4755400524b07652e6834067063a43a18854",
+    "cli": "021e8a86284f8864adcfcf945fbd6312c48000b6588b8ce3c7e021897204c8ee"
+  },
+  "invariants": [
+    "Actual materials and personal elapsed work produce a real residence; ordinary titles and partial projects provide no housing effect",
+    "Physical location determines recovery, independently of registered residence, ownership, private ACL and reputation",
+    "Explicit initial residence endowment is distinguished from actual resident-built structure; unsheltered sleep remains available",
+    "Pure premises source and society versioned physical model are separate; actual wear and material-funded maintenance change future recovery",
+    "Expired rights and administrative closure do not remove the physical roof; entering, occupying and leaving retain their own permission/body/contract boundaries",
+    "No prepaid body effect or involuntary sleep; only the actual sleeper may interrupt their versioned session",
+    "World naked time cannot cross unsettled premises wear; open scheduler splits real boundaries, large/small advances agree",
+    "Final body events retain source proof; forged/missing evidence rejects without reintegrating physical outcomes in replay",
+    "Activation preserves old manifest, assets, body, personal standards and debt, and refuses active sleeps/missing prerequisites",
+    "Full journal replay leaves bytes unchanged; bounded query reuses existing context pointer"
+  ],
+  "remainingInFullGoal": [
+    "H3 complete housing/service/enterprise estate composition",
+    "H4 actual public asset procurement and construction",
+    "H5 long obligations and remedy; H6/R01 canonical and partition wiring",
+    "All 25 contracts and multi-condition unprompted society experiments"
+  ]
+}

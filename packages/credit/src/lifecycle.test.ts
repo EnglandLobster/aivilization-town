@@ -1,7 +1,11 @@
 import { asAgentId, asLoanId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import { applyCreditDomainEvent, type CreditDomainEvent } from './aggregate';
-import { evaluateDailyCreditAccrual } from './lifecycle';
+import {
+  evaluateDailyCreditAccrual,
+  evaluateDailyCreditAccrualWithSharedCashBudget,
+  CREDIT_SHARED_CASH_BUDGET_POLICY,
+} from './lifecycle';
 import { createBankState, normalizeBankState, type BankState, type LoanState } from './model';
 import type { CreditPolicy } from './policy';
 
@@ -358,9 +362,9 @@ describe('daily deposit interest', () => {
       'LoanRepaid',
       'DepositInterestPaid',
     ]);
-    expect(referenceEvents.map((event) => (event.type === 'LoanRepaid' ? event.status : ''))).toEqual(
-      ['active', '', 'active', '', 'repaid', ''],
-    );
+    expect(
+      referenceEvents.map((event) => (event.type === 'LoanRepaid' ? event.status : '')),
+    ).toEqual(['active', '', 'active', '', 'repaid', '']);
   });
 });
 
@@ -386,3 +390,79 @@ function loan(overrides: Partial<LoanState> = {}): LoanState {
     ...overrides,
   };
 }
+
+test('explicit shared borrower cash budget collects multiple loans once in stable loan order without overdrawing the actual person or estate source', () => {
+  const bank = bankWith({
+    balance: 1000,
+    loans: {
+      'loan-2': loan({ loanId: asLoanId('loan-2'), principal: 300 }),
+      'loan-1': loan({ principal: 300 }),
+    },
+  });
+  const before = structuredClone(bank);
+  let reads = 0;
+  const d = evaluateDailyCreditAccrualWithSharedCashBudget({
+    bank,
+    now: DAY_MS,
+    policy: { ...policy, maxLoansPerAgent: 2 },
+    collectionPolicy: CREDIT_SHARED_CASH_BUDGET_POLICY,
+    borrowerBalance: (id) => {
+      expect(id).toBe(borrowerId);
+      reads++;
+      return 150;
+    },
+  });
+  expect(reads).toBe(1);
+  expect(d.events.map((e) => (e.type === 'LoanRepaid' ? e.paidAmount : 0))).toEqual([103, 47]);
+  expect(d.events.map((e) => (e.type === 'LoanRepaid' ? e.missedPayments : 0))).toEqual([0, 1]);
+  const next = d.events.reduce(applyCreditDomainEvent, bank);
+  expect(next.balance).toBe(1150);
+  expect(next.loans['loan-2']?.principal).toBe(256);
+  expect(bank).toEqual(before);
+});
+test('shared cash budgets remain separate for different subjects and allow actual deposit interest after all available cash has been collected', () => {
+  const bank = bankWith({
+    balance: 1000,
+    deposits: { [borrowerId]: 1000 },
+    loans: {
+      'loan-2': loan({ loanId: asLoanId('loan-2'), borrowerAgentId: depositorId }),
+      'loan-1': loan(),
+    },
+  });
+  const d = evaluateDailyCreditAccrualWithSharedCashBudget({
+    bank,
+    now: DAY_MS,
+    policy,
+    collectionPolicy: CREDIT_SHARED_CASH_BUDGET_POLICY,
+    borrowerBalance: (id) => (id === borrowerId ? 30 : undefined),
+  });
+  expect(d.events.map((e) => e.type)).toEqual(['LoanRepaid', 'DepositInterestPaid']);
+  const next = d.events.reduce(applyCreditDomainEvent, bank);
+  expect(next.balance).toBe(1029);
+  expect(next.loans['loan-2']).toEqual(bank.loans['loan-2']);
+});
+test('the new shared collection protocol is explicit and does not silently change existing decision policies or historical loan event interpretation', () => {
+  const bank = bankWith({
+      balance: 1000,
+      loans: { 'loan-2': loan({ loanId: asLoanId('loan-2') }), 'loan-1': loan() },
+    }),
+    input = {
+      bank,
+      now: DAY_MS,
+      policy: { ...policy, maxLoansPerAgent: 2 },
+      borrowerBalance: () => 150,
+    };
+  expect(
+    evaluateDailyCreditAccrual(input).events.map((e) =>
+      e.type === 'LoanRepaid' ? e.paidAmount : 0,
+    ),
+  ).toEqual([103, 103]);
+  const invalid = structuredClone(CREDIT_SHARED_CASH_BUDGET_POLICY);
+  Object.assign(invalid, { version: 'unsupported' });
+  expect(() =>
+    evaluateDailyCreditAccrualWithSharedCashBudget({
+      ...input,
+      collectionPolicy: invalid,
+    }),
+  ).toThrow('unsupported-credit-shared-cash-budget-policy');
+});

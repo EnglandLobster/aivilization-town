@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@aivilization/economy": "workspace:*",
-    "@aivilization/sim-core": "workspace:*"
+    "@aivilization/sim-core": "workspace:*",
+    "@aivilization/authority": "workspace:*"
   }
 }

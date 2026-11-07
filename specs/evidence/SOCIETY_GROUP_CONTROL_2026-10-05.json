@@ -1,0 +1,175 @@
+{
+  "capability": "M06-M09-group-control-slice",
+  "mode": "real-compiled-cli-engineering-acceptance",
+  "modelInvoked": false,
+  "cliCalls": 31,
+  "results": [
+    {
+      "route": "rules read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives respond",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "groups create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "groups send",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "groups invite",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "resources offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "groups messages",
+      "exitCode": 1,
+      "ok": false,
+      "error": "member-required"
+    },
+    {
+      "route": "groups invite",
+      "exitCode": 1,
+      "ok": false,
+      "error": "owner-required"
+    },
+    {
+      "route": "groups accept",
+      "exitCode": 1,
+      "ok": false,
+      "error": "invitation-already-resolved"
+    },
+    {
+      "route": "groups join-request",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "groups withdraw-request",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "groups accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "groups send",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "groups messages",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "groups send",
+      "exitCode": 1,
+      "ok": false,
+      "error": "group-closed"
+    }
+  ],
+  "controlDoesNotGrantMembershipOrHistory": true,
+  "independentJoinAndWithdraw": true,
+  "priorInvitationsTerminatedWithActualReason": true,
+  "collectiveActionExactAndAtomic": true,
+  "actualMessageAuthorshipPreserved": true,
+  "closedHistoryRetainedForMembers": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true
+}

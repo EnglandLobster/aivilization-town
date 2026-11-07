@@ -1,0 +1,170 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T20:53:08.746142+00:00",
+  "spec": "specs/SOCIETY_INTEGRATED_OBSERVATION_V1.md",
+  "status": "short-free-observation-and-command-repair-entry-verified-not-full-R02",
+  "newResidentCapabilities": 0,
+  "newDomainRules": 0,
+  "newTests": 2,
+  "fullTests": {
+    "passed": 3174,
+    "skipped": 1,
+    "filesPassed": 473,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/repair-help-lint.log"
+    },
+    "sortedFullTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/repair-help-typecheck.log"
+    },
+    "residentsBuild": {
+      "exitCode": 0,
+      "log": "/tmp/repair-help-build.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/repair-help-full-tests.log"
+    },
+    "targetedTests": {
+      "exitCode": 0,
+      "log": "/tmp/repair-help-tests.log"
+    },
+    "compiledCli": {
+      "exitCode": 0,
+      "log": "/tmp/repair-cli-verified.log"
+    }
+  },
+  "freeObservation": {
+    "root": ".local/open-residents/integrated-observation-20261007",
+    "opportunities": 8,
+    "providerCompleted": 8,
+    "providerElapsedMs": 249030,
+    "simulationTime": 480000,
+    "journalCommits": 80,
+    "capabilityCalls": 55,
+    "authorityRefusals": [],
+    "commandOutcomes": {
+      "succeeded": 93,
+      "failed": 6,
+      "unknown": 0
+    },
+    "residentArtifacts": {
+      "spaces": 0,
+      "documents": 0,
+      "messages": 8,
+      "groups": 0,
+      "collectives": 0,
+      "registers": 0,
+      "views": 0,
+      "programs": 0,
+      "services": 0
+    },
+    "verification": {
+      "outcome": {
+        "status": "limit-reached",
+        "opportunities": 8
+      },
+      "liveAdministratorReportMatchesReplay": true,
+      "journalUnchanged": true,
+      "journalSha256": "ec725ac216d18ccd0de1bb36dca57fc2141d9345e880046bd7de22cf89000b9d",
+      "simulationTime": 480000,
+      "limitations": [
+        "administrator report comparison is not a full live-state snapshot",
+        "no social success assertion; inspect events and original provider evidence"
+      ]
+    },
+    "engineVerification": {
+      "checkedAt": "2026-10-06T20:50:00.275031+00:00",
+      "compiledArtifacts": 33,
+      "unchangedAfterRun": true,
+      "hashesFile": "engine-artifacts.json"
+    },
+    "analysisSha256": "5db802ff4bc8d5da155deb5ce61aa0eaa17b5ce9062dd458c816c84dcc4d4b7e",
+    "eventCounts": {
+      "informationEvents/SpaceCreated": 8,
+      "informationEvents/DocumentCreated": 15,
+      "informationEvents/MessageSent": 8,
+      "worldEvents/AgentTravelStarted": 4,
+      "worldEvents/AgentActivityTimeCommitted": 4,
+      "worldEvents/ShortTermMemoryRecorded": 5,
+      "worldEvents/SimulationTimeAdvanced": 8,
+      "worldEvents/PhysiologyChanged": 32,
+      "informationEvents/MessageRead": 6,
+      "worldEvents/ResidentStudyCommitted": 7,
+      "worldEvents/AgentLocationChanged": 1
+    }
+  },
+  "postObservationCli": {
+    "evidenceClass": "post-observation-scripted-cli-not-model",
+    "passed": true,
+    "initialVerifierFailures": [
+      "Expected absent Usage label",
+      "Expected --message-id instead of documented --id"
+    ],
+    "cases": [
+      {
+        "arguments": [
+          "files",
+          "index",
+          "--space",
+          "app-community"
+        ],
+        "error": "unknown-flag:--space",
+        "repair": "town files index --help",
+        "repairExit": 0,
+        "verifiedFlag": "--space-id"
+      },
+      {
+        "arguments": [
+          "messages",
+          "read",
+          "message-id"
+        ],
+        "error": "expected-flag:message-id",
+        "repair": "town messages read --help",
+        "repairExit": 0,
+        "verifiedFlag": "--id"
+      },
+      {
+        "arguments": [
+          "city",
+          "observe",
+          "--view",
+          "destinations"
+        ],
+        "error": "invalid-string:view",
+        "repair": "town city observe --help",
+        "repairExit": 0,
+        "verifiedFlag": "--view"
+      },
+      {
+        "arguments": [
+          "travel",
+          "go",
+          "--to",
+          "market"
+        ],
+        "error": "unknown-flag:--to",
+        "repair": "town travel go --help",
+        "repairExit": 0,
+        "verifiedFlag": "--target-location-id"
+      }
+    ]
+  },
+  "sourceSha256": {
+    "apps/residents/src/residentCli.ts": "015aa987f24381c28b749346fbddaf264fb8a9b9f43bf6dc57bb3322115b9fc2",
+    "apps/residents/src/residentCli.test.ts": "dcd2a8004776c7f96b29bc67075d4dabe5a29265b33919c8b84dbca992cce364",
+    "apps/residents/scripts/analyze-free-run.mjs": "b5cbb2411e1ca4aa5ab7e0385c93cc62a4d31c641f62f7184759d027ce495ba2",
+    "apps/residents/scripts/observe-integrated-society.mjs": "23d6c7ec800128eca291c92e9255f975b0abc40bf4d64e406dbd5ea999c15676"
+  },
+  "limitations": [
+    "Eight simulation minutes and one seed do not establish stable emergence or explain absence of organizations",
+    "CLI repair was implemented after the free run; no model or efficiency improvement claim for this repair",
+    "Replay compared the saved live administrator report, not a full live-world snapshot",
+    "Full 25-capability delivery, public construction procurement, long obligations and canonical migration remain incomplete"
+  ]
+}

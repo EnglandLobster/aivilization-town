@@ -1,0 +1,209 @@
+{
+  "schemaVersion": "canonical-body-materials-evidence-v1",
+  "sourceSha256": {
+    "packages/materials/src/extractionModel.ts": "b35fce3741928c5a30e27069336a28f9dc14d64288a632706a8916ce9c0708ff",
+    "packages/materials/src/extractionEvents.ts": "e0da1326e1269fe925eefa1640874dd5fd9976358c52d44a63ff0b7f7b4e5956",
+    "packages/materials/src/extraction.test.ts": "702c754ba8c82cd1058b035b4ffe27e3916ce9dfed0d318368e66e91a3dd571f",
+    "packages/world/src/residentExtraction.ts": "15e6d9b70cf38478371bdd42c4681c1fb300f3bf66d003b13357aa7d4aef74a7",
+    "apps/worker/src/openSociety/extractionPolicy.ts": "6f331371cb3a60950e72d5429ff72e53068b41cdb457b19637bf3229307b4e67",
+    "apps/worker/src/openSociety/runtime.ts": "d08925ee26bf906e430b6f12b7123a10d7b1fe5e87fe61e347798c982808780c",
+    "apps/worker/src/openSociety/materialTools.ts": "cc28343b735d507b5e2a0d2ffbbb3ff7be5b037f0c273626c1ee516270be6c90",
+    "apps/worker/src/openSociety/societyActivation.ts": "00a7aec8f112f61bcc72064d616edf2f4dcdbc12110c88d4e09dbce3fb93a72e",
+    "apps/worker/src/openSociety/societyActivation.test.ts": "5a9d2d7a6b238658ba8b8f6fffe1fa1ec2505e16e1fd901f9435fbf8d77dccc0",
+    "apps/worker/src/openSociety/extraction.test.ts": "18354b95a6c9ef5b559573d5f59f4f2c6a88a57c3a5ff26eb16af1fa625e23c8",
+    "apps/residents/src/cli.ts": "a660994f305ead974a53958df6b2f662157346b6cc5bb1ecf50e50b4cb1d6ad3",
+    "apps/server/scripts/verify-canonical-body-materials.mjs": "75ca573baa259dfe85fe2786219773a8a7df55e12dad94775b9689d383d15fa1"
+  },
+  "realMigratedWorld": {
+    "passed": true,
+    "previousRevision": 50,
+    "revision": 53,
+    "bodyActivation": {
+      "version": "society-body-learning-activation-v1",
+      "status": "enabled",
+      "completed": ["elapsed-rest", "elapsed-study"],
+      "features": [
+        {
+          "feature": "elapsed-rest",
+          "enabled": true
+        },
+        {
+          "feature": "elapsed-study",
+          "enabled": true
+        }
+      ],
+      "scope": "elapsed-sleep-and-learning-no-wage-policy-or-material-seeding"
+    },
+    "endowment": {
+      "origin": {
+        "version": "declared-material-endowment-v1",
+        "id": "canonical-isolated-endowment-20261007",
+        "kind": "new-operator-endowment",
+        "description": "本次隔离迁移实验明确新增的有限开放原料，不是原世界已有库存、历史发现或居民产权。每种100单位，无自动再生，劳动后才可用。"
+      },
+      "sources": [
+        {
+          "id": "declared-apple",
+          "locationId": "workshop",
+          "commodity": "Apple",
+          "initialQuantity": 100,
+          "workMs": 60000,
+          "energyCost": 2,
+          "satietyCost": 0,
+          "capacity": 2
+        },
+        {
+          "id": "declared-wheat",
+          "locationId": "workshop",
+          "commodity": "Wheat",
+          "initialQuantity": 100,
+          "workMs": 60000,
+          "energyCost": 12,
+          "satietyCost": 3,
+          "capacity": 2
+        },
+        {
+          "id": "declared-rice",
+          "locationId": "workshop",
+          "commodity": "Rice",
+          "initialQuantity": 100,
+          "workMs": 60000,
+          "energyCost": 16,
+          "satietyCost": 4,
+          "capacity": 2
+        },
+        {
+          "id": "declared-wood",
+          "locationId": "workshop",
+          "commodity": "Wood",
+          "initialQuantity": 100,
+          "workMs": 60000,
+          "energyCost": 8,
+          "satietyCost": 2,
+          "capacity": 2
+        },
+        {
+          "id": "declared-copper-ore",
+          "locationId": "workshop",
+          "commodity": "Copper Ore",
+          "initialQuantity": 100,
+          "workMs": 60000,
+          "energyCost": 12,
+          "satietyCost": 3,
+          "capacity": 2
+        },
+        {
+          "id": "declared-iron-ore",
+          "locationId": "workshop",
+          "commodity": "Iron Ore",
+          "initialQuantity": 100,
+          "workMs": 60000,
+          "energyCost": 16,
+          "satietyCost": 4,
+          "capacity": 2
+        },
+        {
+          "id": "declared-silicon-ore",
+          "locationId": "workshop",
+          "commodity": "Silicon Ore",
+          "initialQuantity": 100,
+          "workMs": 60000,
+          "energyCost": 20,
+          "satietyCost": 5,
+          "capacity": 2
+        },
+        {
+          "id": "declared-fish",
+          "locationId": "workshop",
+          "commodity": "Fish",
+          "initialQuantity": 100,
+          "workMs": 180000,
+          "energyCost": 60,
+          "satietyCost": 15,
+          "capacity": 2
+        }
+      ]
+    },
+    "existingAgentsMoneyClockTransitAndStocksUnchanged": true,
+    "manifestUnchanged": true,
+    "retryCreatedNoCommits": true,
+    "replayMatched": true,
+    "limitations": [
+      "Explicit new finite endowment, not preservation of original raw assets.",
+      "No actual sleep/study or extraction performed by this operator activation.",
+      "Canonical wageCalculator has no explicit period-pay terms; labor migration remains pending.",
+      "No emergence claim."
+    ]
+  },
+  "realOpenCode": {
+    "completed": true,
+    "opportunities": 1,
+    "calls": 17,
+    "providerExitCode": 0,
+    "model": "opencode-go/deepseek-v4.1-flash",
+    "journalCommits": 73,
+    "journalSha256": "de5224275e86c79a5b36e595b995e5798f534c93dfd87af4c32c9eb2a113ac59",
+    "sourceQuerySucceeded": true,
+    "sourceOriginReturned": true,
+    "worldEventCounts": {
+      "AgentTravelStarted": 1,
+      "AgentActivityTimeCommitted": 1,
+      "ShortTermMemoryRecorded": 1,
+      "SimulationTimeAdvanced": 1
+    },
+    "rejections": [
+      {
+        "capability": "world.observe",
+        "error": "resident-labor-not-enabled"
+      }
+    ],
+    "reopenedWithoutNewCommits": true,
+    "replayMatched": true,
+    "writerReleased": true,
+    "limitations": [
+      "One unprompted opportunity, not emergence evidence.",
+      "No actual extraction, production, sleep or study performed in this model opportunity.",
+      "Labor integration remains disabled.",
+      "Travel started, no arrival event."
+    ]
+  },
+  "validation": {
+    "targeted": {
+      "passed": 16,
+      "log": "/tmp/material-endowment-tests.log"
+    },
+    "tests": {
+      "passed": 3277,
+      "skipped": 1,
+      "filesPassed": 496,
+      "filesSkipped": 1,
+      "log": "/tmp/material-endowment-full-tests.log"
+    },
+    "lint": {
+      "passed": true,
+      "logs": ["/tmp/material-endowment-lint2.log", "/tmp/material-endowment-script-lint.log"]
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/material-endowment-final-typecheck.log"
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/material-endowment-build.log"
+    },
+    "format": {
+      "passed": true,
+      "log": "/tmp/material-endowment-final-format.log"
+    }
+  },
+  "initialFailures": [
+    "Lint rejected unused destructured fields; replaced with explicit immutable seed projection and legacy test event."
+  ],
+  "limitations": [
+    "Eight finite sources were explicitly newly endowed in isolated migration, not recovered original assets.",
+    "No new private inventory, land title, labor assignment, school or organization was created by activation.",
+    "Canonical wageCalculator lacks declared period-pay terms; actual labor migration remains outstanding.",
+    "Actual extraction tested in integration; unprompted model queried sources and traveled but did not extract.",
+    "Full 25 capability scope, facility integration and all execution modes remain active."
+  ]
+}

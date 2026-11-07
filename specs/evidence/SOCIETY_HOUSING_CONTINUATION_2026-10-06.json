@@ -1,0 +1,179 @@
+{
+  "schemaVersion": "society-free-continuation-v1",
+  "checkpoint": "free-416",
+  "frozenEngine": "/tmp/aivilization-housing-20261006",
+  "verifiedFingerprints": 371,
+  "newEngineeringIncluded": [
+    "housing-choice-v1",
+    "public-housing-v1"
+  ],
+  "notIncluded": [
+    "housing-occupancy-v1",
+    "resource-principals-v2"
+  ],
+  "fromOpportunity": 384,
+  "throughOpportunity": 416,
+  "phaseOpportunities": 32,
+  "completedProviderTurns": 28,
+  "providerFailures": 4,
+  "calls": 103,
+  "totalCalls": 1608,
+  "journalCommits": 3112,
+  "simulationTime": 358743000,
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "journalSha256": "693ed848757afe1c34c7ef9c652c82f843e948f797d662ed4893b73d0a70c38f",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "callCounts": {
+    "schedule.wait/accepted": 29,
+    "governance.housing/accepted": 1,
+    "messages.read/accepted": 9,
+    "world.move/accepted": 8,
+    "world.trade/accepted": 4,
+    "world.upgrade_home/refused": 1,
+    "governance.propose/accepted": 2,
+    "governance.read/accepted": 10,
+    "governance.vote/accepted": 7,
+    "messages.send/accepted": 11,
+    "governance.votes/accepted": 1,
+    "world.work/accepted": 3,
+    "world.eat/accepted": 5,
+    "world.sleep/accepted": 3,
+    "stocks.read/accepted": 1,
+    "stocks.withdraw/accepted": 1,
+    "governance.status/accepted": 2,
+    "governance.close/accepted": 1,
+    "governance.execute/refused": 3,
+    "governance.list/accepted": 1
+  },
+  "housing": {
+    "policyRevisions": 1,
+    "personalChoiceRevisions": {}
+  },
+  "governance": {
+    "policyRevision": 2,
+    "currentSubsidy": {
+      "maxSubsidy": 2000,
+      "minimumBalance": 200,
+      "policyVersion": "resident-public-subsidy-v1",
+      "source": "resident-public-procedure-v1"
+    },
+    "proposals": [
+      {
+        "id": "proposal-004-subsidy-500",
+        "authorId": "resident-004",
+        "status": "approved",
+        "createdAt": 327560000,
+        "closesAt": 347560000,
+        "action": {
+          "expectedRevision": 1,
+          "kind": "set-subsidy",
+          "terms": {
+            "maxSubsidy": 2000,
+            "minimumBalance": 500
+          }
+        },
+        "votes": {
+          "resident-004": {
+            "actorId": "resident-004",
+            "at": 327560000,
+            "choice": "yes"
+          },
+          "resident-001": {
+            "actorId": "resident-001",
+            "at": 327620000,
+            "choice": "yes"
+          },
+          "resident-003": {
+            "actorId": "resident-003",
+            "at": 327680000,
+            "choice": "yes"
+          }
+        }
+      },
+      {
+        "id": "proposal-003-subsidy-500-fix",
+        "authorId": "resident-003",
+        "status": "voting",
+        "createdAt": 355400000,
+        "closesAt": 364000000,
+        "action": {
+          "expectedRevision": 2,
+          "kind": "set-subsidy",
+          "terms": {
+            "maxSubsidy": 2000,
+            "minimumBalance": 500
+          }
+        },
+        "votes": {
+          "resident-003": {
+            "actorId": "resident-003",
+            "at": 355400000,
+            "choice": "yes"
+          },
+          "resident-004": {
+            "actorId": "resident-004",
+            "at": 355460000,
+            "choice": "yes"
+          },
+          "resident-002": {
+            "actorId": "resident-002",
+            "at": 355520000,
+            "choice": "yes"
+          },
+          "resident-001": {
+            "actorId": "resident-001",
+            "at": 356480000,
+            "choice": "yes"
+          }
+        }
+      }
+    ]
+  },
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "balance": 215.22214571056105,
+      "job": "Stock Clerk",
+      "residentialTier": 2,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "balance": 443.91081774695124,
+      "job": "Receptionist",
+      "residentialTier": 2,
+      "upkeepArrears": null
+    },
+    {
+      "agentId": "resident-003",
+      "balance": 473.25680482597886,
+      "job": "Receptionist",
+      "residentialTier": 2,
+      "upkeepArrears": null
+    },
+    {
+      "agentId": "resident-004",
+      "balance": 248.71682119133888,
+      "job": "Waiter",
+      "residentialTier": 2,
+      "upkeepArrears": null
+    }
+  ],
+  "enterprises": [],
+  "providerBudget": {
+    "first24": 180000,
+    "last8": 360000,
+    "last8Completed": 8,
+    "last8LongestMs": 267217,
+    "upstreamRepairProven": false
+  },
+  "limitations": [
+    "One continued four-resident society, not independent replications.",
+    "No housing policy enactment or enterprise adoption.",
+    "Approved stale proposal remains approved but cannot execute against newer state.",
+    "New corrected proposal still awaits voting deadline.",
+    "Failure turns can contain committed effects; they are retained, never re-executed automatically."
+  ],
+  "refusedCalls": 4
+}

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T20:41:55.504386+00:00",
+  "spec": "specs/SOCIETY_REMOTE_TRANSPORT_V1.md",
+  "status": "tls-container-network-verified-not-full-R01",
+  "newResidentCapabilities": 0,
+  "newDomainRules": 0,
+  "newTests": 4,
+  "fullTests": {
+    "passed": 3172,
+    "skipped": 1,
+    "filesPassed": 473,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "fullLint": {
+      "exitCode": 0,
+      "log": "/tmp/remote-lint.log"
+    },
+    "changedFilesLint": {
+      "exitCode": 0,
+      "log": "/tmp/remote-lint-verified.log"
+    },
+    "fullSortedTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/remote-typecheck.log"
+    },
+    "relatedBuild": {
+      "exitCode": 0,
+      "log": "/tmp/remote-build.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/remote-tests-full.log"
+    },
+    "finalResidentsTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/remote-typecheck-final.log"
+    }
+  },
+  "experiment": {
+    "root": ".local/open-residents/remote-transport-20261007-2",
+    "result": {
+      "scope": "single-host-isolated-container-network-namespaces",
+      "modelUsed": false,
+      "image": "sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6",
+      "authorityAddress": "192.168.16.2",
+      "compute": {
+        "status": "completed",
+        "compiledShell": true,
+        "wrongHostnameRejected": true,
+        "untrustedCaRejected": true,
+        "remoteHttpRejected": true,
+        "actorAdminRejected": true,
+        "partitionActorRejected": true
+      },
+      "replication": {
+        "status": "caught-up",
+        "cursor": {
+          "sequence": 4,
+          "hash": "2e4e107f97e8142da6801d14deb9c01b210e3190e9228c562c46999fa3c6d37f"
+        },
+        "pages": 2
+      },
+      "fullReplayEqual": true,
+      "singleDeposit": 7,
+      "moneySupplyConserved": true,
+      "status": "passed"
+    }
+  },
+  "preservedFailure": {
+    "root": ".local/open-residents/remote-transport-20261007",
+    "reason": "fixture expected 403 for partition credential on resident context; existing contract correctly rejects with 404; fixture corrected without changing authorization"
+  },
+  "limitations": [
+    "single physical host using isolated Docker network namespaces",
+    "no new model run or natural emergence evidence",
+    "canonical migration, orphan provider takeover, physical multi-host deployment and complete 25-capability delivery remain unfinished"
+  ],
+  "sourceSha256": {
+    "apps/residents/src/authorityEndpoint.ts": "23a0f34f05379d56065e6f952129807790e1f5ee6cd0f8b45a2d3ac926b38554",
+    "apps/residents/src/authorityEndpoint.test.ts": "7eeae476891302f4e5e0eb8cbeea7290708ba393b44b3f8135040c402ed896f6",
+    "apps/residents/src/residentListener.ts": "2d1fc26c17da056c044b1e136bec387c96d2f986baf5c9ccabd3cc6993dfad5a",
+    "apps/residents/src/townConnection.ts": "dec4782450ce5f168a44af53174926f17b80b19a6820558f89bb9b3ce21cc94e",
+    "apps/residents/src/replica.ts": "a18fe51295a7481abf1a4293812c3e9d7fe5d65d0b55406d80cac4590fdada9a",
+    "apps/residents/src/residentShell.ts": "1dc460b84bb089d59ccd3b5fb1d4504815e736bb3cb9b737c2d161d6d31e25a5",
+    "apps/residents/src/openCode.ts": "d15db277dfe607f7b88151b68114cf483e29ec9fbd64b5e67a84811a682cc134",
+    "apps/residents/src/server.ts": "8220e44d3f472dcd4cca822b1ce728adec15f4ebbd0a5a0f0a170797d0d4a549",
+    "apps/residents/src/cli.ts": "4660163179a014ec1854ae12bbad675007d8f390dd04d8f46f1e4ce896c9948c",
+    "apps/residents/src/index.ts": "52de55eabd59c9922b7e8c2b102e2ce74571297bd28e619f61b0afec82581a47",
+    "apps/residents/scripts/verify-remote-transport.mjs": "92b76a50c210ba2fb8438589f0da94b1ec493ba001eadd2c32c14503aa04bba3"
+  }
+}

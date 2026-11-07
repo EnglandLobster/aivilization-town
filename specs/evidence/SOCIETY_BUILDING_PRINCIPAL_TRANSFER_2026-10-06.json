@@ -1,0 +1,319 @@
+{
+  "schemaVersion": "society-building-principal-transfer-engineering-v1",
+  "date": "2026-10-06",
+  "gate": {
+    "command": "pnpm check",
+    "passed": true,
+    "testsPassed": 2852,
+    "testsSkipped": 1,
+    "filesPassed": 418,
+    "filesSkipped": 1,
+    "logSha256": "137dc45c50cd7ece4dd2a39f2e265d823643a7283be84e1ed280db613c2f2b95"
+  },
+  "build": {
+    "transitiveResidentBuildPassed": true,
+    "worldCompatibilityBuildPassed": true
+  },
+  "compiledCli": {
+    "ok": true,
+    "validation": "compiled-authenticated-construction-principal-CLI-not-emergence",
+    "calls": 54,
+    "refusals": 11,
+    "results": [
+      {
+        "route": "principals.read",
+        "exitCode": 1,
+        "ok": false,
+        "error": "premises-principals-not-enabled"
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks.create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks.deposit",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "business.found",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "construction-controller-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 2,
+        "ok": false,
+        "error": "unknown-flag:--actor-id"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "construction.start",
+        "exitCode": 1,
+        "ok": false,
+        "error": "construction-worker-not-authorized"
+      },
+      {
+        "route": "construction.start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-premises-not-readable"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-controller-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "business.close",
+        "exitCode": 1,
+        "ok": false,
+        "error": "enterprise-resource-estate-unsettled"
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.list",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "construction-controller-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "construction.cancel",
+        "exitCode": 1,
+        "ok": false,
+        "error": "construction-controller-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-control-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-control-authority-required"
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      }
+    ]
+  },
+  "facts": [
+    "Bilateral principal building custody changes through a dedicated domain event, never an arbitrary BuildingChanged snapshot.",
+    "Physical structure, historical author/project, actual users, accepted third-party v1 rights and material custody survive transition.",
+    "Active construction and legacy unresolved offers deny transfer; pending handover blocks new administration.",
+    "Authenticated enterprise/public/collective authority and exact consumption remain atomic; retries use identical request parameters.",
+    "New owner cannot close space with accepted third-party rights. Original creator has no management shortcut.",
+    "Legacy worlds without explicit premises principal activation retain the prior unsupported-resource rejection.",
+    "CLI metadata access for a pending target does not confer authority; expired handover target loses that visibility."
+  ],
+  "limitations": [
+    "Building control transfer does not transfer future income accounts, create paid permissions, grant users access, settle debts or imply emergence.",
+    "Complete principal rights and fees, other domains, in-kind liquidation and long-term responsibility, canonical/partition remain open."
+  ]
+}

@@ -1,0 +1,163 @@
+{
+  "capability": "M05-resident-collectives",
+  "mode": "real-compiled-cli-engineering-acceptance",
+  "modelInvoked": false,
+  "cliCalls": 28,
+  "results": [
+    {
+      "route": "rules capability",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives respond",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decision",
+      "exitCode": 1,
+      "ok": false,
+      "error": "decision-not-found"
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 1,
+      "ok": false,
+      "error": "eligible-voter-required"
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 1,
+      "ok": false,
+      "error": "new-member-consent-required"
+    },
+    {
+      "route": "collectives decision",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives join",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives history",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 1,
+      "ok": false,
+      "error": "passed-decision-required"
+    },
+    {
+      "route": "collectives create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives respond",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives respond",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 1,
+      "ok": false,
+      "error": "decision-not-ready"
+    },
+    {
+      "route": "collectives decision",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 1,
+      "ok": false,
+      "error": "statement-has-no-resource-effect"
+    },
+    {
+      "route": "collectives leave",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives read",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "twoResidentDefinedPurposes": true,
+  "distinctDecisionProcedures": true,
+  "independentJoiningConsent": true,
+  "oldAuthorityUsedForAmendment": true,
+  "noForgedResigning": true,
+  "statementHasNoResourceEffect": true,
+  "noImplicitSuccession": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true
+}

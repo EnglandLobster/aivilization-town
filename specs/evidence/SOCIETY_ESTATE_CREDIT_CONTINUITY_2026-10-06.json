@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T15:34:16.363003+00:00",
+  "spec": "specs/SOCIETY_ESTATE_CREDIT_CONTINUITY_V1.md",
+  "status": "engineering-bank-continuity-verified-not-full-exit",
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/estate-credit-final-lint-2.log"
+    },
+    "sortedTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/estate-credit-final-typecheck.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/estate-credit-final-tests.log"
+    },
+    "dependencyBuild": {
+      "exitCode": 0,
+      "log": "/tmp/estate-credit-final-build.log"
+    },
+    "existingAuthenticatedCompiledCLI": {
+      "exitCode": 0,
+      "log": "/tmp/estate-credit-periodic-cli-regression.log"
+    }
+  },
+  "fullTests": {
+    "passed": 3081,
+    "skipped": 1,
+    "filesPassed": 455,
+    "filesSkipped": 1
+  },
+  "newTests": {
+    "borrowerGuards": 2,
+    "sharedCashBudget": 3,
+    "cashBankPolicy": 4,
+    "owningPolicyCapture": 1,
+    "creditCustomerDomain": 6,
+    "bankWorldAndTime": 12,
+    "total": 28
+  },
+  "existingCompiledCLI": {
+    "calls": 59,
+    "expectedRefusals": 19,
+    "newSuccessionOrBankExitCLI": false
+  },
+  "policies": {
+    "cash": "resident-estate-cash-v2",
+    "application": "resident-exit-preservation-v2",
+    "bankCustomer": "resident-estate-credit-continuity-v1",
+    "sharedCash": "credit-shared-borrower-cash-budget-v1",
+    "bankCashSource": "resident-estate-credit-settlement-v1"
+  },
+  "verified": [
+    "Actual body departure, original bank positions and customer cursor share one atomic fact; original deposits and loans remain.",
+    "Original borrower guard prevents another person being charged or receiving credit-history outcomes from the wrong loan.",
+    "Living and departed customers use actual cash budgets; every gross loan payment and deposit-interest receipt has balanced actual custody/bank effects.",
+    "Current bank cash, original active/defaulted loan positions and original deposit are independently corroborated source facts; no guessed bank revision.",
+    "No living body is needed to settle original departed bank customers. Three-day command equals three one-day commands; each exact cursor advances once.",
+    "New policies are explicit and pinned; old valid events, v1 cash and ordinary world credit remain compatible.",
+    "Forged borrower, stale cash/bank source, missing/reused gross receipts, changed runtime policy, skipped cadence and unsupported body buckets reject before publication."
+  ],
+  "notDelivered": [
+    "Natural permanent-population scheduler and complete body/activity/cargo/durable-goods protection.",
+    "All remaining original contracts, leases, wages, service/freight/trade/capital returns and whole eleven-context clearance.",
+    "Restricted succession execution, original deposit-principal extraction and finite remaining defaulted-claim disposition.",
+    "Capacity admission, customer/asset history archival and complete estate liquidation.",
+    "New authenticated CLI, manifest activation, bounded private query, canonical/partition R01.",
+    "Original twenty-five capability contracts, full H4-H6 and R02 comparisons/long-run organization."
+  ],
+  "freeExperiment": {
+    "enabled": false,
+    "frozenRoot": "/tmp/aivilization-periodic-obligations-20261006",
+    "note": "Free world remains on the verified periodic engine, not current development exit/bank source."
+  },
+  "preservedDevelopmentFailures": [
+    "/tmp/estate-credit-world-targeted-tests.log",
+    "/tmp/estate-credit-world-typecheck-2.log",
+    "/tmp/estate-credit-source-proof-tests.log",
+    "/tmp/estate-credit-final-lint.log"
+  ],
+  "verifiedSourceSha256": {
+    "packages/credit/src/aggregate.ts": "1f28cac4b82486a660e6186ad995ba9b62f9484b56fb96b83835d445bea16aa6",
+    "packages/credit/src/lifecycle.ts": "ab1dbc61d44ad1b8b0124c792fd760e9a8c95a4a73d981d80636058083ccafb2",
+    "packages/credit/src/estateCustomerModel.ts": "974e843ba6400c34ca5b5a6b932c312c9e36cbbfb0c9e52ce565fc161836bf7a",
+    "packages/credit/src/estateCustomers.ts": "7aba9d031aefa6d9fd32f20ef207d0724998316752a48390daeb06e6d0d2cd1c",
+    "packages/economy/src/estateCashModel.ts": "c466f9a49b51766f58f4b856acea8efc42014a31f806957dc08b1e9b3af25703",
+    "packages/economy/src/estateCash.ts": "21f2a16e58024084005125946f370009d02ea775eb7241d2746000eba9c29198",
+    "packages/world/src/residentEstateCredit.ts": "4b5a7b7e79c2827843ad092777725a5a1bdc7434abd0a65bfd9cec68d993f86e",
+    "packages/world/src/handlers/estateCreditTime.ts": "5dae13b22d1b373fd65d78758db720e090e797b517b261255cd0d299026c03f4",
+    "packages/world/src/handlers/creditLifecycle.ts": "e182950e347a31ef5521b063d7a7a55af3ee2ac643ba26c619d63b8d0f818997",
+    "packages/world/src/residentExitCapture.ts": "95289f4083d3724948cc7554834eeb594dc3439c04d78bb14941557bc61f268c",
+    "packages/world/src/residentExitPreservation.ts": "5aa7f7f63851d7d69875b41581d82db32e2021613866b728c3180bef31bc6772",
+    "packages/world/src/projection.ts": "43f20cff39e1b4734a17baa646314e036531350aff120e952440a4ec6961e371"
+  }
+}

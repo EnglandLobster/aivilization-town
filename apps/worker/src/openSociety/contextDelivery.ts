@@ -34,6 +34,16 @@ export function residentPresentSelf(
     job: agent.job,
     educationScore: agent.educationScore,
     residentialTier: agent.residentialTier,
+    ...(state.world.periodicObligations
+      ? { periodicObligationsWith: 'town obligations list' }
+      : {}),
+    ...(state.world.materials?.resourcePrincipals ||
+    state.world.residentMobility?.principalPolicy ||
+    state.services?.principalPolicy
+      ? { resourcePrincipalsWith: 'town principals list' }
+      : {}),
+    ...(state.world.housingOccupancy ? { housingOccupancyWith: 'town housing occupancy' } : {}),
+    ...(state.world.housingChoice ? { housingStandardWith: 'town housing standard' } : {}),
     upkeepArrears: agent.upkeepArrears ?? 0,
     inventory: Object.fromEntries(inventory.slice(0, RESIDENT_CONTEXT_DELIVERY.inventoryItems)),
     inventoryTotal: inventory.length,

@@ -1,0 +1,156 @@
+{
+  "schemaVersion": "society-free-checkpoint-evidence-v1",
+  "opportunities": 512,
+  "journalCommits": 3750,
+  "capabilityCalls": 1876,
+  "simulationTime": 535716000,
+  "journalSha256": "188e72b15dd8925621f8555570c5a2e1ac0048a601032bd06f8a1b3fdb5c21b7",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFingerprints": 81,
+  "implementationVersions": {
+    "catalog": 51,
+    "skill": 50,
+    "rulebook": 40
+  },
+  "providerStatusCounts": {
+    "completed": 506,
+    "provider-error": 6
+  },
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 406.4600000000084,
+      "educationLevel": 4,
+      "residentialTier": 3,
+      "job": "Cashier",
+      "balance": 500,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 2,
+      "job": "Receptionist",
+      "balance": 562.2917547924169
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 331.6666666670056,
+      "educationLevel": 3,
+      "residentialTier": 4,
+      "job": "Chef",
+      "balance": 500
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 4,
+      "job": "Chef",
+      "balance": 500
+    }
+  ],
+  "jobApplications": [
+    {
+      "agentId": "resident-001",
+      "occupationName": "Stock Clerk",
+      "cycleNumber": 2,
+      "status": "accepted",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 172863000
+    },
+    {
+      "agentId": "resident-001",
+      "occupationName": "Waiter",
+      "cycleNumber": 2,
+      "status": "rejected",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 172863000
+    },
+    {
+      "agentId": "resident-003",
+      "occupationName": "Receptionist",
+      "cycleNumber": 2,
+      "status": "accepted",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 180200000
+    },
+    {
+      "agentId": "resident-002",
+      "occupationName": "Receptionist",
+      "cycleNumber": 3,
+      "status": "accepted",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 309895000
+    },
+    {
+      "agentId": "resident-004",
+      "occupationName": "Chef",
+      "cycleNumber": 4,
+      "status": "rejected",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 364460000
+    },
+    {
+      "agentId": "resident-001",
+      "occupationName": "Cashier",
+      "cycleNumber": 4,
+      "status": "accepted",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 400760000
+    },
+    {
+      "agentId": "resident-003",
+      "occupationName": "Chef",
+      "cycleNumber": 4,
+      "status": "accepted",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 429930000
+    },
+    {
+      "agentId": "resident-004",
+      "occupationName": "Chef",
+      "cycleNumber": 5,
+      "status": "accepted",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 434680000
+    },
+    {
+      "agentId": "resident-001",
+      "occupationName": "Maintenance Worker",
+      "cycleNumber": 6,
+      "status": "pending",
+      "publicEmploymentRevision": 3,
+      "submittedAt": 525944000
+    }
+  ],
+  "adoption": {
+    "enterprises": 0,
+    "collectives": 0,
+    "programs": 0,
+    "sharedRecords": 0,
+    "constructionProjects": 0
+  },
+  "employmentInterpretation": {
+    "capacityMeaning": "new admissions per occupation within each recruitment cycle, not total incumbents",
+    "resident004ChefApplicationCycle": 5,
+    "resident004ChefApplicationPolicyRevision": 2,
+    "capacityProposalNewRevision": 3,
+    "capacityProposalEffectiveCycle": 6,
+    "newJobAttributedToProposal": false,
+    "sourcePointers": [
+      "packages/society/src/recruitment.ts:74",
+      "packages/world/src/handlers/timeAdvance.ts:2755",
+      "packages/society/src/publicEmployment.ts:291"
+    ]
+  },
+  "limitations": [
+    "No principal permit/fee code in this frozen experiment.",
+    "No spontaneous enterprise/collective/construction adoption observed.",
+    "Retains 6 provider-error statuses, including one explicit operator interruption recovery.",
+    "Engineering acceptance and social intent are distinct from actual formal outcomes."
+  ]
+}

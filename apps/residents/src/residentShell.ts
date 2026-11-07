@@ -14,6 +14,7 @@ try {
       // CLI never inherits model/provider credentials or arbitrary executable hooks.
       env: {
         TOWN_ENDPOINT: process.env.TOWN_ENDPOINT,
+        NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS,
         TOWN_RESIDENT_TOKEN: process.env.TOWN_RESIDENT_TOKEN,
       },
       stdio: ['ignore', 'inherit', 'inherit'],

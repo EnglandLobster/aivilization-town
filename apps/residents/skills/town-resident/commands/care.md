@@ -11,7 +11,7 @@ Request care for yourself from another resident at a real place for a duration.
 --description <string> (required) maxLength=8000 Original request
 --duration-ms <integer> (required) min=1 max=86400000 Duration in simulation milliseconds
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## care accept
@@ -22,7 +22,7 @@ Provider accepts then starts only with both people present and idle; care consum
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## care start
@@ -33,7 +33,7 @@ Provider accepts then starts only with both people present and idle; care consum
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## care cancel
@@ -44,7 +44,7 @@ Provider accepts then starts only with both people present and idle; care consum
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## care list
@@ -55,7 +55,7 @@ Read care tasks involving you.
 --offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
 --limit <integer> (optional) min=1 max=30 Page size
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 [能力索引](../capabilities.md) · [执行规则](../execution.md)

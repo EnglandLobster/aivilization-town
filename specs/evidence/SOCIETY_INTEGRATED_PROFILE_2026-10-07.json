@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T19:32:20.149959+00:00",
+  "spec": "specs/SOCIETY_INTEGRATED_PROFILE_V1.md",
+  "status": "explicit-new-world-profile-verified-not-full-R01",
+  "worldCapabilityRoutes": 384,
+  "newDomainRules": 0,
+  "newTests": 2,
+  "fullTests": {
+    "passed": 3150,
+    "skipped": 1,
+    "filesPassed": 468,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/integrated-profile-lint.log"
+    },
+    "finalFilesLint": {
+      "exitCode": 0,
+      "log": "/tmp/integrated-profile-final-files-lint.log"
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "log": "/tmp/integrated-profile-typecheck-verified.log"
+    },
+    "build": {
+      "exitCode": 0,
+      "log": "/tmp/integrated-profile-build.log"
+    },
+    "tests": {
+      "exitCode": 0,
+      "log": "/tmp/integrated-profile-tests-full.log"
+    },
+    "compiledCli": {
+      "exitCode": 0,
+      "log": "/tmp/integrated-profile-cli-2.log"
+    },
+    "realFreeReplay": {
+      "exitCode": 0,
+      "log": "/tmp/integrated-profile-free-verified.log"
+    },
+    "format": {
+      "exitCode": 0,
+      "log": "/tmp/integrated-profile-format-check.log"
+    }
+  },
+  "freeRun": {
+    "passed": true,
+    "evidenceClass": "two-real-free-opportunities-not-stable-emergence",
+    "profile": "society-integrated-v1",
+    "turns": [
+      {
+        "actorId": "resident-001",
+        "status": "waiting",
+        "sessionId": "ses_eed52a6eeffeD333Ic2FIQGaSN"
+      },
+      {
+        "actorId": "resident-002",
+        "status": "waiting",
+        "sessionId": "ses_eed4fa940ffeDOm0B7DfDAG4cO"
+      }
+    ],
+    "calls": 50,
+    "refusals": 0,
+    "capabilities": [
+      "world.observe",
+      "obligations.list",
+      "files.index",
+      "messages.list",
+      "feed.list",
+      "population.self",
+      "services.list",
+      "sources.list",
+      "production.recipes",
+      "production.list",
+      "world.move",
+      "schedule.wait",
+      "rules.capability",
+      "world.trade",
+      "cognition.update"
+    ],
+    "worldEventTypes": [
+      "AgentTravelStarted",
+      "AgentActivityTimeCommitted",
+      "ShortTermMemoryRecorded",
+      "SimulationTimeAdvanced",
+      "PhysiologyChanged",
+      "TradeExecuted",
+      "TradeTaxCharged"
+    ],
+    "fullReplayEqual": true,
+    "manifestUnchanged": true,
+    "journalUnchanged": true,
+    "providers": [
+      {
+        "artifact": "/home/dev/aivilization-town/.local/open-residents/integrated-profile-free-20261007/opencode/resident-001/turn-2-resident-001.json",
+        "sha256": "81526e0a0bf6d0a9895af1ba8b8530d34f88799291928ddc20ff9bc131e6db63",
+        "status": "completed",
+        "elapsedMs": 194139,
+        "task": "free-activity",
+        "termination": {
+          "exitSignal": null,
+          "aborted": false,
+          "abortReason": null,
+          "providerErrorEvent": false
+        }
+      },
+      {
+        "artifact": "/home/dev/aivilization-town/.local/open-residents/integrated-profile-free-20261007/opencode/resident-002/turn-27-resident-002.json",
+        "sha256": "0e24620fde3126cbd0ec06588f7de6d586e8049b24a600012c3d8ced8ff97c14",
+        "status": "completed",
+        "elapsedMs": 103422,
+        "task": "free-activity",
+        "termination": {
+          "exitSignal": null,
+          "aborted": false,
+          "abortReason": null,
+          "providerErrorEvent": false
+        }
+      }
+    ]
+  },
+  "sourceHashes": {
+    "apps/worker/src/openSociety/runProfile.ts": "2043397ff3d23529742eb8696f464dd0ad289d93e192db772b9635f6335f3289",
+    "apps/worker/src/openSociety/runProfile.test.ts": "169aeff2bab211949729d69d1b483ebb9bfae5736c041c41e1776981e574e5d3",
+    "apps/worker/src/index.ts": "ef978b5e04b49876e2ee87fb053e8adce910531c1cf462b5488b8d63a1fdcd3f",
+    "apps/residents/src/cli.ts": "e3bdc6e8512f6a334f30c08d068a8bc4295b73ac0d161bf01488243c730aca18",
+    "apps/residents/scripts/verify-integrated-profile.mjs": "39db553f0e794839e976c197c4d01da74a170c2db729c335a6b049ce6087e427"
+  },
+  "earlierVerificationErrors": [
+    "initial CLI verification used invalid dotted requestId; corrected script and ran fresh directory",
+    "initial test fixture inferred required runProfile for old manifests; explicitly typed manifest boundary",
+    "free report initially confused waiting with provider completion and counted scenario city-services installer; final report checks provider completion separately and filters actual resident IDs"
+  ],
+  "limitations": [
+    "only two free opportunities, not stable emergence",
+    "all business combinations not individually accepted by this profile test",
+    "old-world migration and partition authority remain incomplete",
+    "complete 25-capability scope and long-term obligations remain active"
+  ]
+}

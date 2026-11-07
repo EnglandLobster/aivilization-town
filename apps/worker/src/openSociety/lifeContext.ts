@@ -1,5 +1,7 @@
 import { mobilityInbox } from './mobilityTools';
 import { canReadGroup, communicationBlocked } from '@aivilization/information';
+import { canReadServiceBooking } from '@aivilization/services';
+import { canReadGroupInvitation } from './groupInvitationAccess';
 import type { OpenSocietyState } from './types';
 export function residentLifeInbox(s: OpenSocietyState, actorId: string, limit: number) {
   const items: {
@@ -11,10 +13,7 @@ export function residentLifeInbox(s: OpenSocietyState, actorId: string, limit: n
     dueAt?: number;
   }[] = mobilityInbox(s, actorId);
   for (const i of Object.values(s.communication?.invitations ?? {}))
-    if (
-      i.status === 'pending' &&
-      (i.residentId === actorId || s.communication?.groups[i.groupId]?.ownerId === actorId)
-    )
+    if (i.status === 'pending' && canReadGroupInvitation(s, i, actorId))
       items.push({
         kind: 'group-invitation',
         id: i.id,
@@ -61,15 +60,15 @@ export function residentLifeInbox(s: OpenSocietyState, actorId: string, limit: n
   for (const b of Object.values(s.services?.bookings ?? {}))
     if (
       !['cancelled', 'expired', 'completed', 'ended'].includes(b.status) &&
-      (b.residentId === actorId ||
-        s.services?.services[s.services.slots[b.slotId]!.serviceId]?.ownerId === actorId)
+      s.services &&
+      canReadServiceBooking(s.services, b, actorId, s.world.clock.now)
     )
       items.push({
         kind: 'booking',
         id: b.id,
         at: b.at,
         section: b.status === 'requested' ? 'decisions' : 'appointments',
-        dueAt: s.services!.slots[b.slotId]!.start,
+        dueAt: s.services.slots[b.slotId]!.start,
         readWith: `town bookings read --id ${b.id}`,
       });
   for (const l of Object.values(s.life?.households.links ?? {}))

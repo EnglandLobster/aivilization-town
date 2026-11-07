@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T21:18:33.886818+00:00",
+  "spec": "specs/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md",
+  "status": "owning-construction-facts-and-shared-accounting-read-composition-verified-write-path-incomplete",
+  "newTests": 4,
+  "newResidentCapabilities": 0,
+  "fullTests": {
+    "passed": 3188,
+    "skipped": 1,
+    "filesPassed": 476,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/construction-source-lint.log"
+    },
+    "sortedFullTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/construction-source-typecheck.log"
+    },
+    "worldAndDependenciesBuild": {
+      "exitCode": 0,
+      "log": "/tmp/construction-source-build.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-source-full-tests.log"
+    },
+    "targetedTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-source-tests.log"
+    }
+  },
+  "sourceSha256": {
+    "packages/premises/src/constructionFacts.ts": "af1f4c8266b23f61ff431408bd5e74ec89dfafc9d3883bd016882853b9d3a242",
+    "packages/premises/src/index.ts": "f515ad28a45c8075255212e53e0180509965e288ddafec9fdc590a91253d34fc",
+    "packages/world/src/constructionTradePorts.ts": "0a7729f4fda2218c827e45b340b95e0d1e4226e6b59a7106f829f86f9f914bf0",
+    "packages/world/src/constructionTradePorts.test.ts": "2f8dd0d62dfe4ca6b77e5cd083e3def3792f554e8984f90b97f37efce9e32b56",
+    "packages/world/src/index.ts": "692fdaa9c2562005a3bda86438aa22cebc7515b7719f9de056e3139380415a6d",
+    "packages/world/src/principalResourceObligations.ts": "2621b47755150a380b39b8ed2f29d9efb0a201c5d07720eeed51409a6d5a66b1",
+    "packages/commerce/src/tradeModel.ts": "13b4afc82a2a8f97bdb9f2bd5033bb539efea721acbd226c3ae7996adffa5539",
+    "packages/commerce/src/tradeMoney.ts": "61c842998149fbc735a86434c84016ab23eff1878a7b1a82a9653183184ec91b",
+    "packages/commerce/src/constructionTrade.ts": "f813b4e2808ccbc705b5cdee1d144beda5602e8d2bf3be4dcf2c620028abeeb9",
+    "packages/commerce/src/constructionTrade.test.ts": "06f2a5a33a2f3eee2f8dcbd71fe1293ca0aa1c603f1e65c799794524b16d6105"
+  },
+  "verified": [
+    "actual construction material and work events provide stable immutable basis through progress and completion",
+    "WorldEvent replay yields identical owning-domain evidence",
+    "canonical object-key ordering and plan substitution detection",
+    "shared trade escrow balance and common-account reserved incoming/obligation composition",
+    "unaccepted offers neither monopolize projects nor create buyer account obligations",
+    "independent competing offers cannot both be funded for the same project",
+    "legacy optional-state absence preserves original totals"
+  ],
+  "remaining": [
+    "authoritative construction-order world commit and enterprise accounting effects",
+    "public grant and independent decision consumption",
+    "account total/reservation reconciliation under actual writes",
+    "explicit activation, manifest registry, CLI and context delivery",
+    "runtime composition and true OpenCode procurement acceptance",
+    "canonical, full 25-capability delivery and free adoption evidence"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "kind": "explicit-paid-material-vehicle-control-extension",
+  "afterOpportunities": 768,
+  "simulationTime": 937964000,
+  "commitsBefore": 5472,
+  "commitsAfter": 5473,
+  "implementation": {
+    "root": "/tmp/aivilization-paid-material-vehicle-20261006",
+    "versions": {
+      "catalog": 61,
+      "skill": 60,
+      "rulebook": 50
+    },
+    "validation": {
+      "command": "pnpm lint + pnpm -r --sort typecheck + pnpm test + pnpm build + compiled authenticated CLI",
+      "testsPassed": 2978,
+      "testsSkipped": 1,
+      "compiledCalls": 26,
+      "expectedRefusals": 9
+    },
+    "fingerprints": 82
+  },
+  "source": "operator-capability-migration",
+  "retainsOriginalManifest": true,
+  "prescribedSocialGoal": false,
+  "addsAssetsOrForcedBodyActivity": false,
+  "replayMatches768FullState": true,
+  "allPreviousWorldFactsUnchanged": true,
+  "previousBallotsPreserveScope": true
+}

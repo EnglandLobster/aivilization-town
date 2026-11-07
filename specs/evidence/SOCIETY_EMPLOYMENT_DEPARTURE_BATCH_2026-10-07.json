@@ -1,0 +1,46 @@
+{
+  "ok": true,
+  "scope": "world-candidate-employment-departure-batch-before-body-removal",
+  "quality": {
+    "lint": true,
+    "typecheck": true,
+    "testsPassed": 3339,
+    "testsSkipped": 1,
+    "targetedTestsPassed": 32,
+    "dependencyBuild": "worker-and-dependencies-passed"
+  },
+  "newTests": 2,
+  "expandedRuntimeCombinationCases": 2,
+  "cases": [
+    "timed worker departure with second worker unaffected",
+    "active productive worker stopped before capture",
+    "active enterprise service worker stopped before capture",
+    "active rest rejects whole candidate"
+  ],
+  "assertions": [
+    "current unprepared population source required",
+    "elapsed work already settled to boundary",
+    "original enterprise membership and domain stop events",
+    "only target worker independently stopped",
+    "last event captures final balance and removes body",
+    "materials and service progress not increased",
+    "original claims ended without future wages",
+    "related circulation cash conserved",
+    "continuous event sequences and deterministic replay",
+    "failed preparation leaves input unchanged"
+  ],
+  "limitations": [
+    "Candidate events must be appended in one journal transaction; runtime integration not implemented here",
+    "Natural population and canonical activation not performed",
+    "Other body activities and complete responsibility domains remain pending",
+    "Wrong-order post-capture diagnostic remains rejected",
+    "No new resident CLI or emergence evidence"
+  ],
+  "logs": {
+    "target": "/tmp/employment-departure-target.log",
+    "lint": "/tmp/employment-departure-lint.log",
+    "typecheck": "/tmp/employment-departure-typecheck.log",
+    "tests": "/tmp/employment-departure-tests.log",
+    "build": "/tmp/employment-departure-build.log"
+  }
+}

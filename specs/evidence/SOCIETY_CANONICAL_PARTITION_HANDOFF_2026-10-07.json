@@ -1,0 +1,87 @@
+{
+  "ok": true,
+  "version": "canonical-partition-handoff-verification-v1",
+  "evidenceClass": "same-host-two-partition-unprompted-handoff-not-concurrent-or-multihost",
+  "beforeRevision": 783,
+  "afterRevision": 801,
+  "beforeClock": 3573000,
+  "afterClock": 3583000,
+  "bootStateUnchanged": true,
+  "attempts": [
+    {
+      "claim": 0,
+      "partitionId": "p1",
+      "code": 0,
+      "status": "waiting",
+      "actorId": null,
+      "turnId": null
+    },
+    {
+      "claim": 1,
+      "partitionId": "p2",
+      "code": 0,
+      "status": "completed",
+      "actorId": "smoke-25-world-main-agent-014",
+      "turnId": "turn-785-smoke-25-world-main-agent-014"
+    },
+    {
+      "claim": 2,
+      "partitionId": "p1",
+      "code": 0,
+      "status": "completed",
+      "actorId": "smoke-25-world-main-agent-017",
+      "turnId": "turn-796-smoke-25-world-main-agent-017"
+    }
+  ],
+  "providers": [
+    {
+      "partitionId": "p2",
+      "actorId": "smoke-25-world-main-agent-014",
+      "turnId": "turn-785-smoke-25-world-main-agent-014",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "skillVersion": "town-resident-skill-v69",
+      "status": "completed",
+      "sessionId": "ses_eebb3dc45fferVE421rat894sX",
+      "previousSessionId": "ses_eebb3dc45fferVE421rat894sX",
+      "sessionPreserved": true,
+      "workspacePreserved": true,
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 220995,
+      "sha256": "82cb277a0c1db80a9bd3ff75f8e8606099a167814502e60f88520f1ada822f96"
+    },
+    {
+      "partitionId": "p1",
+      "actorId": "smoke-25-world-main-agent-017",
+      "turnId": "turn-796-smoke-25-world-main-agent-017",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "skillVersion": "town-resident-skill-v69",
+      "status": "completed",
+      "sessionId": "ses_eebaca896ffethBtCJMdN9yHqt",
+      "previousSessionId": "ses_eebaca896ffethBtCJMdN9yHqt",
+      "sessionPreserved": true,
+      "workspacePreserved": true,
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 61392,
+      "sha256": "3ea2dad240f6dc98a12101741c233a3282980daf0aeee05567cbf33e7c7e5eff"
+    }
+  ],
+  "journalHash": "94d6bd8ec0fdf3d9e310a21c8883a35e46c61000d6fbe6f6ad383040d727b0ee",
+  "historicalPrefixPreserved": true,
+  "manifestUnchanged": true,
+  "fullReplayEqual": true,
+  "copiedResidents": 25,
+  "priorFailuresRetained": [
+    "partition-handoff-1",
+    "partition-handoff-2"
+  ]
+}

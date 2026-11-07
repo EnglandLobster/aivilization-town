@@ -1,0 +1,39 @@
+{
+  "ok": true,
+  "scope": "source-verified-system-interruption-of-employed-production-before-body-departure",
+  "domainVersion": "production-interrupted-v1",
+  "worldProofVersion": "resident-material-employment-interruption-v1",
+  "quality": {
+    "lint": true,
+    "typecheck": true,
+    "testsPassed": 3337,
+    "testsSkipped": 1,
+    "targetedTestsPassed": 20,
+    "build": "worker-and-dependencies-passed"
+  },
+  "newTests": 3,
+  "assertions": [
+    "exact settled boundary only",
+    "system executor rather than impersonated voluntary leave",
+    "old session removed and real reservation released",
+    "held materials stocks progress recipe and body unchanged",
+    "no transfers conversions or efforts",
+    "actual employment or health unavailability required",
+    "missing world proof and altered material facts rejected",
+    "duplicate replay rejected and deterministic replay equal",
+    "original earned compensation path unchanged"
+  ],
+  "limitations": [
+    "Internal lifecycle operation only, no new resident command",
+    "Full population exit coordinator not yet integrated",
+    "Post-capture active-work diagnostic remains unaccepted",
+    "Other body activities and all responsibility domains still required"
+  ],
+  "logs": {
+    "target": "/tmp/material-interruption-target.log",
+    "lint": "/tmp/material-interruption-lint.log",
+    "typecheck": "/tmp/material-interruption-typecheck.log",
+    "tests": "/tmp/material-interruption-tests.log",
+    "build": "/tmp/material-interruption-build.log"
+  }
+}

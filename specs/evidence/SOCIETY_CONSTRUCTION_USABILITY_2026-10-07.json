@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T18:35:59.746627+00:00",
+  "spec": "specs/SOCIETY_CONSTRUCTION_USABILITY_V1.md",
+  "status": "prompted-cross-capability-verified-not-emergence",
+  "model": "opencode-go/deepseek-v4.1-flash",
+  "passed": true,
+  "turns": [
+    {
+      "actorId": "resident-001",
+      "providerStatus": "completed",
+      "authenticatedCalls": 9,
+      "refusals": [],
+      "providerToolRecords": 24,
+      "artifact": ".local/open-residents/construction-opencode-20261007/opencode/resident-001/turn-2-resident-001.json",
+      "sha256": "b40ac601d145084894dffc2afdacd7bb298dbd04efab3ce48cae6d1e045949bd"
+    },
+    {
+      "actorId": "resident-002",
+      "providerStatus": "completed",
+      "authenticatedCalls": 9,
+      "refusals": [],
+      "providerToolRecords": 16,
+      "artifact": ".local/open-residents/construction-opencode-20261007/opencode/resident-002/turn-13-resident-002.json",
+      "sha256": "370dc1dafa6f4717981857cefd6ddba87662f78988b62e16d06613ee20c0f754"
+    },
+    {
+      "actorId": "resident-002",
+      "providerStatus": "completed",
+      "authenticatedCalls": 5,
+      "refusals": [],
+      "providerToolRecords": 16,
+      "artifact": ".local/open-residents/construction-opencode-20261007/opencode/resident-002/turn-25-resident-002.json",
+      "sha256": "69c3f0d939ae1997153cfa7cf07c72819a89bd1dd4a36295bba65ab5bcb57300"
+    },
+    {
+      "actorId": "resident-001",
+      "providerStatus": "completed",
+      "authenticatedCalls": 6,
+      "refusals": [],
+      "providerToolRecords": 9,
+      "artifact": ".local/open-residents/construction-opencode-20261007/opencode/resident-001/turn-32-resident-001.json",
+      "sha256": "56cbe81773b60277a4dd71ea9b8c4186918efcf13a3006b92fc533a428c0ffbb"
+    },
+    {
+      "actorId": "resident-001",
+      "providerStatus": "completed",
+      "authenticatedCalls": 5,
+      "refusals": [],
+      "providerToolRecords": 7,
+      "artifact": ".local/open-residents/construction-opencode-20261007/opencode/resident-001/turn-41-resident-001.json",
+      "sha256": "a8895b6220ac5a92a930e8db291958038ca4eb217bc44ea43111a785952670fa"
+    }
+  ],
+  "authenticatedCalls": 34,
+  "worldCapabilityRoutes": 384,
+  "newWorldOperations": 0,
+  "newDomainRules": 0,
+  "boundaries": [
+    {
+      "at": 480000,
+      "reason": "actual builder shift",
+      "ok": true
+    },
+    {
+      "at": 540000,
+      "reason": "actual resident travel",
+      "ok": true
+    }
+  ],
+  "verifiedAssertions": [
+    "Exact donor and beneficiary with actual Wood removed from personal inventory",
+    "No project before builder participation; actual builder starts his own shift",
+    "No building or progress before elapsed labor",
+    "Eight units Wood embodied, registered full work complete, energy actually spent",
+    "Builder grants residence access without moving or registering the donor",
+    "Actual travel completes before donor registers residence himself",
+    "Original personal service tier and money supply unchanged",
+    "Full composed state and journal bytes unchanged by reopening"
+  ],
+  "replayEqual": true,
+  "artifact": ".local/open-residents/construction-opencode-20261007/verification.json",
+  "artifactHash": "afbacd2b9e2cecd435fd10ccd1e7b549db2672b17bf353a7d2861da9ee627289",
+  "journalCommits": 47,
+  "sourceHashes": {
+    "apps/residents/scripts/verify-construction-opencode.mjs": "443fb5bfee16e14e2d54426757026623dda94c004afd1dfe5fff6974d2718473",
+    "specs/SOCIETY_CONSTRUCTION_USABILITY_V1.md": "c5cdf09032f34756a4c93bfc7ed90421628c15199ece102e0a303680b8106e6a",
+    "apps/worker/dist/index.js": "93f354cfb10ef926378bd511bd5e4198a3cd30c82e8e0d4309f594b62192c042",
+    "apps/residents/dist/index.js": "3c299c15ad6435152db616c2848868d3190a96a34d08fd01cae720c1a5767b4f",
+    "apps/residents/dist/town.js": "395461d9d50f393621cc3463bd25e09651a197e19caef5ace664aea35f5bdf3a"
+  },
+  "validation": {
+    "actualScript": {
+      "exitCode": 0,
+      "log": "/tmp/construction-opencode-acceptance.log"
+    },
+    "scriptEslint": {
+      "exitCode": 0
+    },
+    "scriptPrettier": {
+      "exitCode": 0
+    },
+    "diffCheck": {
+      "exitCode": 0
+    },
+    "productionRegressionBaseline": {
+      "evidence": "specs/evidence/SOCIETY_FISCAL_OBSERVATION_2026-10-07.json",
+      "testsPassed": 3133,
+      "testsSkipped": 1,
+      "scope": "Previous gate, not rerun this turn; only new verification script and documentation, no production behavior changed."
+    }
+  },
+  "limitations": [
+    "Explicit stock, co-location, cooperative goals, project IDs and housing dimensions supplied by fixture; not spontaneous adoption.",
+    "No pricing, organization, public construction procurement or complete housing lifecycle proven.",
+    "Canonical/partition not exercised; original 25 capability scope remains incomplete.",
+    "Frozen 992 opportunity world unchanged."
+  ]
+}

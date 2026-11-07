@@ -1,4 +1,19 @@
+import {
+  personallyControls,
+  resourceAdministration,
+  revisedResourceControl,
+  initialResourceControl,
+  type ResourceControl,
+  type ResourceControlPolicy,
+  type ControlAuthorizationPort,
+} from '@aivilization/authority';
 import { validInformationId } from './model';
+
+export const GROUP_CONTROL_POLICY = { version: 'resident-group-control-v1' } as const;
+export type GroupControlPolicy = typeof GROUP_CONTROL_POLICY;
+export function assertGroupControlPolicy(p: GroupControlPolicy) {
+  if (p.version !== GROUP_CONTROL_POLICY.version) throw new Error('invalid-group-control-policy');
+}
 
 export const COMMUNICATION_POLICY = {
   version: 'communication-v1',
@@ -20,6 +35,7 @@ export function assertCommunicationPolicy(p: CommunicationPolicy) {
     throw new Error('invalid-communication-policy');
 }
 export type ResidentGroup = {
+  readonly control?: ResourceControl;
   id: string;
   ownerId: string;
   title: string;
@@ -29,6 +45,18 @@ export type ResidentGroup = {
   at: number;
 };
 export type GroupInvitation = {
+  readonly invitedBy?: string;
+  readonly resolvedBy?: string;
+  readonly resolvedAt?: number;
+  readonly resolution?:
+    | 'recipient-accepted'
+    | 'recipient-rejected'
+    | 'controller-accepted'
+    | 'controller-rejected'
+    | 'controller-withdrew'
+    | 'request-withdrawn'
+    | 'controller-transfer'
+    | 'group-closed';
   id: string;
   groupId: string;
   residentId: string;
@@ -45,6 +73,7 @@ export type GroupMessage = {
   sequence: number;
 };
 export type CommunicationState = {
+  readonly groupControlPolicy?: GroupControlPolicy;
   policy: CommunicationPolicy;
   groups: Readonly<Record<string, ResidentGroup>>;
   invitations: Readonly<Record<string, GroupInvitation>>;
@@ -55,6 +84,7 @@ export type CommunicationState = {
   readMessageIds?: Readonly<Record<string, readonly string[]>>;
 };
 export type CommunicationEvent =
+  | { type: 'GroupControlEnabled'; policy: GroupControlPolicy }
   | { type: 'CommunicationEnabled'; policy: CommunicationPolicy }
   | { type: 'GroupChanged'; group: ResidentGroup }
   | { type: 'GroupInvitationChanged'; invitation: GroupInvitation }
@@ -68,6 +98,7 @@ export type CommunicationEvent =
       subscriptionContext: boolean;
     };
 export type CommunicationCommand =
+  | { type: 'withdraw-invitation' | 'withdraw-request'; id: string; expectedRevision: number }
   | { type: 'create'; id: string; title: string }
   | { type: 'invite' | 'join-request'; id: string; groupId: string; residentId: string }
   | { type: 'accept' | 'reject'; id: string; expectedRevision: number }
@@ -83,9 +114,12 @@ export type CommunicationCommand =
   | { type: 'read'; messageIds: readonly string[] };
 export function emptyCommunicationState(
   policy: CommunicationPolicy = COMMUNICATION_POLICY,
+  groupControlPolicy?: GroupControlPolicy,
 ): CommunicationState {
   assertCommunicationPolicy(policy);
+  if (groupControlPolicy) assertGroupControlPolicy(groupControlPolicy);
   return {
+    ...(groupControlPolicy ? { groupControlPolicy } : {}),
     policy,
     groups: {},
     invitations: {},
@@ -111,6 +145,8 @@ export function decideCommunication(input: {
   at: number;
   command: CommunicationCommand;
   exists: (id: string) => boolean;
+  controlAuthorization?: ControlAuthorizationPort;
+  resourceControlPolicy?: ResourceControlPolicy;
 }):
   | { accepted: true; events: readonly CommunicationEvent[] }
   | { accepted: false; reason: string } {
@@ -147,32 +183,75 @@ export function decideCommunication(input: {
       subscriptionContext: c.subscriptionContext,
     });
   if (c.type === 'create') {
+    if (s.groupControlPolicy && !input.resourceControlPolicy)
+      return no('resource-control-not-enabled');
     if (!validInformationId(c.id) || Object.hasOwn(s.groups, c.id))
       return no('invalid-or-existing-group');
     if (!c.title.trim() || c.title.length > 120) return no('invalid-title');
     if (
-      Object.values(s.groups).filter((g) => g.ownerId === a && !g.closed).length >=
+      Object.values(s.groups).filter((g) => personallyControls(g, a) && !g.closed).length >=
       s.policy.maxGroups
     )
       return no('group-limit');
     return yes({
       type: 'GroupChanged',
-      group: { id: c.id, title: c.title, ownerId: a, members: [a], revision: 1, closed: false, at },
+      group: {
+        id: c.id,
+        title: c.title,
+        ownerId: a,
+        members: [a],
+        revision: 1,
+        closed: false,
+        at,
+        ...(s.groupControlPolicy && input.resourceControlPolicy
+          ? { control: initialResourceControl(a, at, input.resourceControlPolicy) }
+          : {}),
+      },
+    });
+  }
+  if (c.type === 'withdraw-invitation' || c.type === 'withdraw-request') {
+    if (!s.groupControlPolicy) return no('group-control-not-enabled');
+    const i = s.invitations[c.id],
+      g = i ? s.groups[i.groupId] : undefined;
+    if (!i || !g) return no('invitation-not-found');
+    if (i.status !== 'pending') return no('invitation-already-resolved');
+    if (g.revision !== c.expectedRevision) return no('revision-conflict');
+    if (
+      c.type === 'withdraw-request'
+        ? i.kind !== 'request' || i.residentId !== a
+        : i.kind !== 'invite' || !resourceAdministration(g, a, input.controlAuthorization)
+    )
+      return no('invitation-not-yours');
+    return yes({
+      type: 'GroupInvitationChanged',
+      invitation: {
+        ...i,
+        status: 'rejected',
+        resolvedBy: a,
+        resolvedAt: at,
+        resolution: c.type === 'withdraw-request' ? 'request-withdrawn' : 'controller-withdrew',
+      },
     });
   }
   if (c.type === 'accept' || c.type === 'reject') {
     const i = s.invitations[c.id];
     if (!i) return no('invitation-not-found');
     const g = s.groups[i.groupId]!;
-    if ((i.kind === 'invite' ? i.residentId : g.ownerId) !== a) return no('invitation-not-yours');
+    if (
+      i.kind === 'invite'
+        ? i.residentId !== a
+        : !resourceAdministration(g, a, input.controlAuthorization)
+    )
+      return no('invitation-not-yours');
     if (i.status !== 'pending') return no('invitation-already-resolved');
     if (!('expectedRevision' in c) || g.revision !== c.expectedRevision)
       return no('revision-conflict');
     if (g.closed) return no('group-closed');
+    const contact = i.kind === 'invite' ? (i.invitedBy ?? g.ownerId) : g.control ? a : g.ownerId;
     if (
       c.type === 'accept' &&
-      (communicationBlocked(s, g.ownerId, i.residentId) ||
-        communicationBlocked(s, i.residentId, g.ownerId))
+      (communicationBlocked(s, contact, i.residentId) ||
+        communicationBlocked(s, i.residentId, contact))
     )
       return no('communication-blocked');
     if (
@@ -184,7 +263,24 @@ export function decideCommunication(input: {
     return yes(
       {
         type: 'GroupInvitationChanged',
-        invitation: { ...i, status: c.type === 'accept' ? 'accepted' : 'rejected' },
+        invitation: {
+          ...i,
+          status: c.type === 'accept' ? 'accepted' : 'rejected',
+          ...(g.control
+            ? {
+                resolvedBy: a,
+                resolvedAt: at,
+                resolution:
+                  i.kind === 'invite'
+                    ? c.type === 'accept'
+                      ? ('recipient-accepted' as const)
+                      : ('recipient-rejected' as const)
+                    : c.type === 'accept'
+                      ? ('controller-accepted' as const)
+                      : ('controller-rejected' as const),
+              }
+            : {}),
+        },
       },
       ...(c.type === 'accept' && !g.members.includes(i.residentId)
         ? [
@@ -202,9 +298,14 @@ export function decideCommunication(input: {
   if (g.closed) return no('group-closed');
   if (c.type === 'invite' || c.type === 'join-request') {
     const target = c.type === 'invite' ? c.residentId : a;
-    if (c.type === 'invite' && g.ownerId !== a) return no('owner-required');
+    if (c.type === 'invite' && !resourceAdministration(g, a, input.controlAuthorization))
+      return no('owner-required');
     if (!exists(target) || g.members.includes(target)) return no('invalid-or-existing-member');
-    if (communicationBlocked(s, target, g.ownerId) || communicationBlocked(s, g.ownerId, target))
+    const contact = g.control ? (c.type === 'invite' ? a : undefined) : g.ownerId;
+    if (
+      contact &&
+      (communicationBlocked(s, target, contact) || communicationBlocked(s, contact, target))
+    )
       return no('communication-blocked');
     if (
       Object.values(s.invitations).some(
@@ -225,12 +326,14 @@ export function decideCommunication(input: {
         groupId: g.id,
         residentId: target,
         kind: c.type === 'invite' ? 'invite' : 'request',
+        ...(g.control && c.type === 'invite' ? { invitedBy: a } : {}),
         status: 'pending',
         at,
       },
     });
   }
-  if (!g.members.includes(a)) return no('member-required');
+  if ((c.type === 'send' || c.type === 'leave') && !g.members.includes(a))
+    return no('member-required');
   if (c.type === 'send') {
     if (
       !validInformationId(c.id) ||
@@ -254,14 +357,16 @@ export function decideCommunication(input: {
   if (!('expectedRevision' in c) || g.revision !== c.expectedRevision)
     return no('revision-conflict');
   if (c.type === 'leave') {
-    if (g.ownerId === a) return no('transfer-or-close-first');
+    if (personallyControls(g, a)) return no('transfer-or-close-first');
     return yes({
       type: 'GroupChanged',
       group: { ...g, members: g.members.filter((id) => id !== a), revision: g.revision + 1 },
     });
   }
-  if (g.ownerId !== a) return no('owner-required');
+  const admin = resourceAdministration(g, a, input.controlAuthorization);
+  if (!admin) return no('owner-required');
   if (c.type === 'transfer') {
+    if (g.control) return no('resource-control-offer-required');
     if (!c.targetId || !g.members.includes(c.targetId) || c.targetId === a)
       return no('target-must-be-member');
     return yes({
@@ -270,12 +375,26 @@ export function decideCommunication(input: {
     });
   }
   return yes(
-    { type: 'GroupChanged', group: { ...g, closed: true, revision: g.revision + 1 } },
+    {
+      type: 'GroupChanged',
+      group: {
+        ...g,
+        closed: true,
+        revision: g.revision + 1,
+        ...(g.control ? { control: revisedResourceControl(g, admin, at)! } : {}),
+      },
+    },
     ...Object.values(s.invitations)
       .filter((i) => i.groupId === g.id && i.status === 'pending')
       .map((i) => ({
         type: 'GroupInvitationChanged' as const,
-        invitation: { ...i, status: 'rejected' as const },
+        invitation: {
+          ...i,
+          status: 'rejected' as const,
+          ...(g.control
+            ? { resolvedBy: a, resolvedAt: at, resolution: 'group-closed' as const }
+            : {}),
+        },
       })),
   );
 }
@@ -289,6 +408,10 @@ export function applyCommunicationEvent(
   }
   if (!state) throw new Error('communication-not-enabled');
   switch (e.type) {
+    case 'GroupControlEnabled':
+      if (state.groupControlPolicy) throw new Error('group-control-already-enabled');
+      assertGroupControlPolicy(e.policy);
+      return { ...state, groupControlPolicy: e.policy };
     case 'GroupMessagesRead':
       return {
         ...state,

@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T16:10:41.175797+00:00",
+  "spec": "specs/SOCIETY_SUCCESSION_EXECUTION_V1.md",
+  "status": "engineering-three-resource-offer-verified-not-full-succession",
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/succession-control-final-lint-3.log"
+    },
+    "sortedTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/succession-control-final-typecheck-2.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/succession-control-final-tests.log"
+    },
+    "dependencyBuild": {
+      "exitCode": 0,
+      "log": "/tmp/succession-control-final-build.log"
+    },
+    "existingAuthenticatedCompiledCLI": {
+      "exitCode": 0,
+      "log": "/tmp/succession-control-periodic-cli-regression.log"
+    },
+    "prettier": {
+      "exitCode": 0,
+      "log": "/tmp/succession-control-final-prettier.log"
+    },
+    "diffCheck": {
+      "exitCode": 0,
+      "log": "/tmp/succession-control-final-diff-check.log"
+    }
+  },
+  "fullTests": {
+    "passed": 3100,
+    "skipped": 1,
+    "filesPassed": 458,
+    "filesSkipped": 1
+  },
+  "newTests": {
+    "authority": 5,
+    "society": 7,
+    "world": 7,
+    "total": 19
+  },
+  "existingCompiledCLI": {
+    "calls": 59,
+    "expectedRefusals": 19,
+    "newSuccessionCLI": false
+  },
+  "verified": [
+    "Independent precise terms and roles precede actual population trigger; executor remains actual actor.",
+    "Original binding, finite deadline, current owning source and one atomic recorded offer; missing or forged proof refuses without consuming an opportunity.",
+    "Stock, vehicle and genuinely constructed premises offers use their owning reducers; beneficiary independently accepts the current offer.",
+    "No cash or inventory duplication, fake resident, new driver authorization, relocation, housing occupancy or altered building properties.",
+    "Existing independent authorization paths and legacy state remain compatible; deterministic replay."
+  ],
+  "notDelivered": [
+    "Five remaining information/service control kinds and authenticated resident CLI/manifest.",
+    "Cash/physical custody/capital/bank principal distribution and all eleven responsibility contexts.",
+    "Natural permanent population, protected activities and trusted cargo.",
+    "Capacity admission and lifetime identity; archival and full liquidation.",
+    "Canonical/partition R01, R02 conditions and long-lived organization, all twenty-five original contracts and H4-H6."
+  ],
+  "freeExperiment": {
+    "enabled": false,
+    "frozenRoot": "/tmp/aivilization-periodic-obligations-20261006"
+  },
+  "verifiedSourceSha256": {
+    "packages/society/src/successionControlExecutionModel.ts": "743187e64fcf561ba5c4286ee36dabda0bed6af50a6f34099c4ac5d07481d179",
+    "packages/society/src/successionControlExecution.ts": "977f4e7346a3e3cb171918f2b1e94953c9ffae2fc3ee8dd685573a158d283d35",
+    "packages/authority/src/principal.ts": "7342932cb5e4d1ba2cde33854e4fc8a5a469ba96f8e53e42f34e4b9a16f0f8bc",
+    "packages/world/src/resourcePrincipalControlEffects.ts": "f2774786261732cb1ad1db79ea65159bbfdf0d3f49a4d0e3571a8f452561c5e6",
+    "packages/world/src/resourcePrincipals.ts": "a15be0e353f70f15093ce9c64400fc60e4863717edb186e7bec0836e8671b70f",
+    "packages/world/src/residentSuccessionResources.ts": "5d0e903b2f1f2e6f12dd7cb399eb22008d36e8e94e099a72f778e9f22233f66d",
+    "packages/world/src/residentSuccession.ts": "136c4309a320d7fb3c66440636b0aa85610f60b8bb3d6a5082d777db2a0484a5",
+    "packages/world/src/residentExitCapture.ts": "f752a5721171fc5e98495b3c92bb91db6a5880e93994f87df68cd58c14555015",
+    "packages/world/src/projection.ts": "3971e4e928775f77468ea19d77d618e55963f75802f1e625e8cc789e00d70580"
+  }
+}

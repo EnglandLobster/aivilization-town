@@ -1,3 +1,12 @@
+import { hasEnterprisePrincipalAssets } from '../principalResourceObligations';
+import { enterpriseServiceEstateRefusal } from '../servicePrincipalEstate';
+import type { ServicesState } from '@aivilization/services';
+import { enterpriseRequiresManagement } from '@aivilization/enterprise';
+import type { ControlAuthorizationPort } from '@aivilization/authority';
+import {
+  enterpriseManagementAuthority,
+  enterpriseCapitalDistributions,
+} from '@aivilization/enterprise';
 import type { CommandEnvelope } from '@aivilization/sim-core';
 import {
   evaluateOccupationApplication,
@@ -197,6 +206,7 @@ export function handleAgentSetEnterpriseJobPostingCommand(input: {
   readonly projection: WorldProjection;
   readonly policy: EnterprisePolicy;
   readonly nextSequence: number;
+  readonly enterpriseAuthorization?: ControlAuthorizationPort;
 }): WorldEvent[] {
   const owner = resolveCommandAgent(input.projection, input.command);
   const payloadResult = parsePayload(() =>
@@ -213,16 +223,26 @@ export function handleAgentSetEnterpriseJobPostingCommand(input: {
   const decision = decideSetEnterpriseJobPosting({
     enterprise,
     actorAgentId: owner.agentId,
+    ...(input.enterpriseAuthorization ? { authorize: input.enterpriseAuthorization } : {}),
     wageOffer: payload.wageOffer,
     openSlots: payload.openSlots,
   });
   if (decision.status === 'rejected') {
     return rejectCommand(input, 'AgentSetEnterpriseJobPosting', decision.reason);
   }
+  const managementAuthority = enterpriseManagementAuthority(
+    enterprise,
+    owner.agentId,
+    'post-job',
+    input.enterpriseAuthorization,
+  );
   return [
     makeEvent(input, 0, 'EnterpriseJobPostingUpdated', {
+      ...(enterpriseRequiresManagement(enterprise) && managementAuthority
+        ? { managementAuthority }
+        : {}),
       enterpriseId: enterprise.enterpriseId,
-      ownerAgentId: owner.agentId,
+      ownerAgentId: enterprise.ownerAgentId,
       wageOffer: payload.wageOffer,
       openSlots: payload.openSlots,
     }),
@@ -277,6 +297,7 @@ export function handleAgentLayoffEnterpriseEmployeeCommand(input: {
   readonly projection: WorldProjection;
   readonly policy: EnterprisePolicy;
   readonly nextSequence: number;
+  readonly enterpriseAuthorization?: ControlAuthorizationPort;
 }): WorldEvent[] {
   const owner = resolveCommandAgent(input.projection, input.command);
   const payloadResult = parsePayload(() =>
@@ -297,13 +318,23 @@ export function handleAgentLayoffEnterpriseEmployeeCommand(input: {
   const decision = decideLayoffEmployee({
     enterprise,
     actorAgentId: owner.agentId,
+    ...(input.enterpriseAuthorization ? { authorize: input.enterpriseAuthorization } : {}),
     employeeAgentId: employee.agentId,
   });
   if (decision.status === 'rejected') {
     return rejectCommand(input, 'AgentLayoffEnterpriseEmployee', decision.reason);
   }
+  const managementAuthority = enterpriseManagementAuthority(
+    enterprise,
+    owner.agentId,
+    'layoff',
+    input.enterpriseAuthorization,
+  );
   return [
     makeEvent(input, 0, 'EnterpriseEmployeeLaidOff', {
+      ...(enterpriseRequiresManagement(enterprise) && managementAuthority
+        ? { managementAuthority }
+        : {}),
       enterpriseId: enterprise.enterpriseId,
       agentId: employee.agentId,
       occupationName: enterprise.occupationName,
@@ -338,7 +369,11 @@ export function handleAgentFundEnterpriseCommand(input: {
   }
   const payload = payloadResult.payload;
   const enterprise = input.projection.enterprises[payload.enterpriseId];
-  if (enterprise === undefined || !isEnterpriseOperational(enterprise)) {
+  if (
+    enterprise === undefined ||
+    (!isEnterpriseOperational(enterprise) &&
+      !(enterprise.status === 'bankrupt' && enterprise.earnedPayroll))
+  ) {
     return rejectCommand(input, 'AgentFundEnterprise', 'enterprise is missing or closed');
   }
   if (funder.balance < payload.amount) {
@@ -366,10 +401,12 @@ export function handleAgentFundEnterpriseCommand(input: {
 }
 
 export function handleAgentCloseEnterpriseCommand(input: {
+  readonly serviceDirectory?: ServicesState;
   readonly command: CommandEnvelope<'AgentCloseEnterprise', unknown>;
   readonly projection: WorldProjection;
   readonly policy: EnterprisePolicy;
   readonly nextSequence: number;
+  readonly enterpriseAuthorization?: ControlAuthorizationPort;
 }): WorldEvent[] {
   const owner = resolveCommandAgent(input.projection, input.command);
   const payloadResult = parsePayload(() =>
@@ -382,18 +419,42 @@ export function handleAgentCloseEnterpriseCommand(input: {
   if (enterprise === undefined || enterprise.status === 'closed') {
     return rejectCommand(input, 'AgentCloseEnterprise', 'enterprise is missing or closed');
   }
+  if (hasEnterprisePrincipalAssets(input.projection, enterprise.enterpriseId))
+    return rejectCommand(input, 'AgentCloseEnterprise', 'enterprise-resource-estate-unsettled');
+  const serviceRefusal = enterpriseServiceEstateRefusal(
+    input.projection,
+    enterprise.enterpriseId,
+    input.serviceDirectory,
+  );
+  if (serviceRefusal) return rejectCommand(input, 'AgentCloseEnterprise', serviceRefusal);
   const decision = decideCloseEnterprise({
     enterprise,
     actorAgentId: owner.agentId,
+    ...(input.enterpriseAuthorization ? { authorize: input.enterpriseAuthorization } : {}),
     closedAt: input.projection.clock.now,
   });
   if (decision.status === 'rejected') {
     return rejectCommand(input, 'AgentCloseEnterprise', decision.reason);
   }
+  const managementAuthority = enterpriseManagementAuthority(
+    enterprise,
+    owner.agentId,
+    'close',
+    input.enterpriseAuthorization,
+  );
+  const capitalDistributions = enterprise.control
+    ? enterpriseCapitalDistributions(enterprise)
+    : undefined;
+  if (capitalDistributions?.some((d) => !input.projection.agents[d.agentId]))
+    return rejectCommand(input, 'AgentCloseEnterprise', 'enterprise-capital-successor-required');
   return [
     makeEvent(input, 0, 'EnterpriseClosed', {
+      ...(enterpriseRequiresManagement(enterprise) && managementAuthority
+        ? { managementAuthority }
+        : {}),
+      ...(capitalDistributions ? { capitalDistributions } : {}),
       enterpriseId: enterprise.enterpriseId,
-      ownerAgentId: owner.agentId,
+      ownerAgentId: enterprise.ownerAgentId,
       returnedBalance: enterprise.balance,
       returnedInventory: { ...enterprise.inventory },
       employeeAgentIds: [...enterprise.employeeAgentIds],

@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "society-free-checkpoint-evidence-v1",
+  "opportunities": 960,
+  "journalCommits": 6809,
+  "capabilityCalls": 3215,
+  "simulationTime": 1107706000,
+  "journalSha256": "f59148a28ada4c4a7ad194cb577eb308673518e90218cba20e8071db7c33d310",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayMatchesCapturedFullState": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFingerprints": 58,
+  "implementationVersions": {
+    "catalog": 62,
+    "skill": 61,
+    "rulebook": 51
+  },
+  "providerStatusCounts": {
+    "completed": 954,
+    "provider-error": 6
+  },
+  "latest32ProviderStatusCounts": {
+    "completed": 32
+  },
+  "treasury": 0,
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 456.0000000000102,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Maintenance Worker",
+      "balance": 432.868711269405,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Receptionist",
+      "balance": 640.6160736205466
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 898.131666666956,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Supermarket Manager",
+      "balance": 381.96152469378933,
+      "upkeepArrears": 1.6757897047188024
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Chef",
+      "balance": 383.9202161955974
+    }
+  ],
+  "publicProposals": [
+    {
+      "id": "proposal-001-employment-quota",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-003-housing-subsidy",
+      "status": "withdrawn"
+    },
+    {
+      "id": "proposal-003-housing-subsidy-2",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-004-subsidy-500",
+      "status": "approved"
+    },
+    {
+      "id": "proposal-003-subsidy-500-fix",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-004-chef-capacity-2",
+      "status": "executed"
+    }
+  ],
+  "residentDocuments": 14,
+  "residentMessages": 275,
+  "latestResidentCalls": 95,
+  "latestRefusals": [
+    {
+      "sequence": 6703,
+      "actorId": "resident-002",
+      "capability": "world.work",
+      "error": "public-wage-full-funding-required"
+    }
+  ],
+  "enterprises": [],
+  "collectives": [],
+  "programs": [],
+  "projects": [],
+  "resourceSales": [],
+  "periodicObligations": [],
+  "latestEventCounts": {
+    "worldEvents/SimulationTimeAdvanced": 80,
+    "worldEvents/PhysiologyChanged": 2223,
+    "worldEvents/AgentTravelStarted": 13,
+    "worldEvents/AgentActivityTimeCommitted": 27,
+    "worldEvents/ShortTermMemoryRecorded": 33,
+    "worldEvents/AgentLocationChanged": 13,
+    "worldEvents/ResidentMaterialsCommitted": 41,
+    "worldEvents/TradeExecuted": 9,
+    "worldEvents/ActionRejected": 1,
+    "worldEvents/InventoryChanged": 5,
+    "worldEvents/ResidentRestSessionChanged": 2007,
+    "worldEvents/TradeTaxCharged": 6,
+    "worldEvents/TownDayPhaseChanged": 2,
+    "worldEvents/ResidentialUpkeepCharged": 2244,
+    "worldEvents/ExternalTradeBalancesDecayed": 8,
+    "worldEvents/SubsidyPaid": 6
+  },
+  "recordedAt": "2026-10-06T16:02:54.701672+00:00",
+  "latestDocuments": [],
+  "latestMessages": [],
+  "sourceEvidence": {
+    "analysis": "/tmp/periodic-obligations-free-960-analysis.json",
+    "state": "/tmp/periodic-obligations-free-960-state.json",
+    "checkpointLog": "/tmp/periodic-obligations-free-960-checkpoint.log"
+  },
+  "interpretation": [
+    "Nine actual market trades and original material/rest/activity events occurred; no new resident article or message in this interval.",
+    "No new enterprises, collectives, programs, projects, resource sales or periodic obligations. Old six public proposals/four executions remain.",
+    "Six actual subsidy payments occurred; prior author claims of stopped subsidies do not replace ledger facts.",
+    "Treasury remains zero; one public work refusal retains full wage funding requirements. No operator fiscal rescue.",
+    "Prior resident communication disagreements remain raw historical author statements; no new consensus or coordinated sales outcome is inferred.",
+    "The unchanged original manifest, full report/state replay, prior 928 journal prefix and 58 frozen implementation fingerprints were verified.",
+    "Developing succession, estate-bank and execution modules are not in the frozen experiment.",
+    "Original twenty-five capabilities, full exit/assets/obligations, H4-H6, canonical/partition R01 and R02 comparisons remain open."
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "stage": "enterprise-atomic-management-exchange-v3",
+  "evidenceKind": "engineering-not-free-emergence",
+  "gate": {
+    "command": "pnpm check",
+    "passed": 2760,
+    "skipped": 1,
+    "filesPassed": 391,
+    "filesSkipped": 1,
+    "log": "/tmp/enterprise-exchange-final-check.log"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... build",
+    "passed": true,
+    "log": "/tmp/enterprise-exchange-final-build.log"
+  },
+  "httpCli": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-http-cli-not-free-emergence",
+    "calls": 15,
+    "expectedRefusals": 6,
+    "explicitV3": true,
+    "legacyV2StillRejectsEnterprise": true,
+    "independentMandates": true,
+    "failedAtomicExchangeNoEffects": true,
+    "failedAttemptNoMandateConsumption": true,
+    "principalAndExecutorSeparate": true,
+    "capitalAndObligationsPreserved": true,
+    "moneySupplyConserved": true,
+    "idempotentSuccess": true,
+    "replayEqual": true,
+    "manifestBytesUnchanged": true,
+    "journalBytesUnchanged": true,
+    "results": [
+      {
+        "route": "business.found",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "programs.publish",
+        "exitCode": 1,
+        "ok": false,
+        "error": "invalid-program-definition"
+      },
+      {
+        "route": "programs.publish",
+        "exitCode": 1,
+        "ok": false,
+        "error": "invalid-program-definition"
+      },
+      {
+        "route": "programs.publish",
+        "exitCode": 1,
+        "ok": false,
+        "error": "invalid-program-definition"
+      },
+      {
+        "route": "programs.publish",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "programs.run",
+        "exitCode": 1,
+        "ok": false,
+        "error": "program-mandate-required"
+      },
+      {
+        "route": "mandates.grant",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "mandates.grant",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "payments.transfer",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "programs.run",
+        "exitCode": 1,
+        "ok": false,
+        "error": "insufficient-balance"
+      },
+      {
+        "route": "payments.transfer",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "programs.run",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "programs.run",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "business.post-job",
+        "exitCode": 1,
+        "ok": false,
+        "error": "enterprise-management-authority-required"
+      },
+      {
+        "route": "business.post-job",
+        "exitCode": 0,
+        "ok": true
+      }
+    ]
+  },
+  "catalog": "open-capabilities-v43",
+  "skill": "town-resident-skill-v42",
+  "rulebook": "society-rulebook-v32",
+  "routes": 360,
+  "limitations": [
+    "equity issuance and transfer",
+    "collective program principals",
+    "vehicle atomic control",
+    "complete succession and long obligations",
+    "canonical and partition integration",
+    "autonomous enterprise adoption not yet observed"
+  ]
+}

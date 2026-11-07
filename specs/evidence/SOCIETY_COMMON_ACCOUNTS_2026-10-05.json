@@ -1,0 +1,219 @@
+{
+  "capability": "M06-common-account-slice",
+  "mode": "real-compiled-cli-engineering-acceptance",
+  "modelInvoked": false,
+  "cliCalls": 39,
+  "results": [
+    {
+      "route": "rules capability",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives respond",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "funds open",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 1,
+      "ok": false,
+      "error": "insufficient-common-account-balance"
+    },
+    {
+      "route": "funds contribute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "funds read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "funds ledger",
+      "exitCode": 1,
+      "ok": false,
+      "error": "common-account-ledger-not-authorized"
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 1,
+      "ok": false,
+      "error": "revision-conflict"
+    },
+    {
+      "route": "funds read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "funds contribute",
+      "exitCode": 1,
+      "ok": false,
+      "error": "common-account-not-receiving"
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 1,
+      "ok": false,
+      "error": "common-account-not-settled"
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "funds read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "funds ledger",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "atomicProofAndCash": true,
+  "failedDecisionPreserved": true,
+  "independentContribution": true,
+  "noOutsiderLedger": true,
+  "noRepeatedPayment": true,
+  "treasuryTransfer": true,
+  "settlementBeforeClosure": true,
+  "moneySupplyConserved": true,
+  "orderedActualLedger": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true
+}

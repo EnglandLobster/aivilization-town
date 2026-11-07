@@ -1,3 +1,4 @@
+import { personallyControls, type ResourceControl } from '@aivilization/authority';
 export const INFORMATION_POLICY_VERSION = 'information-space-v1';
 export const DOCUMENT_METADATA_POLICY = {
   version: 'document-metadata-v1',
@@ -19,6 +20,7 @@ export const DEFAULT_INFORMATION_POLICY: InformationPolicy = {
   maxDocumentsPerSpace: 1_000,
 };
 export type InformationSpace = {
+  readonly control?: ResourceControl;
   readonly id: string;
   readonly ownerId: string;
   readonly title: string;
@@ -43,6 +45,10 @@ export type InformationDocument = {
   readonly relatedTo?: string;
 };
 export type InformationMessage = {
+  /** Explicit provenance of an exact-content delegated message; never supplied by resident input. */
+  readonly executedBy?: string;
+  readonly mandateId?: string;
+  readonly programRunId?: string;
   readonly id: string;
   readonly senderId: string;
   readonly recipientId: string;
@@ -101,7 +107,7 @@ export type InformationCommand =
     }
   | { readonly type: 'message.read'; readonly id: string };
 export type InformationEvent =
-  | { readonly type: 'SpaceCreated'; readonly space: InformationSpace }
+  | { readonly type: 'SpaceCreated' | 'SpaceChanged'; readonly space: InformationSpace }
   | {
       readonly type: 'DocumentCreated' | 'DocumentUpdated' | 'DocumentDeleted';
       readonly document: InformationDocument;
@@ -138,13 +144,15 @@ export function documentKey(spaceId: string, path: string): string {
 }
 export function canReadSpace(space: InformationSpace, actorId: string): boolean {
   return (
-    space.visibility === 'public' || space.ownerId === actorId || space.members.includes(actorId)
+    space.visibility === 'public' ||
+    personallyControls(space, actorId) ||
+    space.members.includes(actorId)
   );
 }
 export function canPostToSpace(space: InformationSpace, actorId: string): boolean {
   return (
     canReadSpace(space, actorId) &&
-    (space.ownerId === actorId ||
+    (personallyControls(space, actorId) ||
       space.posting === 'everyone' ||
       (space.posting === 'members' && space.members.includes(actorId)))
   );

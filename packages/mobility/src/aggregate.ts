@@ -1,7 +1,10 @@
+import { applyVehicleJourneyInterruption } from './journeyInterruption';
 import {
   activeRide,
   assignedRide,
   authorizedDriver,
+  validVehicleCargoCapacity,
+  sameVehicleCargoCapacity,
   type MobilityState,
   type MobilityEvent,
   type MobilityCommand,
@@ -11,6 +14,7 @@ import {
   type Vehicle,
   type FareEffect,
 } from './model';
+import { sameVehiclePrincipalAuthority } from './vehiclePrincipals';
 const validId = (id: string) =>
   /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(id) && !Object.hasOwn(Object.prototype, id);
 const no = (reason: string): MobilityDecision => ({ accepted: false, reason });
@@ -41,14 +45,42 @@ export function decideMobility(
   p: MobilityPorts,
 ): MobilityDecision {
   if (!p.exists(actor)) return no('unknown-resident');
+  if (c.type === 'vehicles.drive') {
+    const v = s.vehicles[c.id];
+    if (!v || !authorizedDriver(v, actor)) return no('vehicle-authorization-required');
+    if (v.revision !== c.expectedRevision) return no('revision-conflict');
+    if (vehicleBusy(s, v.id) || occupied(s, actor) || !p.idle(actor))
+      return no('driver-or-vehicle-busy');
+    if (p.location(actor) !== v.locationId) return no('driver-must-be-at-idle-vehicle');
+    if (!p.destinationExists(c.destinationId) || c.destinationId === v.locationId)
+      return no('invalid-drive-destination');
+    const failure = p.travelCapacity?.(v.id, [actor], actor);
+    if (failure) return no(failure);
+    const arrivesAt = p.arrivalAt([actor], v.locationId, c.destinationId);
+    if (arrivesAt === null || arrivesAt <= at) return no('destination-or-route-unavailable');
+    return yes([
+      vehicleEvent(v, {
+        journey: {
+          from: v.locationId,
+          to: c.destinationId,
+          people: [actor],
+          departedAt: at,
+          arrivesAt,
+        },
+      }),
+    ]);
+  }
   const future = (n: number) =>
     Number.isSafeInteger(n) && n > at && n <= at + s.policy.maxHorizonMs;
   if (c.type === 'vehicles.authorize' || c.type === 'vehicles.revoke') {
     const v = s.vehicles[c.id];
+    if (v?.control) return no('vehicle-principal-operation-required');
     if (!v || v.ownerId !== actor) return no('vehicle-owner-required');
     if (v.revision !== c.expectedRevision) return no('revision-conflict');
     if (!p.exists(c.residentId) || c.residentId === actor) return no('invalid-driver');
     if (vehicleBusy(s, v.id)) return no('vehicle-busy');
+    if (c.type === 'vehicles.revoke' && p.mayRevokeDriver?.(v.id, c.residentId) === false)
+      return no('vehicle-custody-obligation');
     return yes([
       vehicleEvent(v, {
         authorized:
@@ -209,6 +241,8 @@ export function decideMobility(
     )
       return no('driver-must-be-at-idle-vehicle');
     if (v.locationId === r.pickupId) return yes([rideEvent(r, at, { status: 'ready' })]);
+    const failure = p.travelCapacity?.(v.id, [actor], actor);
+    if (failure) return no(failure);
     const arrivesAt = p.arrivalAt([actor], v.locationId, r.pickupId);
     if (arrivesAt === null || arrivesAt >= r.expiresAt)
       return no('pickup-route-unavailable-before-deadline');
@@ -222,6 +256,8 @@ export function decideMobility(
   if (c.type === 'rides.board') {
     if (actor !== r.riderId || r.status !== 'ready') return no('ready-rider-required');
     const people = [r.driverId, r.riderId];
+    const failure = p.travelCapacity?.(v.id, people, r.driverId);
+    if (failure) return no(failure);
     if (
       v.journey ||
       v.locationId !== r.pickupId ||
@@ -240,6 +276,7 @@ export function decideMobility(
   return no('unknown-mobility-command');
 }
 export function applyMobilityEvent(s: MobilityState, e: MobilityEvent): MobilityState {
+  if (e.type === 'VehicleJourneyInterrupted') return applyVehicleJourneyInterruption(s, e);
   const key =
     e.type === 'VehicleChanged'
       ? 'vehicles'
@@ -253,6 +290,26 @@ export function applyMobilityEvent(s: MobilityState, e: MobilityEvent): Mobility
   // The event carries the final facts. No decisions or time reads during replay.
   switch (e.type) {
     case 'VehicleChanged':
+      if (s.vehicles[e.value.id]?.journey?.interruption || e.value.journey?.interruption)
+        throw Error('interrupted-vehicle-requires-resumption-protocol');
+      if (
+        (!s.vehicles[e.value.id] && (e.value.control || e.value.principalAt !== undefined)) ||
+        (s.vehicles[e.value.id] &&
+          (e.value.ownerId !== s.vehicles[e.value.id]!.ownerId ||
+            e.value.seats !== s.vehicles[e.value.id]!.seats))
+      )
+        throw Error('vehicle-immutable-endowment-or-principal-source-required');
+      if (
+        s.vehicles[e.value.id] &&
+        !sameVehiclePrincipalAuthority(s.vehicles[e.value.id]!, e.value)
+      )
+        throw Error('vehicle-principal-authority-event-required');
+      if (
+        !validVehicleCargoCapacity(e.value.cargoCapacity) ||
+        (s.vehicles[e.value.id] &&
+          !sameVehicleCargoCapacity(s.vehicles[e.value.id]!.cargoCapacity, e.value.cargoCapacity))
+      )
+        throw Error('invalid-vehicle-cargo-endowment-change');
       return { ...s, vehicles: { ...s.vehicles, [e.value.id]: e.value } };
     case 'DriverChanged':
       return { ...s, drivers: { ...s.drivers, [e.value.id]: e.value } };
@@ -267,7 +324,12 @@ export function advanceMobility(s: MobilityState, at: number, p: MobilityPorts):
     fares: FareEffect[] = [];
   for (const v of Object.values(s.vehicles).sort((a, b) => a.id.localeCompare(b.id, 'en'))) {
     const j = v.journey;
-    if (!j || j.arrivesAt > at || j.people.some((id) => p.location(id) !== j.to || !p.idle(id)))
+    if (
+      !j ||
+      j.interruption ||
+      j.arrivesAt > at ||
+      j.people.some((id) => p.location(id) !== j.to || !p.idle(id))
+    )
       continue;
     const parked = { ...v };
     delete parked.journey;
@@ -283,7 +345,13 @@ export function advanceMobility(s: MobilityState, at: number, p: MobilityPorts):
       events.push(rideEvent(r, j.arrivesAt, { status: 'ready' }));
   }
   for (const r of Object.values(s.rides).sort((a, b) => a.id.localeCompare(b.id, 'en'))) {
-    if (!activeRide(r) || r.status === 'riding' || r.expiresAt > at) continue;
+    if (
+      !activeRide(r) ||
+      r.status === 'riding' ||
+      r.expiresAt > at ||
+      (r.vehicleId && s.vehicles[r.vehicleId]?.journey?.interruption)
+    )
+      continue;
     events.push(rideEvent(r, r.expiresAt, { status: 'cancelled', endReason: 'deadline-expired' }));
     if (r.driverId) fares.push({ kind: 'refund', ride: r });
   }
@@ -295,9 +363,16 @@ export function nextMobilityBoundary(
 ): number | undefined {
   if (!s) return undefined;
   const values = [
-    ...Object.values(s.vehicles).map((v) => v.journey?.arrivesAt),
+    ...Object.values(s.vehicles).map((v) =>
+      v.journey?.interruption ? undefined : v.journey?.arrivesAt,
+    ),
     ...Object.values(s.rides)
-      .filter((r) => activeRide(r) && r.status !== 'riding')
+      .filter(
+        (r) =>
+          activeRide(r) &&
+          r.status !== 'riding' &&
+          !(r.vehicleId && s.vehicles[r.vehicleId]?.journey?.interruption),
+      )
       .map((r) => r.expiresAt),
   ].filter((n): n is number => n !== undefined && n > now);
   return values.length ? Math.min(...values) : undefined;

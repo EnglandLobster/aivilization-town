@@ -1,0 +1,154 @@
+{
+  "date": "2026-10-05",
+  "scope": "physical-production-open-resident-experiment",
+  "verification": {
+    "command": "pnpm check",
+    "lint": "passed",
+    "typecheck": "passed",
+    "testsPassed": 2637,
+    "testsSkipped": 1,
+    "filesPassed": 365,
+    "filesSkipped": 1
+  },
+  "build": "worker/residents and dependencies passed",
+  "cli": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-http-cli-acceptance-not-free-emergence",
+    "calls": 22,
+    "expectedRefusals": 3,
+    "results": [
+      {
+        "route": "sources list",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "sources read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production recipes",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "city observe",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "business produce",
+        "exitCode": 1,
+        "ok": false,
+        "error": "physical-production-required: use town production recipes; town sources list; town production create or gather, then start"
+      },
+      {
+        "route": "stocks create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production gather",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-controller-authority-required"
+      },
+      {
+        "route": "production gather",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks withdraw",
+        "exitCode": 1,
+        "ok": false,
+        "error": "insufficient-stock-materials"
+      },
+      {
+        "route": "production start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production leave",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production gather",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production cancel",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks withdraw",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "travel go",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "life eat",
+        "exitCode": 0,
+        "ok": true
+      }
+    ],
+    "finiteWheatConsumed": 1,
+    "residentialTier": 1,
+    "partialWorkResumed": true,
+    "cancellationDidNotGrantUnearnedGoods": true,
+    "actualGatherMillBakeEat": true,
+    "noLegacyProduction": true,
+    "moneySupplyUnchanged": true,
+    "replayEqual": true,
+    "journalBytesUnchanged": true
+  },
+  "versions": {
+    "catalog": 33,
+    "skill": 32,
+    "rulebook": 23
+  },
+  "limits": [
+    "not free emergence evidence",
+    "finite scenario endowment; no ecological regeneration",
+    "enterprise physical integration, public property and all runtime modes remain incomplete"
+  ]
+}

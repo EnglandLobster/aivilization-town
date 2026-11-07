@@ -240,7 +240,10 @@ export function decideRepayLoan(input: {
   if (!Number.isFinite(input.repaidAt) || input.repaidAt < 0) {
     return rejected('repaidAt must be non-negative finite');
   }
-  const split = splitLoanPayment(loan, Math.min(input.amount, loan.principal + loan.accruedInterest));
+  const split = splitLoanPayment(
+    loan,
+    Math.min(input.amount, loan.principal + loan.accruedInterest),
+  );
   return accepted({
     type: 'LoanRepaid',
     loanId: loan.loanId,
@@ -330,9 +333,7 @@ export function applyCreditDomainEvent(
 ): BankState {
   if (event.type === 'DepositMade' && state === undefined) {
     // The first deposit bootstraps the bank with zero own reserves.
-    return normalizeBankState(
-      applyCreditDomainEvent(createBankState({ reserves: 0 }), event),
-    );
+    return normalizeBankState(applyCreditDomainEvent(createBankState({ reserves: 0 }), event));
   }
   if (state === undefined) {
     throw new Error(`cannot apply ${event.type} to a missing bank`);
@@ -393,6 +394,8 @@ export function applyCreditDomainEvent(
     }
     case 'LoanRepaid': {
       const loan = requireActiveLoan(current, event.loanId);
+      if (event.borrowerAgentId !== loan.borrowerAgentId)
+        throw new Error(`loan event borrower does not match the loan book ${event.loanId}`);
       assertValidLoanSettlement(event);
       return normalizeBankState({
         ...current,
@@ -421,10 +424,11 @@ export function applyCreditDomainEvent(
     }
     case 'LoanDefaulted': {
       const loan = requireActiveLoan(current, event.loanId);
+      if (event.borrowerAgentId !== loan.borrowerAgentId)
+        throw new Error(`loan event borrower does not match the loan book ${event.loanId}`);
       assertValidLoanSettlement(event);
       const nextPrincipal = loan.principal - event.principalPaid;
-      const nextAccruedInterest =
-        loan.accruedInterest + event.interestAccrued - event.interestPaid;
+      const nextAccruedInterest = loan.accruedInterest + event.interestAccrued - event.interestPaid;
       if (
         Math.abs(nextPrincipal - event.outstandingPrincipal) > 1e-6 ||
         Math.abs(nextAccruedInterest - event.outstandingInterest) > 1e-6
@@ -461,6 +465,8 @@ export function applyCreditDomainEvent(
     }
     case 'LoanWrittenOff': {
       const loan = requireActiveLoan(current, event.loanId);
+      if (event.borrowerAgentId !== loan.borrowerAgentId)
+        throw new Error(`loan event borrower does not match the loan book ${event.loanId}`);
       if (
         Math.abs(loan.principal - event.outstandingPrincipal) > 1e-6 ||
         Math.abs(loan.accruedInterest - event.outstandingInterest) > 1e-6
@@ -543,7 +549,9 @@ function normalizeAndValidate(state: BankState): BankState {
 
 function requireBank(
   bank: BankState | undefined,
-): { readonly status: 'ok'; readonly bank: BankState } | { readonly status: 'rejected'; readonly reason: string } {
+):
+  | { readonly status: 'ok'; readonly bank: BankState }
+  | { readonly status: 'rejected'; readonly reason: string } {
   if (bank === undefined) {
     return { status: 'rejected', reason: 'bank is not initialized' };
   }

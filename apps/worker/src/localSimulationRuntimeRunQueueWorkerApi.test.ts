@@ -79,6 +79,7 @@ function createHost(input: {
     drain: input.drain,
     start: input.start,
     stop: input.stop,
+    shutdown: () => Promise.resolve(),
     getStatus: input.getStatus,
   };
 }

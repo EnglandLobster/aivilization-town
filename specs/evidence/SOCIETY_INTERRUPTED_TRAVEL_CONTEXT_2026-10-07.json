@@ -1,0 +1,41 @@
+{
+  "ok": true,
+  "scope": "own-interrupted-travel-observation",
+  "handoffAcceptance": false,
+  "quality": {
+    "targetedTestsPassed": 5,
+    "newTests": 2,
+    "testsPassed": 3363,
+    "testsSkipped": 1,
+    "lint": true,
+    "typecheck": true,
+    "build": "worker-and-dependencies-passed"
+  },
+  "assertions": [
+    "one own-state preview only when interrupted",
+    "original route only on explicit existing action query",
+    "other resident sees no interruption record",
+    "original data cloned and authoritative state unchanged",
+    "population cause/policy not automatically exposed",
+    "old absent-state output remains unchanged"
+  ],
+  "delivery": {
+    "preview": "existing opportunity-start/explicit-refresh action and action receipt",
+    "detail": "town city observe --view action",
+    "newCliRoutes": 0,
+    "supplierHistory": "queried originals may remain in supplier session history"
+  },
+  "toolingFix": "exclude untracked .local runtime artifacts from source lint; keep strict source checks",
+  "limitations": [
+    "No custody handoff or resumption authorization implemented in this slice",
+    "Read-model fixtures, not new real model or full HTTP handoff acceptance",
+    "Runtime population transaction and complete transport scope remain pending"
+  ],
+  "logs": {
+    "target": "/tmp/interrupted-travel-context-target.log",
+    "lint": "/tmp/interrupted-travel-context-lint.log",
+    "typecheck": "/tmp/interrupted-travel-context-typecheck.log",
+    "tests": "/tmp/interrupted-travel-context-tests.log",
+    "build": "/tmp/interrupted-travel-context-build.log"
+  }
+}

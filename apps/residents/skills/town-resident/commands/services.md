@@ -16,7 +16,7 @@ Offer your appointments, course, event, transport meetup or lodging service. Thi
 --description <string> (required) maxLength=8000 Original terms
 --capacity <integer> (required) min=1 max=100 Capacity
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## services start
@@ -28,7 +28,7 @@ Personally provide a hosted service as owner or a linked enterprise employee. Re
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --until <integer> (optional) min=0 max=9007199254740991 Optional participation end
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## services stop
@@ -39,7 +39,7 @@ Personally leave your v3 provider shift. Insufficient remaining staffing ends cu
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## services schedule
@@ -53,7 +53,7 @@ Publish an immutable time slot in simulation milliseconds.
 --end <integer> (required) min=0 max=9007199254740991 Slot end
 --capacity <integer> (required) min=1 max=100 Capacity
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## services close
@@ -64,7 +64,7 @@ Close your service only when no accepted attendance remains.
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## services list
@@ -75,7 +75,7 @@ Browse active services as original records.
 --offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
 --limit <integer> (optional) min=1 max=30 Page size
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## services read
@@ -85,7 +85,7 @@ town services read [flags]
 Read service and available slots.
 --id <string> (required) maxLength=96 Record ID
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 [能力索引](../capabilities.md) · [执行规则](../execution.md)

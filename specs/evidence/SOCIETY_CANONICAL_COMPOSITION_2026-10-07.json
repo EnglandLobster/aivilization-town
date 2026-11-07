@@ -1,0 +1,289 @@
+{
+  "schemaVersion": "canonical-world-composition-evidence-v1",
+  "sourceSha256": {
+    "apps/worker/src/canonicalWorldComposition.ts": "5df41ebdd676567c372cfae97b7326990813c58baea1563f37b019f95416b7a1",
+    "apps/worker/src/canonicalWorldComposition.test.ts": "7928f69086fc9be1937e3f7acd86947e1f0f3983b1e5cd588b0b8cb849da6bc4",
+    "apps/worker/src/index.ts": "537d36bedfa3c9293f624fd992085c83e3a9988d570e3a3e91daaa2cf266b1e5",
+    "apps/residents/scripts/verify-canonical-world-composition.mjs": "20481c68239aa3eeb70dc6700e1602230578c83f66778bab269a46c99a51b2be",
+    "apps/residents/package.json": "229edc8681cbd6ad9fdc46add94535e1497e2a42619f8594373a3ab89a099036",
+    "pnpm-lock.yaml": "3922fd9b2d687a9fb1144a61acf1a5edde12b4b9340e67d8d92c9ed7bb7525b9"
+  },
+  "validation": {
+    "targeted": {
+      "passed": 6,
+      "log": "/tmp/canonical-composition-tests.log"
+    },
+    "tests": {
+      "passed": 3237,
+      "skipped": 1,
+      "filesPassed": 487,
+      "log": "/tmp/canonical-composition-full-tests.log",
+      "timing": "Before final verifier-only changes and direct development dependency declaration; production composition source unchanged afterwards."
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/canonical-composition-build.log"
+    },
+    "lint": {
+      "log": "/tmp/canonical-composition-lint-final.log",
+      "passed": true
+    },
+    "typecheck": {
+      "log": "/tmp/canonical-composition-typecheck-final.log",
+      "passed": true
+    }
+  },
+  "realArchive": {
+    "passed": true,
+    "archive": "/home/dev/aivilization-town/.local/canonical-ownership-20261007/archive",
+    "simulationId": "aivilization-smoke-25",
+    "sourceBoundary": [
+      {
+        "partitionKey": "world-main",
+        "streamVersion": 73,
+        "checkpointSequence": 73,
+        "decodedEvents": 73
+      }
+    ],
+    "barrier": {
+      "version": "canonical-society-barrier-v1",
+      "status": "blocked",
+      "authorityId": "simulation-wide-authority:sha256:9c2d9d922d027e74d750d98b75d933b0291aaaaa149a83f9655a5de26ccd0552",
+      "revision": 73,
+      "latestFencingToken": 73,
+      "simulationTime": 7000,
+      "issues": [
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-001"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-002"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-003"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-004"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-005"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-006"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-008"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-009"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-010"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-011"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-012"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-013"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-015"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-016"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-017"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-018"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-019"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-020"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-022"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-023"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-024"
+        },
+        {
+          "code": "move-pending",
+          "subject": "smoke-25-world-main-agent-025"
+        }
+      ]
+    },
+    "status": "blocked",
+    "issues": [
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-001",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-002",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-003",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-004",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-005",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-006",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-008",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-009",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-010",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-011",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-012",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-013",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-015",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-016",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-017",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-018",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-019",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-020",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-022",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-023",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-024",
+        "reason": "move-pending"
+      },
+      {
+        "field": "barrier",
+        "source": "smoke-25-world-main-agent-025",
+        "reason": "move-pending"
+      }
+    ],
+    "authorityAgentCount": 25,
+    "sourceJobApplications": 3,
+    "authorityJobApplications": 0,
+    "expectedBlocker": "move-pending",
+    "candidateProduced": false,
+    "archiveUnchanged": true,
+    "limitations": [
+      "Candidate only; no manifest, policy or cognition migration, no target runtime or source retirement.",
+      "Validates decoded event tail and snapshot reference, not an independent full domain replay from scenario genesis.",
+      "Existing controlled canonical archive, not a new free-agent observation."
+    ]
+  },
+  "retainedFailures": [
+    {
+      "log": "/tmp/canonical-composition-archive.log",
+      "reason": "Missing direct sim-core verifier dependency; added workspace dev dependency, no codec copy."
+    },
+    {
+      "log": "/tmp/canonical-composition-archive2.log",
+      "reason": "Expected composed source but 22 actual unfinished moves correctly blocked migration; source and barrier unchanged."
+    }
+  ],
+  "finalArchiveLog": "/tmp/canonical-composition-archive3.log",
+  "dependencyInstallLog": "/tmp/canonical-composition-dependency.log",
+  "limitations": [
+    "Composition accepted paths are unit fixtures; real archived world remains blocked with no candidate.",
+    "No source retirement, target activation, policy/cognition migration or full genesis replay completed.",
+    "No new resident tools or social institutions; no OpenCode or spontaneous emergence claim.",
+    "All 25 capability goals remain active; this is an R01 source-composition slice."
+  ]
+}

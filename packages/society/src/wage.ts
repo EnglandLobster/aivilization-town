@@ -1,6 +1,8 @@
+import { cumulativeUnitAllocation } from '@aivilization/economy';
 import type { OccupationConfig } from '@aivilization/content';
 import { resolveOccupation } from './occupation-catalog';
 import { calculateEffectiveKnowledgeThreshold } from './occupation';
+import { evaluateIncomeTax, type TaxPolicy } from './tax';
 
 export type KnowledgePremiumFunction = (effectiveKnowledgeThreshold: number) => number;
 
@@ -101,4 +103,61 @@ export function calculateLaborPay(
   )
     throw new Error('invalid-labor-pay-input');
   return quotedWage * (laborSeconds / policy.referenceSeconds);
+}
+
+export const EARNED_LABOR_WITHHOLDING_VERSION = 'labor-reference-period-withholding-v1';
+export type EarnedLaborCompensation = {
+  readonly grossMicros: number;
+  readonly taxMicros: number;
+  readonly taxPolicyVersion: string;
+  readonly withholdingVersion: typeof EARNED_LABOR_WITHHOLDING_VERSION;
+};
+
+/** Opted-in institution: brackets apply to the declared reference-period wage, not each clock slice. */
+export function quoteEarnedLaborCompensation(input: {
+  readonly quotedWage: number;
+  readonly laborSeconds: number;
+  readonly pay: LaborPayPolicy;
+  readonly tax?: TaxPolicy;
+}): EarnedLaborCompensation {
+  const grossMicros = Math.round(
+    calculateLaborPay(input.quotedWage, input.laborSeconds, input.pay) * 1e6,
+  );
+  const referenceGross = Math.round(input.quotedWage * 1e6);
+  const referenceTax = input.tax
+    ? Math.round(evaluateIncomeTax({ wageAmount: input.quotedWage, policy: input.tax }) * 1e6)
+    : 0;
+  if (
+    ![grossMicros, referenceGross, referenceTax].every((n) => Number.isSafeInteger(n) && n >= 0) ||
+    (input.quotedWage > 0 && referenceGross === 0) ||
+    referenceTax > referenceGross
+  )
+    throw Error('invalid-earned-labor-compensation');
+  return {
+    grossMicros,
+    taxMicros:
+      referenceGross === 0
+        ? 0
+        : cumulativeUnitAllocation(grossMicros, referenceTax, referenceGross),
+    taxPolicyVersion: input.tax?.policyVersion ?? 'no-income-tax',
+    withholdingVersion: EARNED_LABOR_WITHHOLDING_VERSION,
+  };
+}
+
+/** Cumulative withholding is invariant under splitting an earned claim into payments. */
+export function earnedLaborWithholding(
+  terms: Pick<EarnedLaborCompensation, 'grossMicros' | 'taxMicros'>,
+  paidMicros: number,
+): number {
+  if (
+    ![terms.grossMicros, terms.taxMicros, paidMicros].every(
+      (n) => Number.isSafeInteger(n) && n >= 0,
+    ) ||
+    terms.taxMicros > terms.grossMicros ||
+    paidMicros > terms.grossMicros
+  )
+    throw Error('invalid-labor-withholding-proof');
+  return terms.grossMicros === 0
+    ? 0
+    : cumulativeUnitAllocation(terms.taxMicros, paidMicros, terms.grossMicros);
 }

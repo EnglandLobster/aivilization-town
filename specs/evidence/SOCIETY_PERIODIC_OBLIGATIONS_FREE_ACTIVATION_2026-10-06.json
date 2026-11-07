@@ -1,0 +1,32 @@
+{
+  "kind": "explicit-finite-periodic-obligations-capability",
+  "afterOpportunities": 864,
+  "simulationTime": 1021108000,
+  "commitsBefore": 6136,
+  "commitsAfter": 6137,
+  "implementation": {
+    "root": "/tmp/aivilization-periodic-obligations-20261006",
+    "versions": {
+      "catalog": 62,
+      "skill": 61,
+      "rulebook": 51
+    },
+    "validation": {
+      "command": "pnpm lint + pnpm -r --sort typecheck + pnpm test + pnpm --filter @aivilization/residents... build + compiled authenticated CLI",
+      "testsPassed": 3013,
+      "testsSkipped": 1,
+      "compiledCalls": 59,
+      "expectedRefusals": 19
+    },
+    "fingerprints": 58
+  },
+  "source": "operator-capability-migration",
+  "retainsOriginalManifest": true,
+  "prescribedSocialGoal": false,
+  "addsAssetsOrForcedBodyActivity": false,
+  "replayMatches864FullState": true,
+  "allPreviousWorldFactsUnchanged": true,
+  "newContracts": 0,
+  "oldManifestUnchanged": true,
+  "estateAndSuccessionDevelopmentNotEnabled": true
+}

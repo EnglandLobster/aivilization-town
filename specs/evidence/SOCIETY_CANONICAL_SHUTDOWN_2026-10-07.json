@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "canonical-application-shutdown-evidence-v1",
+  "sourceSha256": {
+    "apps/worker/src/runtimeOperationDrain.ts": "fe9651dbd4133c81eefef5984ce5000d7a917519132dd7e92f43f6993226fb0a",
+    "apps/worker/src/runtimeOperationDrain.test.ts": "1449b482d6d974c50a953f40831003bf2479ec0a6e711ac22b1c418e6568bd2a",
+    "apps/worker/src/localSimulationRuntimeRunQueueWorkerHost.ts": "79848452686dbc1fbc2db6774a692e0cd4b85032bc6e1fdd2c500123a55f81af",
+    "apps/worker/src/localSimulationRuntimeRecovery.ts": "4b97ee21f5ee6e78279c4e57f6bcaba1acff9434874a6a0b453e832d29e5bab8",
+    "apps/worker/src/localSimulationRuntimeScheduler.ts": "6c4d7188b5bdbd8889597fc8068b8813572220ea68493833726abd37480bfc62",
+    "apps/server/src/localRuntimeTownOrchestration.ts": "30f1c83dd8d95f33344b5dc890726a7226960eb505d4e7fa6642619a61fb3242",
+    "apps/server/src/localRuntimeTownCli.ts": "e76991c73b39293927a27ace72908c346d0cf15dadb375153706f9875232d48e",
+    "apps/server/src/localRuntimeTownShutdown.test.ts": "7fd67f1aeba83d83119e864804b9e7706aab9746d06ec8739eb43d29cc964cd2",
+    "apps/server/src/localRuntimeTownCli.test.ts": "fa55ded74af7b3da0a19156491c44dcdf9284757bd197163da79306a025944f7"
+  },
+  "newTests": 8,
+  "validation": {
+    "targetedExisting": {
+      "passed": 45,
+      "log": "/tmp/canonical-drain-existing-tests.log"
+    },
+    "targetedNewAndCli": {
+      "passed": 44,
+      "log": "/tmp/canonical-drain-tests2.log"
+    },
+    "lint": {
+      "passed": true,
+      "log": "/tmp/canonical-drain-lint.log",
+      "finalChangedFilesLog": "/tmp/canonical-drain-final-targeted-lint.log"
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/canonical-drain-typecheck2.log"
+    },
+    "tests": {
+      "passed": 3228,
+      "skipped": 1,
+      "filesPassed": 485,
+      "log": "/tmp/canonical-drain-full-tests.log"
+    },
+    "build": {
+      "passed": true,
+      "logs": [
+        "/tmp/canonical-drain-worker-build.log",
+        "/tmp/canonical-drain-server-build.log"
+      ]
+    },
+    "formatAndDiffCheck": true
+  },
+  "retainedFailures": [
+    {
+      "log": "/tmp/canonical-drain-lint-targeted.log",
+      "reason": "Test async callbacks without await corrected to explicit Promise return."
+    },
+    {
+      "log": "/tmp/canonical-drain-typecheck.log",
+      "reason": "Three old API host test doubles missing new shutdown contract; updated explicitly without optional fallback."
+    }
+  ],
+  "claims": [
+    "Application close waits accepted HTTP requests then background producers then consumer.",
+    "Shutdown stops admission, waits admitted operations, retains failures, and refuses restart.",
+    "Existing stop/start remains restartable.",
+    "No domain event, policy, money or inventory semantics changed."
+  ],
+  "limitations": [
+    "Not a cross-process writer fence.",
+    "Direct repository/authority calls by other owners are not blocked.",
+    "Direct server.close is transport closure, not the full application.close contract.",
+    "An open long-lived HTTP stream can keep graceful close pending; no timeout invents success.",
+    "No forced-crash, complete migration or real-model acceptance claimed.",
+    "All original 25 capability contracts remain active."
+  ]
+}

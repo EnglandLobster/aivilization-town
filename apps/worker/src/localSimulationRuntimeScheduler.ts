@@ -1,3 +1,4 @@
+import { RuntimeOperationDrain } from './runtimeOperationDrain';
 import type { SimulationTimestamp } from '@aivilization/sim-core';
 import type {
   LocalSimulationRuntimeRunQueueJob,
@@ -76,6 +77,8 @@ export type LocalSimulationRuntimeSchedulerHost = {
   readonly runOnce: () => Promise<LocalSimulationRuntimeSchedulerDecision>;
   readonly start: () => void;
   readonly stop: () => void;
+  /** Permanently refuse new operations and await in-flight work. stop() remains restartable. */
+  readonly shutdown: () => Promise<void>;
   readonly getStatus: () => LocalSimulationRuntimeSchedulerHostStatus;
 };
 
@@ -157,8 +160,8 @@ export function createLocalSimulationRuntimeSchedulerHost(input: {
     setTimeout: (callback: () => void, delayMs: number) => setTimeout(callback, delayMs),
     clearTimeout: (handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>),
   };
+  const operations = new RuntimeOperationDrain();
   let running = false;
-  let inFlight = false;
   let scheduledTimer: { readonly handle: unknown } | undefined;
   let attemptedScheduleCount = 0;
   let enqueuedScheduleCount = 0;
@@ -169,31 +172,31 @@ export function createLocalSimulationRuntimeSchedulerHost(input: {
   let lastError: LocalSimulationRuntimeSchedulerHostError | undefined;
 
   const host: LocalSimulationRuntimeSchedulerHost = {
-    runOnce: async () => {
-      const observedAt = clock.now();
-      assertNonNegativeFinite(observedAt, 'observedAt');
-      inFlight = true;
-      lastScheduleStartedAt = observedAt;
-      attemptedScheduleCount += 1;
-      try {
-        const decision = await input.scheduler.schedule({ observedAt });
-        if (decision.status === 'enqueued') {
-          enqueuedScheduleCount += 1;
-        } else {
-          skippedScheduleCount += 1;
+    runOnce: () =>
+      operations.run(async () => {
+        const observedAt = clock.now();
+        assertNonNegativeFinite(observedAt, 'observedAt');
+        lastScheduleStartedAt = observedAt;
+        attemptedScheduleCount += 1;
+        try {
+          const decision = await input.scheduler.schedule({ observedAt });
+          if (decision.status === 'enqueued') {
+            enqueuedScheduleCount += 1;
+          } else {
+            skippedScheduleCount += 1;
+          }
+          lastDecision = decision;
+          lastError = undefined;
+          return decision;
+        } catch (error) {
+          lastError = serializeHostError(error);
+          throw error;
+        } finally {
+          lastScheduleCompletedAt = clock.now();
         }
-        lastDecision = decision;
-        lastError = undefined;
-        return decision;
-      } catch (error) {
-        lastError = serializeHostError(error);
-        throw error;
-      } finally {
-        lastScheduleCompletedAt = clock.now();
-        inFlight = false;
-      }
-    },
+      }),
     start: () => {
+      operations.assertOpen();
       if (running) {
         return;
       }
@@ -207,9 +210,13 @@ export function createLocalSimulationRuntimeSchedulerHost(input: {
         scheduledTimer = undefined;
       }
     },
+    shutdown: () => {
+      host.stop();
+      return operations.close();
+    },
     getStatus: () => ({
       running,
-      inFlight,
+      inFlight: operations.inFlight,
       scheduleIntervalMs: input.scheduleIntervalMs,
       attemptedScheduleCount,
       enqueuedScheduleCount,
@@ -234,7 +241,7 @@ export function createLocalSimulationRuntimeSchedulerHost(input: {
   }
 
   async function runScheduledTick(): Promise<void> {
-    if (!running || inFlight) {
+    if (!running || operations.inFlight) {
       scheduleNext(input.scheduleIntervalMs);
       return;
     }

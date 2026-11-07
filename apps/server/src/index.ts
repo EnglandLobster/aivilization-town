@@ -30,3 +30,9 @@ export * from './localRuntimeTownSoak';
 export * from './localRuntimeTownSoakCli';
 export * from './localRuntimeTownServer';
 export * from './localRuntimeTownSourceRevision';
+
+export * from './canonicalRuntimeOwnership';
+
+export * from './canonicalSocietySource';
+
+export * from './canonicalSocietyCutover';

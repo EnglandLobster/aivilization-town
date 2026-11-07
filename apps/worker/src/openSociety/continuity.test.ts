@@ -71,6 +71,36 @@ test('original reads persist by person/source, page receipts do not skip unseen 
   replay();
 });
 
+test('own group-message receipt can ground cognition without rereading, while membership alone cannot cite unread originals', () => {
+  const { r, a, b, c, call, ok, group, replay } = setup();
+  group();
+  const sent = ok(b, 'groups.send', { groupId: 'g', content: '我愿意傍晚去散步，不代表他人同意' });
+  const update = {
+    key: 'my-intention',
+    kind: 'note',
+    statement: '我提出了时间',
+    confidence: 0.9,
+    evidenceIds: [sent.id],
+    expectedRevision: 0,
+    active: true,
+  };
+  expect(call(b, 'cognition.update', update).ok).toBe(true);
+  expect(ok(b, 'memory.search', { sourceId: sent.id }).total).toBe(1);
+  expect(r.state.communication?.readMessageIds?.[a] ?? []).not.toContain(sent.id);
+  expect(call(a, 'cognition.update', update).error).toBe('evidence-not-visible');
+  expect(call(c, 'cognition.update', update).error).toBe('evidence-not-visible');
+  expect(
+    call(b, 'cognition.update', { ...update, evidenceIds: ['invented'], expectedRevision: 1 })
+      .error,
+  ).toBe('evidence-not-visible');
+  ok(a, 'groups.messages', { groupId: 'g' });
+  expect(call(a, 'cognition.update', update).ok).toBe(true);
+  ok(b, 'groups.leave', { groupId: 'g', expectedRevision: 2 });
+  expect(call(b, 'groups.messages', { groupId: 'g' }).ok).toBe(false);
+  expect(call(b, 'cognition.update', { ...update, expectedRevision: 1 }).ok).toBe(true);
+  replay();
+});
+
 test('oversized original read cannot mark messages read or manufacture perception', () => {
   const { r, a, b, call, ok, group } = setup(true, 1200);
   group();

@@ -1,0 +1,217 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T19:17:41.170854+00:00",
+  "spec": "specs/SOCIETY_DAEMON_INTEGRATION_V1.md",
+  "status": "explicit-formal-daemon-and-provider-recovery-verified-not-full-R01",
+  "worldCapabilityRoutes": 384,
+  "newDomainRules": 0,
+  "newTests": 8,
+  "fullTests": {
+    "passed": 3148,
+    "skipped": 1,
+    "filesPassed": 467,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/society-daemon-session-lint.log"
+    },
+    "finalAddedFilesLint": {
+      "exitCode": 0,
+      "log": "/tmp/society-daemon-session-files-lint-verified.log"
+    },
+    "finalReportLint": {
+      "exitCode": 0,
+      "log": "/tmp/society-daemon-report-lint.log"
+    },
+    "sortedTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/society-daemon-session-typecheck.log"
+    },
+    "finalResidentsTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/society-daemon-session-final-typecheck-2.log"
+    },
+    "workerResidentsServerBuild": {
+      "exitCode": 0,
+      "log": "/tmp/society-daemon-build.log"
+    },
+    "finalResidentsBuild": {
+      "exitCode": 0,
+      "log": "/tmp/society-daemon-session-build.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/society-daemon-tests-verified.log"
+    },
+    "providerRecovery": {
+      "exitCode": 0,
+      "log": "/tmp/society-daemon-provider-recovery.log"
+    },
+    "canonicalHelp": {
+      "exitCode": 0,
+      "log": "/tmp/society-daemon-canonical-help.log"
+    },
+    "residentHelp": {
+      "exitCode": 0,
+      "log": "/tmp/society-daemon-cli-help.log"
+    }
+  },
+  "freeRun": {
+    "root": ".local/open-residents/society-daemon-20261007",
+    "opportunities": 5,
+    "providerCompleted": 4,
+    "providerErrors": 1,
+    "originalTimeoutMs": 180000,
+    "explicitResumeTimeoutMs": 300000,
+    "originalPassed": false,
+    "resumePassed": false,
+    "resumeFailure": "provider session changed across process restart",
+    "fullStateReplayEqual": true,
+    "historicalManifestFlagIgnored": "Failed reports printed a constant after earlier failure bypassed the checks; not used as evidence. See independent read-back.",
+    "independentReadback": ".local/open-residents/society-daemon-20261007/post-verification.json",
+    "providerEvidence": [
+      {
+        "artifact": ".local/open-residents/society-daemon-20261007/opencode/resident-001/turn-2-resident-001.json",
+        "sha256": "3445d7158b9f9835727a1e85f9cb21a92f409b4c8421d835bbbf959b2975310e",
+        "actorId": "resident-001",
+        "turnId": "turn-2-resident-001",
+        "status": "completed",
+        "elapsedMs": 85351,
+        "task": "free-activity",
+        "termination": {
+          "exitSignal": null,
+          "aborted": false,
+          "abortReason": null,
+          "providerErrorEvent": false
+        }
+      },
+      {
+        "artifact": ".local/open-residents/society-daemon-20261007/opencode/resident-001/turn-96-resident-001.json",
+        "sha256": "670277d278012821e336cde4ea8cdbac377d375772a5da958edcdac4ffa33c03",
+        "actorId": "resident-001",
+        "turnId": "turn-96-resident-001",
+        "status": "completed",
+        "elapsedMs": 73730,
+        "task": "free-activity",
+        "termination": {
+          "exitSignal": null,
+          "aborted": false,
+          "abortReason": null,
+          "providerErrorEvent": false
+        }
+      },
+      {
+        "artifact": ".local/open-residents/society-daemon-20261007/opencode/resident-002/turn-23-resident-002.json",
+        "sha256": "a3d5f3fa80a7292b9d9e6f4b97ed4c8d3c366780ec499defde71e75a6b0596b7",
+        "actorId": "resident-002",
+        "turnId": "turn-23-resident-002",
+        "status": "provider-error",
+        "elapsedMs": 179547,
+        "task": "free-activity",
+        "termination": {
+          "exitSignal": "SIGTERM",
+          "aborted": true,
+          "abortReason": "TimeoutError",
+          "providerErrorEvent": false
+        }
+      },
+      {
+        "artifact": ".local/open-residents/society-daemon-20261007/opencode/resident-002/turn-48-resident-002.json",
+        "sha256": "44eeb2c2a55b83c31a3850c39e899fb10db3b6063948d34eacb894e30f4fe1f4",
+        "actorId": "resident-002",
+        "turnId": "turn-48-resident-002",
+        "status": "completed",
+        "elapsedMs": 274064,
+        "task": "free-activity",
+        "termination": {
+          "exitSignal": null,
+          "aborted": false,
+          "abortReason": null,
+          "providerErrorEvent": false
+        }
+      },
+      {
+        "artifact": ".local/open-residents/society-daemon-20261007/opencode/resident-002/turn-79-resident-002.json",
+        "sha256": "f38ecc554ef177867861075042add3fa1b04db2d6e5f0360475d2ff9212478d8",
+        "actorId": "resident-002",
+        "turnId": "turn-79-resident-002",
+        "status": "completed",
+        "elapsedMs": 194690,
+        "task": "free-activity",
+        "termination": {
+          "exitSignal": null,
+          "aborted": false,
+          "abortReason": null,
+          "providerErrorEvent": false
+        }
+      }
+    ],
+    "originalArtifact": ".local/open-residents/society-daemon-20261007/verification.json",
+    "resumeArtifact": ".local/open-residents/society-daemon-20261007/verification-resume-46.json"
+  },
+  "realProviderRecovery": {
+    "artifact": ".local/open-residents/provider-session-recovery-20261007/verification.json",
+    "sha256": "3e35370e17a880202ad15c3c464c7e5015775abb8f0719e53bb8a6260dc68e02",
+    "passed": true,
+    "mode": "prompted-real-provider-interruption-not-emergence",
+    "statuses": [
+      "provider-error",
+      "completed"
+    ],
+    "sameSession": true,
+    "replayEqual": true
+  },
+  "preservedFailures": [
+    {
+      "log": "/tmp/society-daemon-opencode.log",
+      "reason": "Actual resident timeout at original180s; process stopped and committed state retained."
+    },
+    {
+      "log": "/tmp/society-daemon-opencode-resume.log",
+      "reason": "Three completed turns but old first-failure CLI marker missing caused session reset; result remains failed."
+    },
+    {
+      "log": "/tmp/society-daemon-lint.log",
+      "reason": "Unnecessary assertion removed."
+    },
+    {
+      "log": "/tmp/society-daemon-session-targeted.log",
+      "reason": "Protocol fixture initially returned wrong shell version; corrected fixture, production preflight unchanged."
+    },
+    {
+      "log": "/tmp/society-daemon-session-files-lint.log",
+      "reason": "Test type import style corrected."
+    },
+    {
+      "log": "/tmp/society-daemon-session-files-lint-final.log",
+      "reason": "Verifier setTimeout qualified through globalThis."
+    }
+  ],
+  "sourceHashes": {
+    "apps/residents/src/daemon.ts": "2a91bd53ed6796131079d3e4543d39b00a8b5762c38420159ac2517da2f39b8b",
+    "apps/residents/src/daemon.test.ts": "05681ddf859321b246cf0526530ed66f514c420ebddd3334b1b31727caf186d9",
+    "apps/residents/src/server.ts": "2c4a37429d1af74fe9ef4b5be02a4c960c0158060a2f24189ddaf26a04c769d2",
+    "apps/residents/src/index.ts": "21f72ec658980fca9900569be63803a0d2d145870961d891fd56632f5971bff3",
+    "apps/residents/src/openCode.ts": "63e634ede0a1bc5fe3dd57210d285f50c8baa60f5b377773f2c2979ba39062df",
+    "apps/residents/src/openCodeSession.test.ts": "f8285b5d8aed0f08dfeca59a06ea0075f6bd32cc844df2120eccc81d704a66f4",
+    "apps/residents/scripts/verify-society-daemon.mjs": "f6b63d0c7f6f57a8f488d7a05f78a63249e7c2ca99d4620fd6f0bb124f9ff425",
+    "apps/residents/scripts/verify-provider-session-recovery.mjs": "7382c646c7ba567ee276bafae3e0c3b14df96c2bb8fca620d0afda122c6ccad5",
+    "apps/server/src/residentSocietyCli.ts": "3424faf57ca85c2f8a930fa517873145c667d8cecb8927d88bfd8fc84de76da5",
+    "apps/server/src/residentSocietyCli.test.ts": "7a98ca04b527c2867cffafe1e933c25fa8c5580f12f822a3021ed572244e53d2",
+    "apps/server/src/localRuntimeTownCliMain.ts": "3f614a32bfa9947fdc9b329c5616daa2cc3c3ebc730b69f66ac054689c66899e",
+    "apps/server/package.json": "329ca512924d5874b8abf8d2e10033396ca035877189e6bce0850afc9774d2e0",
+    "pnpm-lock.yaml": "501b24206c4744799c9b26eeec2d1d95dba1d4ba9e30ebbb40f09d7f480e92f4",
+    "specs/SOCIETY_DAEMON_INTEGRATION_V1.md": "03c995e711ac699ab28c5b0a5923f933f4de86c84d5a7adf8e1508c6bf91716b",
+    "specs/RESIDENT_CONTEXT_DELIVERY.md": "6280091d4decda9faa94aee5adbffa56aa314cd9dc34968ee67481339963cd5c",
+    "README.md": "e1e2edba6fa699f0931dab3d1e251c33716257566af9916c4aaf33ff0870db1e"
+  },
+  "limitations": [
+    "Old failed-session provenance not fabricated or retroactively rewritten.",
+    "New mode opens an existing explicitly initialized society; inactive capabilities remain inactive.",
+    "Canonical data migration, old participant UI and distributed complete-state authority still incomplete.",
+    "Short free-run activity and prompted fault recovery are not stable autonomous organization.",
+    "Original frozen992 world untouched; all25 capabilities remain the goal."
+  ]
+}

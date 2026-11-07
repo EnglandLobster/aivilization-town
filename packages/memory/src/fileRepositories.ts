@@ -674,7 +674,7 @@ type AgentIntentionLedgerVersion =
   | typeof AGENT_INTENTION_LEDGER_LEGACY_OPERATION_VERSION
   | typeof AGENT_INTENTION_LEDGER_POLICY_VERSION;
 
-type AgentIntentionLedgerRecord =
+export type AgentIntentionLedgerRecord =
   | {
       readonly schemaVersion: AgentIntentionLedgerVersion;
       readonly operation: 'replace-state';
@@ -713,6 +713,49 @@ export class FileAgentIntentionRepository implements AgentIntentionRepository {
     assertNonEmpty(input.rootDir, 'rootDir');
     this.statesPath = join(input.rootDir, 'agent-intentions.jsonl');
     ensureFile(this.statesPath, input.rootDir);
+  }
+
+  /** Retained raw revisions; original incremental operations are not executed anew. */
+  readHistory(agentId: AgentId): Promise<
+    readonly {
+      agentId: AgentId;
+      sourceOrdinal: number;
+      record: AgentIntentionState | AgentIntentionLedgerRecord;
+    }[]
+  > {
+    this.refreshLatestStateIndex();
+    if (statSync(this.statesPath).size !== this.committedBytes)
+      throw new Error('intention-history-incomplete-tail');
+    const result: {
+      agentId: AgentId;
+      sourceOrdinal: number;
+      record: AgentIntentionState | AgentIntentionLedgerRecord;
+    }[] = [];
+    let sourceOrdinal = 0;
+    scanJsonLines<unknown>({
+      path: this.statesPath,
+      fromByte: 0,
+      toByte: this.committedBytes,
+      onRecord: (raw) => {
+        sourceOrdinal++;
+        const record = isLegacyAgentIntentionState(raw)
+          ? raw
+          : parseAgentIntentionLedgerRecord(raw, this.statesPath);
+        const owner =
+          'operation' in record && record.operation === 'replace-state'
+            ? record.state.agentId
+            : record.agentId;
+        if (owner === agentId)
+          result.push({ agentId, sourceOrdinal, record: structuredClone(record) });
+      },
+    });
+    return Promise.resolve(result);
+  }
+
+  /** Read an existing state without synthesizing or persisting an empty intention. */
+  find(agentId: AgentId): Promise<AgentIntentionState | undefined> {
+    const state = this.getLatestState(agentId);
+    return Promise.resolve(state === undefined ? undefined : cloneState(state));
   }
 
   async getOrCreate(agentId: AgentId): Promise<AgentIntentionState> {
@@ -998,6 +1041,28 @@ export class FileLongTermProfileRepository implements LongTermProfileRepository 
       resetProjection: () => this.latestProfileByAgentId.clear(),
       project: (profile) => this.latestProfileByAgentId.set(profile.agentId, cloneProfile(profile)),
     });
+  }
+
+  /** All retained profile snapshots, not just the latest indexed value. */
+  readHistory(
+    agentId: AgentId,
+  ): Promise<readonly { agentId: AgentId; sourceOrdinal: number; record: LongTermAgentProfile }[]> {
+    if (this.profilesFile.diagnostics().hasIncompleteTrailingRow)
+      throw new Error('profile-history-incomplete-tail');
+    const result: { agentId: AgentId; sourceOrdinal: number; record: LongTermAgentProfile }[] = [];
+    let sourceOrdinal = 0;
+    this.profilesFile.scanCommitted((record) => {
+      sourceOrdinal++;
+      if (record.agentId === agentId)
+        result.push({ agentId, sourceOrdinal, record: structuredClone(record) });
+    });
+    return Promise.resolve(result);
+  }
+
+  /** Read an existing profile without creating new cognitive history. */
+  find(agentId: AgentId): Promise<LongTermAgentProfile | undefined> {
+    const profile = this.getLatestProfile(agentId);
+    return Promise.resolve(profile === undefined ? undefined : cloneProfile(profile));
   }
 
   async getOrCreate(agentId: AgentId): Promise<LongTermAgentProfile> {

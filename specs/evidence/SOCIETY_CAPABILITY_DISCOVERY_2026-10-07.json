@@ -1,0 +1,120 @@
+{
+  "recordedAt": "2026-10-06T17:10:14.791371+00:00",
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-lint-final.log"
+    },
+    "sortedTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-typecheck-2.log"
+    },
+    "finalResidentsTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-residents-typecheck-final.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-tests-final.log"
+    },
+    "dependencyBuild": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-build.log"
+    },
+    "finalResidentsBuild": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-build-2.log"
+    },
+    "existingAuthenticatedCLI": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-existing-cli.log"
+    }
+  },
+  "fullTests": {
+    "passed": 3127,
+    "skipped": 1,
+    "filesPassed": 462,
+    "filesSkipped": 1
+  },
+  "existingCLI": {
+    "calls": 59,
+    "expectedRefusals": 19
+  },
+  "schemaVersion": "society-capability-verification-v1",
+  "spec": "specs/SOCIETY_CAPABILITY_PRIORITY_REVIEW_2026-10-07.md",
+  "status": "adapter-and-prompted-usability-verified-not-emergence",
+  "worldCapabilityRoutes": 384,
+  "localDiscoveryVersion": "resident-capability-discovery-v1",
+  "skillVersion": "town-resident-skill-v62",
+  "newTests": 5,
+  "promptedTrials": [
+    {
+      "artifact": ".local/open-residents/discovery-acceptance-20261007/verification.json",
+      "sha256": "cf90169e4ea7d110c258e1a660d342795047d17f5e95b3bf8337752188762606",
+      "mode": "prompted-discovery-usability-not-emergence",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "passed": true,
+      "commandCounts": [15, 18],
+      "worldCalls": [4, 6],
+      "checks": {
+        "bothUsedDiscovery": true,
+        "privateSharedRegister": true,
+        "independentOriginals": true,
+        "worldUnchanged": true
+      },
+      "replayEqual": true
+    },
+    {
+      "artifact": ".local/open-residents/discovery-acceptance-20261007-2/verification.json",
+      "sha256": "8dc1084c7dc2c1734b05047430c97a53b8071200fb247fe0c9186f36122da1f2",
+      "mode": "prompted-discovery-usability-not-emergence",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "passed": true,
+      "commandCounts": [7, 11],
+      "worldCalls": [3, 4],
+      "checks": {
+        "bothUsedDiscovery": true,
+        "bothFollowedSearchResult": true,
+        "privateSharedRegister": true,
+        "independentOriginals": true,
+        "worldUnchanged": true
+      },
+      "replayEqual": true
+    }
+  ],
+  "findings": [
+    "First trial completed the task but creator searches returned zero results; task completion alone did not validate discovery usefulness.",
+    "Final discovery prefers all literal terms, then explicitly labeled partial matches with matched terms; authored shared-record guide title is searchable in everyday Chinese.",
+    "Both final residents followed a nonempty discovery result, created/read/independently authored records through existing authorization; physical/economic world unchanged and journal replay equal.",
+    "Observed total commands decreased from 33 to 18 in this prompted example. Different model runs are not a controlled benchmark or proof of long-term emergence."
+  ],
+  "existingFreeWorld": {
+    "opportunities": 992,
+    "upgraded": false,
+    "newFreeExperimentRun": false
+  },
+  "preservedFailures": [
+    "/tmp/capability-discovery-tests.log",
+    "/tmp/capability-discovery-lint.log",
+    "/tmp/capability-discovery-lint-2.log"
+  ],
+  "verificationNotes": [
+    "First full regression timed out in three preexisting tests during concurrent build/typecheck/lint; standalone original configuration passed. No timeouts or assertions relaxed."
+  ],
+  "notDelivered": [
+    "Natural use of this discovery version in the frozen free world.",
+    "Complete canonical/partition integration and all twenty-five capability contracts.",
+    "Proof that capability discovery is the main cause of missing sustained organizations."
+  ],
+  "verifiedSourceSha256": {
+    "apps/residents/src/capabilityDiscovery.ts": "3acaaba6d9033647aae0a4053d567d85031ddc78c0907e9accbb89b00a131672",
+    "apps/residents/src/capabilityDiscovery.test.ts": "54c444e84f6e018b91041db33d4ca9148b02e4b47967b22d6d55baaebedf41ff",
+    "apps/residents/src/residentCli.ts": "6b17591bf8033fec941c4c38c5a292d614a4e05bc840f764d6f7bb924d5de9e5",
+    "apps/residents/src/cliContext.ts": "056b4283a68ec05c1ff87b849a7b62f6d118e921a541d29b9d3a23ca5375460d",
+    "apps/residents/src/residentSkill.ts": "3f769ea34187f003a667b9a201b0b15660cabab05c80859c10972cfd24ebed19",
+    "apps/residents/src/societySkill.ts": "8ef2b3546dd911450d7959a6f4fb3ce9f1198b038d79f80c00b7e47985ed9039",
+    "apps/residents/src/openCode.ts": "c9c95b14dae5041093773833d3d1d0818837e21f3a4d0a89313af0ad2f4898c1",
+    "apps/residents/scripts/verify-discovery-opencode.mjs": "e37aed845c648a9d2052934161868b99d7140ba32d6485ca4be6bc76ba0d8802",
+    "apps/worker/src/openSociety/capabilityRoutes.ts": "0da6d67d448a2b6daa9ad6fececbb015567868b840084548692f371e6d49a7cc"
+  }
+}

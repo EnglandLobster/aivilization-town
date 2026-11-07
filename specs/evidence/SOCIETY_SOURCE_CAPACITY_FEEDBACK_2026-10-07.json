@@ -1,0 +1,389 @@
+{
+  "date": "2026-10-07",
+  "scope": "Distinguish raw-source labor capacity from indoor workstations, using existing on-demand queries.",
+  "status": "verified-slice-not-complete-society",
+  "boundary": {
+    "owner": "materials",
+    "queryAdapter": "openSociety materialTools",
+    "defaultContextExpanded": false,
+    "residentToolsAdded": 0,
+    "residentSkillVersion": "town-resident-skill-v67",
+    "settlementOrHistoricalEventSemanticsChanged": false,
+    "currentSourceRefusal": "material-source-labor-capacity-unavailable",
+    "processingRefusal": "production-workstation-unavailable"
+  },
+  "checks": {
+    "targeted": {
+      "passed": 21,
+      "files": 3,
+      "log": "/tmp/source-tests2.log"
+    },
+    "lint": "passed",
+    "typecheck": "passed",
+    "build": "passed",
+    "format": "passed",
+    "fullTests": {
+      "passed": 3293,
+      "skipped": 1,
+      "filesPassed": 499,
+      "filesSkipped": 1,
+      "log": "/tmp/source-full-tests.log"
+    }
+  },
+  "compiledCli": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-http-cli-acceptance-not-free-emergence",
+    "calls": 36,
+    "expectedRefusals": 5,
+    "results": [
+      {
+        "route": "sources list",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "sources read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production recipes",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "city observe",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "business produce",
+        "exitCode": 1,
+        "ok": false,
+        "error": "physical-production-required: use town production recipes; town sources list; town production create or gather, then start"
+      },
+      {
+        "route": "stocks create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production gather",
+        "exitCode": 2,
+        "ok": false,
+        "error": "missing-argument:workers"
+      },
+      {
+        "route": "production gather",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-controller-authority-required"
+      },
+      {
+        "route": "production gather",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks withdraw",
+        "exitCode": 1,
+        "ok": false,
+        "error": "insufficient-stock-materials"
+      },
+      {
+        "route": "production start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production leave",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production gather",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production cancel",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks withdraw",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "travel go",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "life eat",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production gather",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production gather",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production gather",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "sources read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production start",
+        "exitCode": 1,
+        "ok": false,
+        "error": "material-source-labor-capacity-unavailable"
+      },
+      {
+        "route": "production leave",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "production start",
+        "exitCode": 0,
+        "ok": true
+      }
+    ],
+    "finiteWheatConsumed": 1,
+    "residentialTier": 1,
+    "partialWorkResumed": true,
+    "cancellationDidNotGrantUnearnedGoods": true,
+    "actualGatherMillBakeEat": true,
+    "sourceContentionAndRelease": true,
+    "aggregateSourceQueryWithoutPrivateJobs": true,
+    "noLegacyProduction": true,
+    "moneySupplyUnchanged": true,
+    "replayEqual": true,
+    "journalBytesUnchanged": true
+  },
+  "freeOpenCode": {
+    "evidenceKind": "unprompted-single-opportunity-not-stable-emergence",
+    "before": {
+      "revision": 229,
+      "clock": 3335000,
+      "commits": 229,
+      "journalHash": "a4643fe9434dd434a669310d7ec1c793c4634014d523184261c053363e0360d3"
+    },
+    "after": {
+      "revision": 247,
+      "clock": 3336000,
+      "journalHash": "90b04f926aa89a7ce57ad8232cd21833db03d3784cb356e17e2f22cfa0c73304"
+    },
+    "run": {
+      "event": "resident-opportunity",
+      "actorId": "smoke-25-world-main-agent-009",
+      "turnId": "turn-230-smoke-25-world-main-agent-009",
+      "status": "completed",
+      "calls": 15
+    },
+    "finish": {
+      "event": "resident-society-finished",
+      "status": "limit-reached",
+      "opportunities": 1
+    },
+    "sourceQueries": [
+      {
+        "sequence": 242,
+        "slots": [
+          {
+            "id": "declared-apple",
+            "laborSlots": {
+              "available": 1,
+              "capacity": 2,
+              "inUse": 1,
+              "version": "material-source-labor-capacity-v1"
+            }
+          },
+          {
+            "id": "declared-copper-ore",
+            "laborSlots": {
+              "available": 2,
+              "capacity": 2,
+              "inUse": 0,
+              "version": "material-source-labor-capacity-v1"
+            }
+          },
+          {
+            "id": "declared-fish",
+            "laborSlots": {
+              "available": 2,
+              "capacity": 2,
+              "inUse": 0,
+              "version": "material-source-labor-capacity-v1"
+            }
+          },
+          {
+            "id": "declared-iron-ore",
+            "laborSlots": {
+              "available": 2,
+              "capacity": 2,
+              "inUse": 0,
+              "version": "material-source-labor-capacity-v1"
+            }
+          },
+          {
+            "id": "declared-rice",
+            "laborSlots": {
+              "available": 2,
+              "capacity": 2,
+              "inUse": 0,
+              "version": "material-source-labor-capacity-v1"
+            }
+          },
+          {
+            "id": "declared-silicon-ore",
+            "laborSlots": {
+              "available": 2,
+              "capacity": 2,
+              "inUse": 0,
+              "version": "material-source-labor-capacity-v1"
+            }
+          },
+          {
+            "id": "declared-wheat",
+            "laborSlots": {
+              "available": 2,
+              "capacity": 2,
+              "inUse": 0,
+              "version": "material-source-labor-capacity-v1"
+            }
+          },
+          {
+            "id": "declared-wood",
+            "laborSlots": {
+              "available": 0,
+              "capacity": 2,
+              "inUse": 2,
+              "version": "material-source-labor-capacity-v1"
+            }
+          }
+        ]
+      }
+    ],
+    "eventCounts": {
+      "AgentTravelStarted": 1,
+      "AgentActivityTimeCommitted": 1,
+      "ShortTermMemoryRecorded": 1,
+      "SimulationTimeAdvanced": 1,
+      "ResidentMaterialsCommitted": 3
+    },
+    "refusals": [],
+    "previousGenericRefusalsPreserved": 2,
+    "travelEvents": [
+      {
+        "agentId": "smoke-25-world-main-agent-009",
+        "arrivesAt": 3771000,
+        "baseTravelDurationSeconds": 420,
+        "congestionMultiplier": 1.0375,
+        "departedAt": 3335000,
+        "destinationCongestionMultiplier": 1.0375,
+        "edgeCongestionMultiplier": 1,
+        "fromLocationId": "workshop",
+        "reason": "complete compulsory education level 2 and prepare for level 3 exam",
+        "routeEdgeFlows": [
+          {
+            "activeTraversalCount": 0,
+            "congestionMultiplier": 1,
+            "fromLocationId": "workshop",
+            "toLocationId": "school"
+          }
+        ],
+        "routeLocationIds": ["workshop", "school"],
+        "spatialPolicyVersion": "town-spatial-graph-v2",
+        "toLocationId": "school",
+        "travelDurationSeconds": 436
+      }
+    ],
+    "replayMatched": true,
+    "journalBytesUnchangedByReopen": true,
+    "writerReleased": true,
+    "limitations": [
+      "Source query delivery is observed; internal model understanding is not established.",
+      "Travel start does not by itself establish arrival.",
+      "No new organization, collective agreement or paid resource sale was observed.",
+      "Private adapter independence and full-mode integration remain unfinished."
+    ]
+  },
+  "remaining": [
+    "Private resource adapter activation must be separated from unrelated physical domains and public grants with explicit compatibility.",
+    "All 25 capability contracts, canonical/partition paths and stable autonomous social behavior remain in the long-term goal."
+  ]
+}

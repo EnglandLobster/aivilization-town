@@ -8,7 +8,7 @@ Read metadata of future publications from your subscribed sources, newest sequen
 --offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
 --limit <integer> (optional) min=1 max=30 Page size
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## feed read
@@ -18,7 +18,7 @@ town feed read [flags]
 Read a publication and the exact referenced original document version. Current permissions and source deletion still apply; does not mark a notification read.
 --id <string> (required) maxLength=96 Publication/activity ID
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## feed share
@@ -30,7 +30,7 @@ Share a public original document version with your optional unmodified comment. 
 --revision <integer> (required) min=1 max=9007199254740991 Exact source revision
 --comment <string> (optional) maxLength=2000 Your own original comment, never summarized
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 [能力索引](../capabilities.md) · [执行规则](../execution.md)

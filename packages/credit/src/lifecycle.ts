@@ -29,12 +29,40 @@ export type CreditAccrualDecision = {
  * agent does not settle in this cadence (amortized bucket rotation, or the
  * agent left this partition) — its loans and deposits simply skip the cadence.
  */
-export function evaluateDailyCreditAccrual(input: {
+export type DailyCreditAccrualInput = {
   readonly bank: BankState;
   readonly now: number;
   readonly policy: CreditPolicy;
   readonly borrowerBalance: (agentId: AgentId) => number | undefined;
-}): CreditAccrualDecision {
+};
+/** Explicit new collection semantics; recorded loan events keep their existing replay meaning. */
+export const CREDIT_SHARED_CASH_BUDGET_POLICY = {
+  version: 'credit-shared-borrower-cash-budget-v1',
+  order: 'loan-id-before-deposit-interest',
+  cashRead: 'one-actual-source-read-per-customer-per-cadence',
+} as const;
+export function evaluateDailyCreditAccrual(input: DailyCreditAccrualInput): CreditAccrualDecision {
+  return evaluateCreditCadence(input, false);
+}
+export function evaluateDailyCreditAccrualWithSharedCashBudget(
+  input: DailyCreditAccrualInput & {
+    readonly collectionPolicy: typeof CREDIT_SHARED_CASH_BUDGET_POLICY;
+  },
+): CreditAccrualDecision {
+  if (
+    Object.keys(input.collectionPolicy).length !==
+      Object.keys(CREDIT_SHARED_CASH_BUDGET_POLICY).length ||
+    Object.entries(CREDIT_SHARED_CASH_BUDGET_POLICY).some(
+      ([k, v]) => input.collectionPolicy[k as keyof typeof input.collectionPolicy] !== v,
+    )
+  )
+    throw Error('unsupported-credit-shared-cash-budget-policy');
+  return evaluateCreditCadence(input, true);
+}
+function evaluateCreditCadence(
+  input: DailyCreditAccrualInput,
+  sharedCashBudget: boolean,
+): CreditAccrualDecision {
   validateCreditPolicy(input.policy);
   if (!Number.isFinite(input.now) || input.now < 0) {
     throw new Error('credit accrual now must be non-negative finite');
@@ -42,12 +70,18 @@ export function evaluateDailyCreditAccrual(input: {
   let bank = normalizeBankState(input.bank);
   assertValidBankState(bank);
   const events: CreditDomainEvent[] = [];
+  const remainingCash = new Map<AgentId, number | undefined>();
+  const cashOf = (id: AgentId) => {
+    if (!sharedCashBudget) return input.borrowerBalance(id);
+    if (!remainingCash.has(id)) remainingCash.set(id, input.borrowerBalance(id));
+    return remainingCash.get(id);
+  };
 
   const activeLoans = Object.values(bank.loans)
     .filter((loan) => loan.status === 'active')
     .sort((left, right) => left.loanId.localeCompare(right.loanId));
   for (const loan of activeLoans) {
-    const borrowerBalance = input.borrowerBalance(loan.borrowerAgentId);
+    const borrowerBalance = cashOf(loan.borrowerAgentId);
     if (borrowerBalance === undefined) {
       continue;
     }
@@ -66,6 +100,8 @@ export function evaluateDailyCreditAccrual(input: {
     const due = principalDue + accruedWithToday;
     const payment = Math.min(due, borrowerBalance);
     const split = splitLoanPayment({ ...loan, accruedInterest: accruedWithToday }, payment);
+    if (sharedCashBudget)
+      remainingCash.set(loan.borrowerAgentId, borrowerBalance - split.paidAmount);
     const covered = payment >= due;
     const missedPayments = covered ? 0 : loan.missedPayments + 1;
 
@@ -109,7 +145,7 @@ export function evaluateDailyCreditAccrual(input: {
   for (const [agentId, deposit] of Object.entries(bank.deposits).sort(([left], [right]) =>
     left.localeCompare(right),
   )) {
-    if (input.borrowerBalance(asAgentId(agentId)) === undefined) {
+    if (cashOf(asAgentId(agentId)) === undefined) {
       continue;
     }
     const amount = Math.min(deposit * input.policy.depositDailyInterestRate, interestFunds);

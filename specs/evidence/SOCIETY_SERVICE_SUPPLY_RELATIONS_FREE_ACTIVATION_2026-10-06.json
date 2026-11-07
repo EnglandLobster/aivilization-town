@@ -1,0 +1,29 @@
+{
+  "kind": "explicit-service-supply-relations-activation",
+  "afterOpportunities": 704,
+  "simulationTime": 865080000,
+  "commitsBefore": 5001,
+  "commitsAfter": 5002,
+  "implementation": {
+    "root": "/tmp/aivilization-service-supply-relations-20261006",
+    "versions": {
+      "catalog": 58,
+      "skill": 57,
+      "rulebook": 47
+    },
+    "fingerprints": 81,
+    "validation": {
+      "command": "pnpm check",
+      "testsPassed": 2927,
+      "testsSkipped": 1,
+      "compiledCalls": 44,
+      "expectedRefusals": 6
+    }
+  },
+  "source": "operator-capability-migration",
+  "retainsOriginalManifest": true,
+  "prescribedSocialGoal": false,
+  "addsAssetsOrCatalogOrProviderShifts": false,
+  "replayMatches704FullState": true,
+  "originalDirectoryAndWorldUnchanged": true
+}

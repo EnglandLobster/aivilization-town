@@ -1,0 +1,97 @@
+{
+  "date": "2026-10-05",
+  "scope": "W07 explicit formal qualification authority",
+  "versions": {
+    "catalog": 38,
+    "skill": 37,
+    "rulebook": 27,
+    "cliRoutes": 356
+  },
+  "validation": {
+    "command": "pnpm check",
+    "testsPassed": 2689,
+    "testsSkipped": 1,
+    "filesPassed": 378,
+    "filesSkipped": 1,
+    "log": "/tmp/education-check-2.log",
+    "buildLog": "/tmp/education-build.log"
+  },
+  "reproducedFailureLog": "/tmp/education-authority-before.log",
+  "cli": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-http-cli-not-free-emergence",
+    "calls": 11,
+    "expectedRefusals": 2,
+    "results": [
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "education apply-exam",
+        "ok": false,
+        "exitCode": 1,
+        "error": "score-below-threshold: exam into level 3 requires score 180, got 160"
+      },
+      {
+        "route": "education study",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "education apply-exam",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "education apply-exam",
+        "ok": false,
+        "exitCode": 1,
+        "error": "duplicate education exam application in exam cycle 0"
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      }
+    ],
+    "actualLearningSeparateFromFormalQualification": true,
+    "admissionRequired": true,
+    "originRetained": true,
+    "ruleDiscovery": true,
+    "replayEqual": true,
+    "journalBytesUnchanged": true
+  },
+  "freeAdoptionProven": false,
+  "limits": [
+    "resident-defined executable qualification institutions pending",
+    "canonical and partition migration pending",
+    "original 25 capability contracts retained"
+  ]
+}

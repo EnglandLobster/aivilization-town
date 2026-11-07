@@ -1,0 +1,172 @@
+{
+  "capability": "W05-W02-M06-fixed-term-premises-rights",
+  "mode": "real-compiled-cli-engineering-acceptance",
+  "modelInvoked": false,
+  "explicitTestSeed": {
+    "residents": 4,
+    "donor": {
+      "Wood": 20,
+      "Iron Ingot": 5
+    },
+    "otherResidents": {
+      "Wood": 2
+    },
+    "colocatedAtExistingSite": true
+  },
+  "cliCalls": 27,
+  "expectedRefusals": 6,
+  "results": [
+    {
+      "route": "permits.rules",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "rules.read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials.reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction.start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel.go",
+      "exitCode": 1,
+      "ok": false,
+      "error": "premises-entry-not-authorized"
+    },
+    {
+      "route": "permits.offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "permits.accept",
+      "exitCode": 1,
+      "ok": false,
+      "error": "permit-grantee-authority-required"
+    },
+    {
+      "route": "permits.read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "permit-not-found"
+    },
+    {
+      "route": "permits.read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "permits.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "permits.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "permits.access",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel.go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production.start",
+      "exitCode": 1,
+      "ok": false,
+      "error": "production-permit-window-exceeded"
+    },
+    {
+      "route": "production.start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "permits.release",
+      "exitCode": 1,
+      "ok": false,
+      "error": "permit-active-work-must-end-first"
+    },
+    {
+      "route": "permits.access",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.deposit",
+      "exitCode": 1,
+      "ok": false,
+      "error": "material-storage-permit-required"
+    },
+    {
+      "route": "stocks.withdraw",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "permits.list",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "permits.read",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "actualConstructionAndMovement": true,
+  "independentConsent": true,
+  "duplicateAcceptanceNoDuplicateRight": true,
+  "exclusiveScopeConstrainsController": true,
+  "fullWorkIntervalAuthorized": true,
+  "elapsedWorkSurvivesExpiry": true,
+  "newStorageDeniedAfterExpiry": true,
+  "physicalGoodsRetrieved": true,
+  "privateOriginals": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true
+}

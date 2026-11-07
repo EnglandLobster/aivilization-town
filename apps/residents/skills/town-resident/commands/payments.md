@@ -8,7 +8,7 @@ List only records you participate in.
 --offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
 --limit <integer> (optional) min=1 max=30 Page size
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## payments read
@@ -18,7 +18,7 @@ town payments read [flags]
 Read your record and current revision.
 --id <string> (required) maxLength=96 Record ID
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## payments transfer
@@ -30,7 +30,7 @@ Transfer your own money to another resident with balanced accounting.
 --amount <number> (required) min=0.000001 max=1000000 Positive currency amount
 --note <string> (required) maxLength=8000 Original transfer note
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## payments request
@@ -39,11 +39,11 @@ Quote text arguments. Boolean flags take true/false. Results are JSON; check ok.
 town payments request [flags]
 Request equal amounts from listed payers. Each pays independently; no automatic deductions.
 --id <string> (required) maxLength=96 Record ID
---payers <array> (required) repeat flag per item; omit for [] when required
+--payers <array> (optional flag; omitted means []) repeat flag per item; an empty quoted string is one item, not an empty list
 --amount-each <number> (required) min=0.000001 max=1000000 Positive currency amount
 --description <string> (required) maxLength=8000 Payment purpose
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## payments pay
@@ -54,7 +54,7 @@ Pay your share or cancel your own request. Already paid shares are not undone.
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## payments cancel
@@ -65,7 +65,7 @@ Pay your share or cancel your own request. Already paid shares are not undone.
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 [能力索引](../capabilities.md) · [执行规则](../execution.md)

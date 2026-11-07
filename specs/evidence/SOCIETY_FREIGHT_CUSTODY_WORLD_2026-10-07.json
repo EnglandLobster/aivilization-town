@@ -1,0 +1,43 @@
+{
+  "version": "society-freight-custody-world-evidence-v1",
+  "date": "2026-10-07",
+  "ok": true,
+  "scope": "Personal stationary custody handoff, actual delivery and departed original carrier return settlement",
+  "worldAcceptance": true,
+  "transportAcceptance": false,
+  "runtimeActivation": false,
+  "opencodeAcceptance": false,
+  "policyVersion": "freight-custody-handoff-v1",
+  "verification": {
+    "targetedTests": 13,
+    "newWorldTests": 5,
+    "repositoryTestsPassed": 3373,
+    "repositoryTestsSkipped": 1,
+    "lint": true,
+    "sortedTypecheck": true,
+    "workerAndDependenciesBuild": true,
+    "diffCheck": true
+  },
+  "evidence": [
+    "Hand and vehicle handoff requires independent source, recipient, payer and living prior carrier consent, followed by successor personal acceptance",
+    "Original material custody and contract unchanged on handoff; actual movement, arrival and delivery use successor",
+    "Original carrier cannot operate handed-off goods; original fee beneficiary still receives payment",
+    "Departed original carrier stationary cargo is returned by successor; original estate receives fee and payer receives refund; money and goods conserved",
+    "Real co-location, capacity and vehicle authority failures plus forged acceptance rejection leave input unchanged",
+    "Old logistics has no custody field or behavior upgrade before explicit enablement; deterministic event replay"
+  ],
+  "limits": [
+    "Collective grant adapter and atomic decision consumption pending",
+    "Resident command, CLI and manifest activation pending",
+    "Interrupted route resumption and actual population journal transaction pending",
+    "Canonical and partition integration unaccepted",
+    "No new OpenCode run in this slice"
+  ],
+  "logs": [
+    "/tmp/custody-world-target.log",
+    "/tmp/custody-world-lint.log",
+    "/tmp/custody-world-typecheck-final.log",
+    "/tmp/custody-world-tests.log",
+    "/tmp/custody-world-build.log"
+  ]
+}

@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "society-free-outcomes-v1",
+  "checkpoint": "free-800",
+  "date": "2026-10-06",
+  "mode": "free",
+  "sameWorld": true,
+  "noAssignedSocialGoals": true,
+  "model": "opencode-go/deepseek-v4.1-flash",
+  "opportunities": 800,
+  "completed": 794,
+  "historicalProviderErrors": 6,
+  "latest32ProviderStatuses": {
+    "completed": 32
+  },
+  "journalCommits": 5692,
+  "capabilityCalls": 2720,
+  "latestResidentCalls": 95,
+  "at": 971707000,
+  "residentDocuments": 12,
+  "residentMessages": 264,
+  "latestRefusals": [
+    {
+      "sequence": 5494,
+      "actorId": "resident-002",
+      "capability": "world.work",
+      "error": "actual-public-workplace-required"
+    },
+    {
+      "sequence": 5502,
+      "actorId": "resident-002",
+      "capability": "world.work",
+      "error": "public-wage-full-funding-required"
+    }
+  ],
+  "residentSummary": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 456.0000000000102,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Maintenance Worker",
+      "balance": 464.74901611746515,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Receptionist",
+      "balance": 561.6966537915091
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 898.131666666956,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Supermarket Manager",
+      "balance": 391.2169022329176,
+      "upkeepArrears": 1.6757897047188024
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Chef",
+      "balance": 426.4531543281014
+    }
+  ],
+  "treasury": 0,
+  "publicProposals": [
+    {
+      "id": "proposal-001-employment-quota",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-003-housing-subsidy",
+      "status": "withdrawn"
+    },
+    {
+      "id": "proposal-003-housing-subsidy-2",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-004-subsidy-500",
+      "status": "approved"
+    },
+    {
+      "id": "proposal-003-subsidy-500-fix",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-004-chef-capacity-2",
+      "status": "executed"
+    }
+  ],
+  "latestNewPublicProposals": 0,
+  "residentEnterprises": [],
+  "residentCollectives": [],
+  "residentPrograms": [],
+  "residentConstructionProjects": [],
+  "paidControlQuotes": [],
+  "paidControlPolicyVersion": "resident-resource-sales-v2",
+  "observedNewProduction": [
+    {
+      "id": "gather-001-silicon-5",
+      "completedQuantity": 2,
+      "actualWorkMs": 120000,
+      "status": "completed"
+    },
+    {
+      "id": "gather-004-copper-3",
+      "completedQuantity": 6,
+      "actualWorkMs": 360000,
+      "status": "completed"
+    },
+    {
+      "id": "gather-001-silicon-6",
+      "completedQuantity": 2,
+      "actualWorkMs": 120000,
+      "status": "completed"
+    }
+  ],
+  "latestActualTrades": 7,
+  "replayMatchesSavedReport": true,
+  "journalBytesPreserved": true,
+  "verifiedFingerprints": 82,
+  "artifacts": {
+    "/tmp/paid-material-vehicle-free-800-analysis.json": "b12019837d9f80e7d1e1b83f33272cd32c449abeadf0fa116348467f64c82da1",
+    "/tmp/paid-material-vehicle-free-800-state.json": "3232ba90a2f16bb6b7427d9d63e5b99af8f9a7273a431e20cd15a4d13089b4a6",
+    "/tmp/paid-material-vehicle-free-800-summary.json": "e3ce20d926326da1cc909fbdb52a237b0407cdcb6f26141dc7c91584437f0b79",
+    "/tmp/paid-material-vehicle-implementation.json": "5e1f1a5427f701a16c9f3b21df3bced3f2fd24658ca23e66c9de86c2131a0804"
+  },
+  "reflection": "Residents continue extraction, market sales and private exchanges under treasury scarcity. A real job assignment promoted resident-003 to Supermarket Manager. No new firm, collective, construction coalition or paid-control quote was observed in this phase. The six original public proposals and four past executions remain real evidence of residents changing public rules; absence of a new private institution does not erase those facts. These observations do not prove natural social emergence or compare different initial conditions. Financial/body/physical/new-policy facts are separate from resident interpretation.",
+  "unverifiedCurrentWork": "Periodic obligations are source development only and were neither frozen nor enabled in this experiment.",
+  "remainingGoal": "All 25 contracts, complete settlement/estate/fixed assets and R01/R02 remain open."
+}

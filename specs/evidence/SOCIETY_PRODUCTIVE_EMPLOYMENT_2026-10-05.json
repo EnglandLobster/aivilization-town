@@ -1,0 +1,187 @@
+{
+  "schemaVersion": "society-engineering-verification-v1",
+  "scope": "explicit-material-production-body-and-earned-payroll-composition",
+  "fullCheck": {
+    "command": "pnpm check",
+    "passed": true,
+    "testsPassed": 2684,
+    "testsSkipped": 1,
+    "filesPassed": 377,
+    "filesSkipped": 1,
+    "log": "/tmp/productive-check-release.log"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... build",
+    "passed": true,
+    "log": "/tmp/productive-build-release.log"
+  },
+  "cli": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-http-cli-not-free-emergence",
+    "calls": 23,
+    "expectedRefusals": 9,
+    "results": [
+      {
+        "route": "business found",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business post-job",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business join",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "stocks create",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "stocks deposit",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "production create",
+        "ok": false,
+        "exitCode": 1,
+        "error": "resource-controller-authority-required"
+      },
+      {
+        "route": "production create",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "production read",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "production start",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business work",
+        "ok": false,
+        "exitCode": 1,
+        "error": "agent is busy with production until simulation time 192000 (now 0)"
+      },
+      {
+        "route": "city observe",
+        "ok": false,
+        "exitCode": 1,
+        "error": "own-labor-not-found"
+      },
+      {
+        "route": "production leave",
+        "ok": false,
+        "exitCode": 1,
+        "error": "production-revision-conflict"
+      },
+      {
+        "route": "business close",
+        "ok": false,
+        "exitCode": 1,
+        "error": "enterprise-earned-obligations-require-settlement"
+      },
+      {
+        "route": "business layoff",
+        "ok": false,
+        "exitCode": 1,
+        "error": "only the enterprise owner may lay off employees"
+      },
+      {
+        "route": "business layoff",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business claim-wage",
+        "ok": false,
+        "exitCode": 1,
+        "error": "own-labor-required"
+      },
+      {
+        "route": "business fund",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business claim-wage",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business claim-wage",
+        "ok": false,
+        "exitCode": 1,
+        "error": "earned-wage-revision-conflict"
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business close",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "production start",
+        "ok": false,
+        "exitCode": 1,
+        "error": "current-authorized-production-employment-required"
+      },
+      {
+        "route": "production cancel",
+        "ok": true,
+        "exitCode": 0
+      }
+    ],
+    "actualProductionAndWagesTogether": true,
+    "oneBodyEffort": true,
+    "employerAuthorityAndIndependentWorker": true,
+    "physicalProgressSurvivesLayoff": true,
+    "wagesSurviveLayoff": true,
+    "privateClaim": true,
+    "paidTaxAndNetVerified": true,
+    "unusedMaterialsReturned": true,
+    "stockOwnershipUnchanged": true,
+    "replayEqual": true,
+    "journalBytesUnchanged": true
+  },
+  "versions": {
+    "catalog": 37,
+    "skill": 36,
+    "rulebook": 26,
+    "routes": 356
+  },
+  "reproducedAndFixed": {
+    "lateBodyRelease": {
+      "beforeLog": "/tmp/productive-release-time-before.log",
+      "afterLog": "/tmp/productive-release-time-after.log",
+      "expectedRelease": 3000000,
+      "previousRelease": 3060000
+    },
+    "floatingBudgetBoundary": {
+      "beforeLog": "/tmp/productive-physiology-test.log",
+      "afterLog": "/tmp/productive-physiology-test-2.log"
+    }
+  },
+  "limitations": [
+    "resident service payroll composition pending",
+    "collective enterprise control and customizable clearing pending",
+    "initial public wages still legacy",
+    "formal education persistence defect identified separately",
+    "canonical and partition integration pending",
+    "no free adoption evidence for this version"
+  ]
+}

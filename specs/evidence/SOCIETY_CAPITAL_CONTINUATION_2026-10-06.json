@@ -1,0 +1,231 @@
+{
+  "schemaVersion": "society-capital-continuation-evidence-v1",
+  "checkpoint": "free-384",
+  "sourceRoot": "/home/dev/aivilization-town/.local/open-residents/society-elapsed-study-20261005",
+  "frozenEngine": "/tmp/aivilization-capital-20261006",
+  "journalSha256": "93e02456f918fdfab0db893afe1290e8bc5ead6fd7ff5cab66137054f7d6b277",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "commits": 2890,
+  "capabilityCalls": 1505,
+  "opportunities": 384,
+  "simulationTime": 326240000,
+  "verifiedFingerprints": 282,
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "capitalEnabledOnly": true,
+  "housingChoiceEnabled": false,
+  "publicHousingEnabled": false,
+  "enterpriseIds": [],
+  "subsidyDecision": {
+    "id": "proposal-003-housing-subsidy-2",
+    "authorId": "resident-003",
+    "status": "executed",
+    "action": {
+      "expectedRevision": 1,
+      "kind": "set-subsidy",
+      "terms": {
+        "maxSubsidy": 2000,
+        "minimumBalance": 200
+      }
+    },
+    "createdAt": 311840000,
+    "executedAt": 326000000,
+    "executedBy": "resident-003",
+    "procedureRevision": 1,
+    "votes": {
+      "resident-003": {
+        "actorId": "resident-003",
+        "at": 311840000,
+        "choice": "yes"
+      },
+      "resident-004": {
+        "actorId": "resident-004",
+        "at": 311900000,
+        "choice": "yes"
+      },
+      "resident-001": {
+        "actorId": "resident-001",
+        "at": 311960000,
+        "choice": "yes"
+      },
+      "resident-002": {
+        "actorId": "resident-002",
+        "at": 312020000,
+        "choice": "yes"
+      }
+    }
+  },
+  "treasuryTransfers": [
+    {
+      "journalSequence": 2869,
+      "eventId": "open-5293b0f9610bcfa2189d5404d4fa395f:event:10",
+      "recordedAt": 326000000,
+      "agentId": "resident-001",
+      "amount": 187.03120749815457,
+      "fundingSource": "treasury",
+      "nextBalance": 200,
+      "previousBalance": 12.968792501845423,
+      "reason": "safety-net"
+    },
+    {
+      "journalSequence": 2869,
+      "eventId": "open-5293b0f9610bcfa2189d5404d4fa395f:event:11",
+      "recordedAt": 326000000,
+      "agentId": "resident-004",
+      "amount": 164.13108614950062,
+      "fundingSource": "treasury",
+      "nextBalance": 200,
+      "previousBalance": 35.86891385049939,
+      "reason": "safety-net"
+    },
+    {
+      "journalSequence": 2869,
+      "eventId": "open-5293b0f9610bcfa2189d5404d4fa395f:event:21",
+      "recordedAt": 326000000,
+      "agentId": "resident-004",
+      "amount": 0.12209807301400133,
+      "fundingSource": "treasury",
+      "nextBalance": 200,
+      "previousBalance": 199.877901926986,
+      "reason": "safety-net"
+    },
+    {
+      "journalSequence": 2877,
+      "eventId": "open-bf19689032d3f8a4d97f3715dec91bc0:event:4",
+      "recordedAt": 326060000,
+      "agentId": "resident-004",
+      "amount": 0.07936374745909802,
+      "fundingSource": "treasury",
+      "nextBalance": 200,
+      "previousBalance": 199.9206362525409,
+      "reason": "safety-net"
+    },
+    {
+      "journalSequence": 2877,
+      "eventId": "open-bf19689032d3f8a4d97f3715dec91bc0:event:13",
+      "recordedAt": 326060000,
+      "agentId": "resident-004",
+      "amount": 0.16483239856890464,
+      "fundingSource": "treasury",
+      "nextBalance": 200,
+      "previousBalance": 199.8351676014311,
+      "reason": "safety-net"
+    },
+    {
+      "journalSequence": 2877,
+      "eventId": "open-bf19689032d3f8a4d97f3715dec91bc0:event:22",
+      "recordedAt": 326060000,
+      "agentId": "resident-004",
+      "amount": 0.12209807301400133,
+      "fundingSource": "treasury",
+      "nextBalance": 200,
+      "previousBalance": 199.877901926986,
+      "reason": "safety-net"
+    },
+    {
+      "journalSequence": 2882,
+      "eventId": "open-7ae92cecd3b36aa55b2652f618f86c4a:event:9",
+      "recordedAt": 326120000,
+      "agentId": "resident-004",
+      "amount": 0.24419614602797424,
+      "fundingSource": "treasury",
+      "nextBalance": 200,
+      "previousBalance": 199.75580385397203,
+      "reason": "safety-net"
+    },
+    {
+      "journalSequence": 2882,
+      "eventId": "open-7ae92cecd3b36aa55b2652f618f86c4a:event:18",
+      "recordedAt": 326120000,
+      "agentId": "resident-004",
+      "amount": 0.12209807301400133,
+      "fundingSource": "treasury",
+      "nextBalance": 200,
+      "previousBalance": 199.877901926986,
+      "reason": "safety-net"
+    },
+    {
+      "journalSequence": 2890,
+      "eventId": "open-aa521ec8eb77ed03facaf4846d136f6b:event:9",
+      "recordedAt": 326180000,
+      "agentId": "resident-004",
+      "amount": 0.24419614602797424,
+      "fundingSource": "treasury",
+      "nextBalance": 200,
+      "previousBalance": 199.75580385397203,
+      "reason": "safety-net"
+    },
+    {
+      "journalSequence": 2890,
+      "eventId": "open-aa521ec8eb77ed03facaf4846d136f6b:event:18",
+      "recordedAt": 326180000,
+      "agentId": "resident-004",
+      "amount": 0.12209807301400133,
+      "fundingSource": "treasury",
+      "nextBalance": 200,
+      "previousBalance": 199.877901926986,
+      "reason": "safety-net"
+    }
+  ],
+  "totalSubsidy": 352.38327437779515,
+  "resident001Labor": [
+    {
+      "id": "public-work-51118",
+      "actorId": "resident-001",
+      "status": "completed",
+      "startedAt": 278569000,
+      "until": 307369000,
+      "elapsedMs": 28800000,
+      "paidMicros": 260000000,
+      "earnedMicros": 260000000,
+      "endReason": "completed"
+    },
+    {
+      "id": "public-work-58226",
+      "actorId": "resident-001",
+      "status": "active",
+      "startedAt": 321603000,
+      "until": 336003000,
+      "elapsedMs": 4637000,
+      "paidMicros": 41861805,
+      "earnedMicros": 41861805,
+      "endReason": null
+    }
+  ],
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "balance": 200.58457426986004,
+      "upkeepArrears": 1026.586235555342,
+      "job": "Stock Clerk",
+      "residentialTier": 2
+    },
+    {
+      "agentId": "resident-002",
+      "balance": 532.8257057110075,
+      "upkeepArrears": null,
+      "job": "Cleaner",
+      "residentialTier": 2
+    },
+    {
+      "agentId": "resident-003",
+      "balance": 505.7975617900514,
+      "upkeepArrears": null,
+      "job": "Receptionist",
+      "residentialTier": 2
+    },
+    {
+      "agentId": "resident-004",
+      "balance": 200,
+      "upkeepArrears": null,
+      "job": "Waiter",
+      "residentialTier": 2
+    }
+  ],
+  "limits": [
+    "Four existing residents in one continued world, not independent replications.",
+    "No housing-choice/public-housing implementation in this frozen engine.",
+    "No resident enterprise or capital agreement adoption observed.",
+    "Recorded event envelope time can be advance start; not asserted as each cadence payment instant."
+  ]
+}

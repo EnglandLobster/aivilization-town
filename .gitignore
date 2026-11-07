@@ -17,4 +17,5 @@ data/local/
 .aivilization/
 .qoder/
 .zcode/
-.local/open-residents/
+# Local run data: towns, journals, credentials and private resident records.
+.local/

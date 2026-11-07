@@ -81,6 +81,22 @@ export class FileBranchPlanProgressRepository implements BranchPlanProgressRepos
     });
   }
 
+  /** Includes retained older revisions and records outside the hot index. */
+  readHistory(
+    agentId: AgentId,
+  ): Promise<readonly { agentId: AgentId; sourceOrdinal: number; record: BranchPlanProgress }[]> {
+    if (this.progressFile.diagnostics().hasIncompleteTrailingRow)
+      throw new Error('progress-history-incomplete-tail');
+    const result: { agentId: AgentId; sourceOrdinal: number; record: BranchPlanProgress }[] = [];
+    let sourceOrdinal = 0;
+    this.progressFile.scanCommitted((record) => {
+      sourceOrdinal++;
+      if (record.agentId === agentId)
+        result.push({ agentId, sourceOrdinal, record: structuredClone(record) });
+    });
+    return Promise.resolve(result);
+  }
+
   get(input: {
     readonly planId: string;
     readonly agentId: AgentId;

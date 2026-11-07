@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T18:29:30.246538+00:00",
+  "status": "bounded-query-and-prompted-usability-verified-not-emergence",
+  "spec": "specs/SOCIETY_FISCAL_OBSERVATION_V1.md",
+  "versions": {
+    "catalog": 63,
+    "skill": 63,
+    "rulebook": 52,
+    "cli": 4
+  },
+  "worldCapabilityRoutes": 384,
+  "newTests": 6,
+  "fullTests": {
+    "passed": 3133,
+    "skipped": 1,
+    "filesPassed": 463,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/fiscal-observation-lint-final.log"
+    },
+    "sortedTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/fiscal-observation-typecheck.log"
+    },
+    "relevantBuild": {
+      "exitCode": 0,
+      "log": "/tmp/fiscal-observation-build.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/fiscal-observation-tests-final.log"
+    },
+    "promptedOpenCode": {
+      "exitCode": 0,
+      "log": "/tmp/fiscal-observation-acceptance-3.log"
+    }
+  },
+  "promptedTrial": {
+    "artifact": ".local/open-residents/fiscal-query-acceptance-20261007-3/verification.json",
+    "sha256": "522599a7f4a3bfd273c33801bb9718ba135a6c44e89bae90930f7d259f037b45",
+    "mode": "explicit-fixture-and-prompted-model-query-not-emergence",
+    "model": "opencode-go/deepseek-v4.1-flash",
+    "passed": true,
+    "replayEqual": true,
+    "calls": 5,
+    "expectedRefusals": 2,
+    "currentTreasury": 0,
+    "observedGroups": [
+      {
+        "category": "SubsidyPaid",
+        "source": "treasury",
+        "direction": "outflow",
+        "amount": 0.4950495049504923,
+        "count": 1
+      },
+      {
+        "category": "TradeTaxCharged",
+        "source": "treasury",
+        "direction": "inflow",
+        "amount": 0.4950495049504923,
+        "count": 1
+      }
+    ],
+    "providerStatus": "completed"
+  },
+  "preservedFailures": [
+    {
+      "log": "/tmp/fiscal-observation-acceptance.log",
+      "reason": "Initial fixture governance and serialized policy inconsistent; runtime correctly refused."
+    },
+    {
+      "log": "/tmp/fiscal-observation-acceptance-2.log",
+      "reason": "Baseline has no subsidy policy; fixture expectation failed. Final explicit initial subsidy and matching serialized policy create real settlement."
+    },
+    {
+      "log": "/tmp/fiscal-observation-lint.log",
+      "reason": "Script URL import missing; imported node:url URL; final lint passed."
+    }
+  ],
+  "limits": [
+    "Only declared tax/subsidy event types, not complete treasury ledger.",
+    "Explicit fixture and prompted task, not spontaneous adoption.",
+    "Frozen 992 opportunity free world unchanged.",
+    "Canonical/partition integration and all original 25 capabilities remain in goal."
+  ],
+  "sourceHashes": {
+    "apps/worker/src/openSociety/fiscalObservation.ts": "4a2295888724db7ad25454d5774368c63f3c1f09a63b1ae29880f7093ff443af",
+    "apps/worker/src/openSociety/fiscalObservation.test.ts": "294f6957b3c7722872b71f9297019671d4203a161239f7a611cf6d5683e90b62",
+    "apps/worker/src/openSociety/runtime.ts": "95bbb35f3ec0bcf8a3c6e4989f93507a34e4533b07fbc15c6903a9d9fe0c699d",
+    "apps/worker/src/openSociety/catalog.ts": "2c5f2c13138ebfd4edd2db882f4120a62458acdf827a80036649ede158e12314",
+    "apps/worker/src/openSociety/capabilityRoutes.ts": "1c751432afe739aec0899949290bbe82cb788aa84166c75f3c8f31f155805857",
+    "apps/worker/src/openSociety/publicGovernanceContext.ts": "fd31eb4e345a2d4ce9e8356eccef33f7a1965891b012ebf268ff541fcd459e3e",
+    "apps/worker/src/openSociety/publicGovernanceTools.ts": "f55f75dbacf55e4e7ca265c95b148ba65a8f10248e8023b28a24dfe66acd4333",
+    "apps/worker/src/openSociety/ruleDefinitions.ts": "99d918e3bbb694386873347b2a24d8bd5fce5b00d5631833e571e018dc41b0bd",
+    "apps/residents/src/societySkill.ts": "5495acccde622987a5516f20ea922ec29d6783ee7112c3d5290169aa056c4acb",
+    "apps/residents/scripts/verify-fiscal-observation.mjs": "7ffb45d1f16eab654259029fb16adf296ec0a4162cec748d722056dc8da525bf",
+    "specs/SOCIETY_FISCAL_OBSERVATION_V1.md": "762c4761cae17134d8e6abcd3689b8fb8d2bf0dbee5cb49a3aeb44eff1c2a0c3",
+    "specs/RESIDENT_CONTEXT_DELIVERY.md": "e3b8a7447f6297ed8118dd973cf8dbadf8b444985e72c52508c3d450f0afc355"
+  }
+}

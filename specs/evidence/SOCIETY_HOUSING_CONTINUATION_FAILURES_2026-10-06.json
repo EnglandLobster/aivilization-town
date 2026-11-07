@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "society-free-failure-evidence-v1",
+  "checkpoints": [
+    "free-396",
+    "free-399",
+    "free-405",
+    "free-408",
+    "free-428"
+  ],
+  "targetOpportunity": 448,
+  "frozenEngine": "/tmp/aivilization-housing-20261006",
+  "fingerprintsVerified": 371,
+  "failures": [
+    {
+      "actorId": "resident-001",
+      "turnId": "turn-2967-resident-001",
+      "status": "provider-error",
+      "calls": 0,
+      "exitCode": 1,
+      "elapsedMs": 13205,
+      "providerEvent": "UnknownError permission refusal after three repeated identical bash commands; matching rules include doom_loop ask and resident wildcard deny",
+      "command": "town life eat --commodity-name Apple --quantity 1",
+      "worldEffects": 0,
+      "permissionsChanged": false
+    },
+    {
+      "actorId": "resident-002",
+      "turnId": "turn-2985-resident-002",
+      "status": "provider-error",
+      "calls": 0,
+      "exitCode": null,
+      "elapsedMs": 179519,
+      "termination": {
+        "exitSignal": "SIGTERM",
+        "abortReason": "TimeoutError"
+      },
+      "providerEvents": 0,
+      "worldEffects": 0,
+      "rootCauseBoundary": "Provider returned no event before the configured deadline; no claim about upstream internal cause."
+    },
+    {
+      "actorId": "resident-003",
+      "turnId": "turn-3024-resident-003",
+      "status": "provider-error",
+      "calls": 16,
+      "exitCode": null,
+      "elapsedMs": 179506,
+      "termination": {
+        "exitSignal": "SIGTERM",
+        "aborted": true,
+        "abortReason": "TimeoutError",
+        "providerErrorEvent": false
+      },
+      "completedModelSteps": 14,
+      "rootCauseBoundary": "Configured 180 second deadline expired after 16 tool invocations; committed effects remain in the journal and are not replayed by resumption."
+    },
+    {
+      "actorId": "resident-001",
+      "turnId": "turn-3060-resident-001",
+      "status": "provider-error",
+      "calls": 3,
+      "elapsedMs": 179483,
+      "termination": {
+        "exitSignal": "SIGTERM",
+        "aborted": true,
+        "abortReason": "TimeoutError",
+        "providerErrorEvent": false
+      },
+      "rootCauseBoundary": "Deadline reached after three completed tool calls; no upstream cause inferred. Committed operations are preserved."
+    },
+    {
+      "actorId": "resident-001",
+      "turnId": "turn-3191-resident-001",
+      "status": "provider-error",
+      "calls": 2,
+      "elapsedMs": 359503,
+      "termination": {
+        "exitSignal": "SIGTERM",
+        "aborted": true,
+        "abortReason": "TimeoutError",
+        "providerErrorEvent": false
+      },
+      "timeoutBudgetMs": 360000,
+      "rootCauseBoundary": "Six minute deadline after two tool calls. Budget extension did not eliminate provider failures; committed effects and the failed opportunity are retained."
+    }
+  ],
+  "failureRecordsRetained": true,
+  "resumeMode": "same frozen engine, model, session history and permission rules; new free opportunities, not replaying side effects",
+  "timeoutBudgetChange": {
+    "afterOpportunity": 408,
+    "previousMs": 180000,
+    "nextMs": 360000,
+    "reason": "Observe whether additional wall clock budget allows completion; not evidence of upstream repair. Model, engine, permissions and simulation policy unchanged."
+  }
+}

@@ -1,0 +1,454 @@
+{
+  "capability": "W05-M04-M07-atomic-resource-exchange-foundation",
+  "mode": "real-compiled-cli-engineering-acceptance",
+  "modelInvoked": false,
+  "explicitTestSeed": {
+    "residents": 4,
+    "donor": {
+      "Wood": 20,
+      "Iron Ingot": 5
+    },
+    "otherResidents": {
+      "Wood": 2
+    },
+    "colocatedAtExistingSite": true
+  },
+  "cliCalls": 76,
+  "expectedRefusals": 20,
+  "resources": [
+    "premises",
+    "stock",
+    "space",
+    "register",
+    "view",
+    "group"
+  ],
+  "results": [
+    {
+      "route": "permits.rules",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "rules.read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials.reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction.start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "rules.read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "spaces.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "files.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "registers.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "records.put",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "views.publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "groups.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "groups.invite",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "insufficient-balance"
+    },
+    {
+      "route": "programs.publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-not-found"
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.runs",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "programs.publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-not-found"
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.runs",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "programs.publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-not-found"
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.runs",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "programs.publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-not-found"
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.runs",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "programs.publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-not-found"
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.runs",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "programs.publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "mandates.grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-not-found"
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.runs",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs.run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "resources.offer",
+      "exitCode": 1,
+      "ok": false,
+      "error": "information-resource-not-found"
+    }
+  ],
+  "actualConstruction": true,
+  "independentlyMandatedParties": true,
+  "lateFailureHasNoPartialEffects": true,
+  "missingMandateRejected": true,
+  "duplicateRequestSingleDebit": true,
+  "mandateConsumedOnce": true,
+  "exhaustedMandateRejected": true,
+  "privateProgramsNotReadableByOutsider": true,
+  "originalDocumentsAndRecordsUnchanged": true,
+  "stockNotMovedByControlChange": true,
+  "pendingGroupInviteInvalidated": true,
+  "previousControllerCannotAdminister": true,
+  "actualBalancedPayments": 18,
+  "moneySupplyConserved": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true,
+  "notYetCovered": [
+    "collective program composition",
+    "service resource control",
+    "vehicle control",
+    "enterprise control",
+    "long-term obligations",
+    "canonical and partition integration",
+    "real-model use",
+    "spontaneous emergence"
+  ]
+}

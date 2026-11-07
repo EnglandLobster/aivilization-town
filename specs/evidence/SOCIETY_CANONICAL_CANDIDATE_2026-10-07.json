@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "canonical-society-candidate-evidence-v1",
+  "sourceSha256": {
+    "apps/worker/src/canonicalSocietyCandidate.ts": "2634b24478d1ea8473c05893f2f595176fdd0f61cbfc4512a69f96f9664d09f2",
+    "apps/worker/src/canonicalSocietyCandidate.test.ts": "76d679700dadbe076eb653115138893dffaf6a64fcb6c142f518e9dd6f77b5d5",
+    "apps/residents/scripts/verify-canonical-society-candidate.mjs": "96f99475ce314d323a70510056470b7f74e9414071515bad09a6261bc7dfc3b5"
+  },
+  "validation": {
+    "targeted": {
+      "passed": 2,
+      "log": "/tmp/canonical-candidate-tests.log"
+    },
+    "lint": {
+      "passed": true,
+      "log": "/tmp/canonical-candidate-lint.log",
+      "scriptLog": "/tmp/canonical-candidate-script-lint-final.log"
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/canonical-candidate-typecheck.log"
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/canonical-candidate-build.log"
+    },
+    "tests": {
+      "passed": 3251,
+      "skipped": 1,
+      "filesPassed": 492,
+      "log": "/tmp/canonical-candidate-full-tests.log"
+    }
+  },
+  "realArchive": {
+    "passed": true,
+    "archive": "/home/dev/aivilization-town/.local/canonical-ownership-20261007/archive",
+    "residents": 25,
+    "completedOriginalTrips": 22,
+    "retainedMoves": 22,
+    "jobApplications": 3,
+    "historicalRecords": 125,
+    "moneySupply": 257500,
+    "sourceTime": 7000,
+    "isolatedValidationTime": 2728000,
+    "restartReplayMatched": true,
+    "archiveUnchanged": true,
+    "candidateManifestSha256": "cc4fff2202283be1b7e1b743c805d26ba44f808d7c95b1cd659bfc421ecd5a54",
+    "limitations": [
+      "Isolated temporary runtime only; no production activation, retirement or model run.",
+      "Explicit known source profile/default policy fixture; no general importer or full revision/operation history mapping.",
+      "New social policies are not implicitly enabled; complete 25-capability delivery remains unfinished."
+    ]
+  },
+  "realArchiveLog": "/tmp/canonical-candidate-arrivals.log",
+  "limits": [
+    "Temporary isolated runtime, not production activation or old writer retirement.",
+    "Source initial identity/default policy fixture verified; general importer binding, full revision history and deduplication remain.",
+    "No new social modules auto-enabled; all25 and complete canonical/partition integration remain active.",
+    "No real model or spontaneous emergence claim."
+  ]
+}

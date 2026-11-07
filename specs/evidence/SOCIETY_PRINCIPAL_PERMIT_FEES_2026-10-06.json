@@ -1,0 +1,543 @@
+{
+  "schemaVersion": "society-principal-permit-fees-engineering-v3",
+  "date": "2026-10-06",
+  "gate": {
+    "command": "pnpm check",
+    "passed": true,
+    "testsPassed": 2877,
+    "testsSkipped": 1,
+    "filesPassed": 423,
+    "filesSkipped": 1,
+    "logSha256": "bd8ff1a21ec6d820d686d53d9c7fdac1e7d06ab0542432f08f0080bb72cf18e8"
+  },
+  "transitiveResidentsBuildPassed": true,
+  "compiledCli": {
+    "ok": true,
+    "validation": "compiled-authenticated-construction-custody-principal-permits-and-fees-CLI-not-emergence",
+    "calls": 98,
+    "refusals": 19,
+    "results": [
+      {
+        "route": "principals.read",
+        "exitCode": 1,
+        "ok": false,
+        "error": "premises-principals-not-enabled"
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks.create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks.deposit",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "business.found",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "construction-controller-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 2,
+        "ok": false,
+        "error": "unknown-flag:--actor-id"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "construction.start",
+        "exitCode": 1,
+        "ok": false,
+        "error": "construction-worker-not-authorized"
+      },
+      {
+        "route": "construction.start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-premises-not-readable"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-controller-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "business.close",
+        "exitCode": 1,
+        "ok": false,
+        "error": "enterprise-resource-estate-unsettled"
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.list",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "construction-controller-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "construction.cancel",
+        "exitCode": 1,
+        "ok": false,
+        "error": "construction-controller-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-permit-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "permits.accept",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-permit-operation-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-permit-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "permits.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "permit-offer-unavailable"
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-control-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-control-authority-required"
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "permits.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-trade-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "permit-paid-acceptance-required"
+      },
+      {
+        "route": "trades.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-trade-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "permits.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "trades.ledger",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-trade-version-conflict"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "trades.rules",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "trades.list",
+        "exitCode": 0,
+        "ok": true
+      }
+    ]
+  },
+  "versions": {
+    "catalog": 53,
+    "skill": 52,
+    "rulebook": 42
+  },
+  "limitations": [
+    "Open journal only; canonical/partition remain in full objective.",
+    "Actual permit availability fees only; v3 does not yet have a bilateral dispute/remedy or receivable assignment protocol.",
+    "Full resource estate, debt priorities and succession remain incomplete.",
+    "Engineering verification is not spontaneous emergence; frozen free run has not loaded this fee engine."
+  ],
+  "additionalValidation": "Actual damaged-building intervals, exact unfulfilled refund, single/divided time advance equivalence, and full journal replay."
+}

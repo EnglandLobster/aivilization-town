@@ -165,3 +165,46 @@ function application(
     ...overrides,
   };
 }
+
+test('versioned public ranking can replace wealth/knowledge preference while legacy ordering remains unchanged', () => {
+  const applications = [
+    application({
+      applicationId: 'earlier',
+      agentId: 'a',
+      educationScore: 10,
+      residentialTier: 1,
+      submittedAt: 1,
+    }),
+    application({
+      applicationId: 'wealthy',
+      agentId: 'b',
+      educationScore: 100,
+      residentialTier: 6,
+      submittedAt: 2,
+    }),
+  ];
+  expect(
+    resolveRecruitmentCycle({ policy, applications }).acceptedApplications[0]?.applicationId,
+  ).toBe('wealthy');
+  const amended = {
+    ...policy,
+    policyVersion: 'resident-public-employment-rules-v1',
+    employerRanking: ['submitted'] as const,
+  };
+  expect(
+    resolveRecruitmentCycle({ policy: amended, applications }).acceptedApplications[0]
+      ?.applicationId,
+  ).toBe('earlier');
+  expect(
+    resolveRecruitmentCycle({
+      policy: { ...amended, employerRanking: [] },
+      applications: [...applications].reverse(),
+    }),
+  ).toEqual(resolveRecruitmentCycle({ policy: { ...amended, employerRanking: [] }, applications }));
+  expect(() =>
+    resolveRecruitmentCycle({
+      policy: { ...policy, employerRanking: ['submitted'] },
+      applications,
+    }),
+  ).toThrow('invalid-versioned-recruitment-ranking');
+});

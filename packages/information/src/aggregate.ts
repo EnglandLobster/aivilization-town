@@ -1,3 +1,4 @@
+import { personallyControls } from '@aivilization/authority';
 import {
   assertInformationPolicy,
   DOCUMENT_METADATA_POLICY,
@@ -50,7 +51,7 @@ export function decideInformationCommand(input: {
         return reject('invalid-space-policy');
       if (state.spaces[command.id] !== undefined) return reject('space-id-unavailable');
       if (
-        Object.values(state.spaces).filter((space) => space.ownerId === actorId).length >=
+        Object.values(state.spaces).filter((space) => personallyControls(space, actorId)).length >=
         policy.maxSpacesPerOwner
       )
         return reject('space-limit');
@@ -133,7 +134,7 @@ export function decideInformationCommand(input: {
       if (existing === undefined || existing.deleted) return reject('not-found');
       if (
         existing.authorId !== actorId &&
-        !(command.type === 'file.delete' && space.ownerId === actorId)
+        !(command.type === 'file.delete' && personallyControls(space, actorId))
       )
         return reject('permission-denied');
       if (command.expectedRevision !== existing.revision) return reject('revision-conflict');
@@ -183,6 +184,13 @@ export function applyInformationEvent(
   event: InformationEvent,
 ): InformationState {
   switch (event.type) {
+    case 'SpaceChanged':
+      if (
+        !state.spaces[event.space.id] ||
+        event.space.revision !== state.spaces[event.space.id]!.revision + 1
+      )
+        throw new Error('space-revision-gap');
+      return { ...state, spaces: { ...state.spaces, [event.space.id]: event.space } };
     case 'SpaceCreated':
       return { ...state, spaces: { ...state.spaces, [event.space.id]: event.space } };
     case 'DocumentCreated':

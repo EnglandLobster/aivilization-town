@@ -95,31 +95,46 @@ export function evaluateOccupationApplication(input: {
     educationFloor: occupation.educationFloor,
     eligibilityShare: occupation.eligibilityShare,
   });
-  const effectiveEducationThreshold = Math.max(
-    occupationThreshold,
-    jobTier.minEducationScore,
-  );
+  const effectiveEducationThreshold = Math.max(occupationThreshold, jobTier.minEducationScore);
   const effectiveResidentialTier = Math.max(
     occupation.minResidentialTier,
     jobTier.minResidentialTier,
   );
 
-  if (input.agent.residentialTier < effectiveResidentialTier) {
+  return evaluateOccupationRequirements({
+    occupationName: occupation.name,
+    jobTier: occupation.jobTier,
+    agent: input.agent,
+    minimumResidentialTier: effectiveResidentialTier,
+    effectiveEducationThreshold,
+    prerequisiteCommodity: jobTier.prerequisiteCommodity,
+  });
+}
+
+/** Shared admission effect: policy supplies requirements; the actor supplies actual holdings and knowledge. */
+export function evaluateOccupationRequirements(input: {
+  readonly occupationName: string;
+  readonly jobTier: number;
+  readonly agent: OccupationApplicationAgentState;
+  readonly minimumResidentialTier: number;
+  readonly effectiveEducationThreshold: number;
+  readonly prerequisiteCommodity: string | null;
+}): OccupationApplicationDecision {
+  if (input.agent.residentialTier < input.minimumResidentialTier) {
     return rejectOccupationApplication(
       'residential-tier-too-low',
-      `residentialTier requires ${effectiveResidentialTier}, available ${input.agent.residentialTier}`,
+      `residentialTier requires ${input.minimumResidentialTier}, available ${input.agent.residentialTier}`,
     );
   }
-  if (input.agent.educationScore < effectiveEducationThreshold) {
+  if (input.agent.educationScore < input.effectiveEducationThreshold) {
     return rejectOccupationApplication(
       'education-too-low',
-      `educationScore requires ${effectiveEducationThreshold}, available ${input.agent.educationScore}`,
+      `educationScore requires ${input.effectiveEducationThreshold}, available ${input.agent.educationScore}`,
     );
   }
 
-  const prerequisiteCommodity = jobTier.prerequisiteCommodity;
-  const consumedInventory =
-    prerequisiteCommodity === null ? {} : { [prerequisiteCommodity]: 1 };
+  const prerequisiteCommodity = input.prerequisiteCommodity;
+  const consumedInventory = prerequisiteCommodity === null ? {} : { [prerequisiteCommodity]: 1 };
   for (const [itemName, requiredQuantity] of Object.entries(consumedInventory)) {
     const availableQuantity = input.agent.inventory[itemName] ?? 0;
     if (availableQuantity < requiredQuantity) {
@@ -132,9 +147,9 @@ export function evaluateOccupationApplication(input: {
 
   return {
     status: 'accepted',
-    occupationName: occupation.name,
-    jobTier: occupation.jobTier,
-    effectiveEducationThreshold,
+    occupationName: input.occupationName,
+    jobTier: input.jobTier,
+    effectiveEducationThreshold: input.effectiveEducationThreshold,
     consumedInventory,
   };
 }

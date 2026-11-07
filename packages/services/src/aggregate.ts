@@ -1,7 +1,15 @@
+import type { Service } from './model';
+import { assertPrincipalAuthorization } from '@aivilization/authority';
+import {
+  serviceAdministrativeRequest,
+  type ServiceAdministrativeCommand,
+} from './servicePrincipalModel';
 import { decideStaffing } from './staffing';
+import { personallyAdministersService } from './serviceControl';
 import { canSupplyAttendance, providerOverlap, servingProviders } from './supply';
 import {
   assertServicesPolicy,
+  validServiceRecordId,
   type ServicesState,
   type ServicesCommand,
   type ServicesPorts,
@@ -10,7 +18,7 @@ import {
   type Booking,
 } from './model';
 /** Sweep half-open intervals: ending capacity is released before simultaneous starts. */
-function available(
+export function serviceCapacityAvailable(
   s: ServicesState,
   slot: ServiceSlot,
   units: number,
@@ -64,15 +72,42 @@ export function decideServices(
   assertServicesPolicy(s.policy);
   const no = (reason: string) => ({ accepted: false as const, reason });
   const yes = (...events: ServicesEvent[]) => ({ accepted: true as const, events });
+  const administers = (service: ServicesState['services'][string] | undefined): boolean => {
+    if (!service) return false;
+    if (service.control?.policyVersion !== 'resource-principals-v2')
+      return personallyAdministersService(service, a);
+    if (
+      !['schedule', 'close', 'accept', 'cancel', 'call'].includes(c.type) ||
+      !p.principalAdministration
+    )
+      return false;
+    try {
+      assertPrincipalAuthorization(
+        p.principalAdministration,
+        service.control.controller,
+        serviceAdministrativeRequest(s, c as ServiceAdministrativeCommand),
+        a,
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const int = (n: number) => Number.isSafeInteger(n) && n > 0;
   if (!p.exists(a) || !Number.isSafeInteger(at) || at < 0) return no('invalid-actor-or-time');
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/.test(c.id) || c.id === 'constructor')
-    return no('invalid-id');
+  if (!validServiceRecordId(c.id)) return no('invalid-id');
   if (c.type === 'stop-session') {
     if (s.policy.version !== 'resident-services-v3') return no('staffing-policy-required');
     return decideStaffing(s, a, at, c, p);
   }
   if (c.type === 'publish') {
+    if (
+      s.registration &&
+      (!Number.isSafeInteger(s.registration.revision + 1) ||
+        Object.keys(s.services).length >= s.registration.policy.maxRegisteredServices)
+    )
+      return no('service-directory-registration-limit');
     const cap = p.locationCapacity(c.locationId);
     if (
       Object.hasOwn(s.services, c.id) ||
@@ -118,29 +153,7 @@ export function decideServices(
       (mode !== 'hosted' || p.controlsEnterprise?.(a, c.enterpriseId) !== true)
     )
       return no('enterprise-owner-required');
-    const { type: _type, ...service } = c;
-    void _type;
-    return yes({
-      type: 'ServiceChanged',
-      service: {
-        ...service,
-        ownerId: a,
-        revision: 1,
-        active: true,
-        ...(s.policy.version === 'resident-services-v3' && mode === 'hosted'
-          ? { unitsPerProvider: c.unitsPerProvider ?? 1 }
-          : {}),
-        ...(s.policy.version !== 'resident-services-v1'
-          ? {
-              participationMode:
-                c.participationMode ??
-                (['appointment', 'course'].includes(c.kind)
-                  ? ('hosted' as const)
-                  : ('self-service' as const)),
-            }
-          : {}),
-      },
-    });
+    return yes({ type: 'ServiceChanged', service: serviceRecordFromPublication(c, a, s.policy) });
   }
   if (c.type === 'start-session') {
     if (s.policy.version === 'resident-services-v3') return decideStaffing(s, a, at, c, p);
@@ -152,7 +165,7 @@ export function decideServices(
       (s.policy.version === 'resident-services-v1'
         ? service.kind !== 'course'
         : service.participationMode !== 'hosted') ||
-      service.ownerId !== a ||
+      !administers(service) ||
       slot.revision !== c.expectedRevision ||
       slot.startedAt !== undefined ||
       at < slot.start ||
@@ -183,7 +196,7 @@ export function decideServices(
   }
   if (c.type === 'schedule') {
     const service = s.services[c.serviceId];
-    if (!service?.active || service.ownerId !== a) return no('active-service-owner-required');
+    if (!service?.active || !administers(service)) return no('active-service-owner-required');
     if (
       Object.hasOwn(s.slots, c.id) ||
       !Number.isSafeInteger(c.start) ||
@@ -209,7 +222,7 @@ export function decideServices(
   }
   if (c.type === 'close') {
     const service = s.services[c.id];
-    if (!service || service.ownerId !== a) return no('owner-required');
+    if (!service || !administers(service)) return no('owner-required');
     if (service.revision !== c.expectedRevision) return no('revision-conflict');
     if (
       Object.values(s.bookings).some(
@@ -253,7 +266,7 @@ export function decideServices(
       return yes({ type: 'QueueEntryChanged', entry: { ...q, status: 'left' } });
     }
     const slot = s.slots[c.slotId];
-    if (s.services[q.serviceId]?.ownerId !== a || slot?.serviceId !== q.serviceId)
+    if (!administers(s.services[q.serviceId]) || slot?.serviceId !== q.serviceId)
       return no('queue-owner-slot-required');
     const first = Object.values(s.queues)
       .filter((v) => v.serviceId === q.serviceId && v.status === 'waiting')
@@ -263,7 +276,7 @@ export function decideServices(
       !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/.test(c.bookingId) ||
       Object.hasOwn(s.bookings, c.bookingId) ||
       at >= slot.end ||
-      !available(s, slot, 1, p)
+      !serviceCapacityAvailable(s, slot, 1, p)
     )
       return no('slot-unavailable');
     // Calling offers a place. The queued resident still requests/accepts attendance by check-in.
@@ -324,7 +337,7 @@ export function decideServices(
   if (!b) return no('booking-not-found');
   const slot = s.slots[b.slotId]!,
     service = s.services[slot.serviceId]!;
-  if (a !== b.residentId && a !== service.ownerId) return no('booking-not-yours');
+  if (a !== b.residentId && !administers(service)) return no('booking-not-yours');
   if (b.revision !== c.expectedRevision) return no('revision-conflict');
   let next: Booking = { ...b, revision: b.revision + 1 };
   if (c.type === 'leave') {
@@ -364,11 +377,11 @@ export function decideServices(
   }
   if (c.type === 'accept') {
     if (
-      a !== service.ownerId ||
+      !administers(service) ||
       b.status !== 'requested' ||
       !service.active ||
       at >= slot.end ||
-      !available(s, slot, b.units, p)
+      !serviceCapacityAvailable(s, slot, b.units, p)
     )
       return no('slot-unavailable-or-owner-required');
     next.status = 'accepted';
@@ -459,4 +472,26 @@ export function advanceServices(s: ServicesState, at: number): ServicesEvent[] {
         },
       };
     });
+}
+
+/** One fact normalization for legacy publication and precise principal creation. */
+export function serviceRecordFromPublication(
+  c: Extract<ServicesCommand, { type: 'publish' }>,
+  actor: string,
+  policy: ServicesState['policy'],
+): Service {
+  const { type: _type, ...service } = c;
+  void _type;
+  const mode =
+    c.participationMode ?? (['appointment', 'course'].includes(c.kind) ? 'hosted' : 'self-service');
+  return {
+    ...service,
+    ownerId: actor,
+    revision: 1,
+    active: true,
+    ...(policy.version === 'resident-services-v3' && mode === 'hosted'
+      ? { unitsPerProvider: c.unitsPerProvider ?? 1 }
+      : {}),
+    ...(policy.version !== 'resident-services-v1' ? { participationMode: mode } : {}),
+  };
 }

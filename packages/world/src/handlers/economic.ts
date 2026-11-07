@@ -1,12 +1,21 @@
+import { publicHousingSource } from '../publicHousing';
+import { enterpriseRequiresManagement } from '@aivilization/enterprise';
+import type { ControlAuthorizationPort } from '@aivilization/authority';
+import { enterpriseMayOperate, enterpriseManagementAuthority } from '@aivilization/enterprise';
 import {
   buyFromPool,
   getInventoryQuantity,
+  resolveInventoryRequest,
+  type InventoryQuantityResolution,
   sellToPool,
   type AmmTradeResult,
 } from '@aivilization/economy';
 import type { CommandEnvelope } from '@aivilization/sim-core';
 import { isEnterpriseOperational } from '@aivilization/enterprise';
 import {
+  publicEmploymentAtCycle,
+  publicEmploymentQuota,
+  evaluatePublicOccupation,
   calculateApplicationQuota,
   calculateRecruitmentCycleNumber,
   evaluateOccupationApplication,
@@ -75,7 +84,8 @@ export function handleAgentGiveResourceCommand(input: {
     );
   }
   const availableQuantity = getInventoryQuantity(sourceAgent.inventory, payload.commodityName);
-  if (availableQuantity < payload.quantity) {
+  const resolved = resolveInventoryRequest(availableQuantity, payload.quantity);
+  if (!resolved) {
     return rejectCommand(
       input,
       'AgentGiveResource',
@@ -86,9 +96,9 @@ export function handleAgentGiveResourceCommand(input: {
   const socialOutcome = evaluateResourceTransferSocialOutcome({
     recipientAgentId: targetAgent.agentId,
     providerAgentId: sourceAgent.agentId,
-    quantity: payload.quantity,
+    quantity: resolved.quantity,
   });
-  const summary = `${sourceAgent.agentId} gave ${payload.quantity} ${payload.commodityName} to ${targetAgent.agentId}${
+  const summary = `${sourceAgent.agentId} gave ${resolved.quantity} ${payload.commodityName} to ${targetAgent.agentId}${
     payload.note === undefined ? '.' : `: ${payload.note}`
   }`;
   const recipientRelation = planSocialInteractionEvent({
@@ -110,7 +120,8 @@ export function handleAgentGiveResourceCommand(input: {
       sourceAgentId: sourceAgent.agentId,
       targetAgentId: targetAgent.agentId,
       commodityName: payload.commodityName,
-      quantity: payload.quantity,
+      quantity: resolved.quantity,
+      ...(resolved.quantityResolution ? { quantityResolution: resolved.quantityResolution } : {}),
       ...(payload.note === undefined ? {} : { note: payload.note }),
     }),
     makeEvent(input, 1, 'SocialInteractionCompleted', recipientRelation.payload),
@@ -154,7 +165,7 @@ export function handleAgentGiveResourceCommand(input: {
     sourceAgentId: sourceAgent.agentId,
     targetAgentId: targetAgent.agentId,
     commodityName: payload.commodityName,
-    quantity: payload.quantity,
+    quantity: resolved.quantity,
     transferEventId: `${input.command.id}:event:0`,
     ...(input.socialMatters === undefined ? {} : { policy: input.socialMatters }),
   });
@@ -163,6 +174,7 @@ export function handleAgentGiveResourceCommand(input: {
 
 export function handleAgentTradeCommand(input: {
   readonly command: CommandEnvelope<'AgentTrade', unknown>;
+  readonly enterpriseAuthorization?: ControlAuthorizationPort;
   readonly projection: WorldProjection;
   readonly activityDurationSeconds?: number;
   readonly regionalMarketsEnabled?: boolean;
@@ -184,10 +196,7 @@ export function handleAgentTradeCommand(input: {
     if (enterprise === undefined || !isEnterpriseOperational(enterprise)) {
       return rejectCommand(input, 'AgentTrade', 'enterprise is missing or closed');
     }
-    if (
-      enterprise.ownerAgentId !== agent.agentId &&
-      !enterprise.employeeAgentIds.includes(agent.agentId)
-    ) {
+    if (!enterpriseMayOperate(enterprise, agent.agentId, 'trade', input.enterpriseAuthorization)) {
       return rejectCommand(input, 'AgentTrade', 'agent is not authorized for enterprise');
     }
   }
@@ -273,7 +282,8 @@ export function handleAgentTradeCommand(input: {
     enterprise?.inventory ?? agent.inventory,
     payload.commodityName,
   );
-  if (available < payload.quantity) {
+  const resolved = resolveInventoryRequest(available, payload.quantity);
+  if (!resolved) {
     return rejectCommand(
       input,
       'AgentTrade',
@@ -281,7 +291,7 @@ export function handleAgentTradeCommand(input: {
     );
   }
 
-  const tradeResult = parsePayload(() => sellToPool(pool, payload.quantity));
+  const tradeResult = parsePayload(() => sellToPool(pool, resolved.quantity));
   if (tradeResult.status === 'invalid') {
     return rejectCommand(input, 'AgentTrade', tradeResult.reason);
   }
@@ -290,19 +300,21 @@ export function handleAgentTradeCommand(input: {
     input,
     payload.side,
     payload.commodityName,
-    payload.quantity,
+    resolved.quantity,
     -tradeResult.payload.currencyDelta,
     tradeResult.payload,
     input.activityDurationSeconds,
     requestedRegionId,
     input.tax,
     payload.enterpriseId,
+    resolved.quantityResolution,
   );
 }
 
 function createTradeEvents(
   input: {
     readonly command: CommandEnvelope<'AgentTrade', unknown>;
+    readonly enterpriseAuthorization?: ControlAuthorizationPort;
     readonly projection: WorldProjection;
     readonly nextSequence: number;
   },
@@ -315,6 +327,7 @@ function createTradeEvents(
   regionId: string | undefined,
   tax: TaxPolicy | undefined,
   enterpriseId: string | undefined,
+  quantityResolution?: InventoryQuantityResolution,
 ): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
   const enterprise =
@@ -326,10 +339,21 @@ function createTradeEvents(
 
   const events: WorldEvent[] = [
     makeEvent(input, 0, 'TradeExecuted', {
+      ...(enterprise && enterpriseRequiresManagement(enterprise)
+        ? {
+            managementAuthority: enterpriseManagementAuthority(
+              enterprise,
+              agent.agentId,
+              'trade',
+              input.enterpriseAuthorization,
+            )!,
+          }
+        : {}),
       agentId: agent.agentId,
       side,
       commodityName,
       commodityQuantity,
+      ...(quantityResolution ? { quantityResolution } : {}),
       currencyQuantity,
       poolAfter: tradeResult.poolAfter,
       moneySupplyDelta: tradeResult.moneySupplyDelta,
@@ -391,16 +415,6 @@ export function handleAgentApplyJobCommand(input: {
     return rejectCommand(input, 'AgentApplyJob', payloadResult.reason);
   }
 
-  const quotaResult = parsePayload(() =>
-    calculateApplicationQuota({
-      residentialTier: agent.residentialTier,
-      quotaByResidentialTier: input.quotaByResidentialTier,
-    }),
-  );
-  if (quotaResult.status === 'invalid') {
-    return rejectCommand(input, 'AgentApplyJob', quotaResult.reason);
-  }
-
   const cycleNumber =
     input.recruitmentCycle === undefined
       ? 0
@@ -408,6 +422,27 @@ export function handleAgentApplyJobCommand(input: {
           simulationTime: input.projection.clock.now,
           cycleDurationMs: input.recruitmentCycle.cycleDurationMs,
         });
+  const employment = input.projection.publicEmployment
+    ? publicEmploymentAtCycle(input.projection.publicEmployment, cycleNumber)
+    : undefined;
+  const quotaResult = parsePayload(() =>
+    employment
+      ? publicEmploymentQuota(employment.terms, agent.residentialTier)
+      : calculateApplicationQuota({
+          residentialTier: agent.residentialTier,
+          quotaByResidentialTier: input.quotaByResidentialTier,
+        }),
+  );
+  if (quotaResult.status === 'invalid')
+    return rejectCommand(input, 'AgentApplyJob', quotaResult.reason);
+  const refuse = (reason: string) =>
+    rejectCommand(
+      input,
+      'AgentApplyJob',
+      employment
+        ? `${reason} [public employment revision ${employment.revision}, cycle ${cycleNumber}; town governance employment --revision ${employment.revision}]`
+        : reason,
+    );
   const applicationsInQuotaWindow = input.projection.jobApplications.filter(
     (application) =>
       application.agentId === agent.agentId &&
@@ -415,9 +450,7 @@ export function handleAgentApplyJobCommand(input: {
   );
   const usedApplications = applicationsInQuotaWindow.length;
   if (usedApplications >= quotaResult.payload) {
-    return rejectCommand(
-      input,
-      'AgentApplyJob',
+    return refuse(
       `application quota exceeded: allowed ${quotaResult.payload}, used ${usedApplications}`,
     );
   }
@@ -429,9 +462,7 @@ export function handleAgentApplyJobCommand(input: {
       (application) => application.occupationName === payload.occupationName,
     )
   ) {
-    return rejectCommand(
-      input,
-      'AgentApplyJob',
+    return refuse(
       `duplicate application for ${payload.occupationName} in recruitment cycle ${cycleNumber}`,
     );
   }
@@ -447,11 +478,14 @@ export function handleAgentApplyJobCommand(input: {
     }),
   );
   if (effectiveScoreResult.status === 'invalid') {
-    return rejectCommand(input, 'AgentApplyJob', effectiveScoreResult.reason);
+    return refuse(effectiveScoreResult.reason);
   }
   const effectiveEducationScore = effectiveScoreResult.payload;
   const applicationResult = parsePayload(() =>
-    evaluateOccupationApplication({
+    (employment
+      ? (options: Parameters<typeof evaluateOccupationApplication>[0]) =>
+          evaluatePublicOccupation({ ...options, terms: employment.terms })
+      : evaluateOccupationApplication)({
       occupationName: payload.occupationName,
       agent: {
         residentialTier: agent.residentialTier,
@@ -462,14 +496,10 @@ export function handleAgentApplyJobCommand(input: {
     }),
   );
   if (applicationResult.status === 'invalid') {
-    return rejectCommand(input, 'AgentApplyJob', applicationResult.reason);
+    return refuse(applicationResult.reason);
   }
   if (applicationResult.payload.status === 'rejected') {
-    return rejectCommand(
-      input,
-      'AgentApplyJob',
-      `${applicationResult.payload.reason}: ${applicationResult.payload.detail}`,
-    );
+    return refuse(`${applicationResult.payload.reason}: ${applicationResult.payload.detail}`);
   }
 
   const consumedInventory = applicationResult.payload.consumedInventory;
@@ -488,6 +518,7 @@ export function handleAgentApplyJobCommand(input: {
   const submittedEvent = makeEvent(input, baseOffset, 'JobApplicationSubmitted', {
     applicationId,
     cycleNumber,
+    ...(employment ? { publicEmploymentRevision: employment.revision } : {}),
     agentId: agent.agentId,
     occupationName: payload.occupationName,
     residentialTier: agent.residentialTier,
@@ -569,6 +600,7 @@ export function handleAgentUpgradeResidentialTierCommand(input: {
 
   return [
     makeEvent(input, 0, 'ResidentialTierUpgraded', {
+      ...publicHousingSource(input.projection),
       agentId: agent.agentId,
       previousResidentialTier: decision.previousResidentialTier,
       nextResidentialTier: decision.nextResidentialTier,

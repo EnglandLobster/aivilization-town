@@ -1,0 +1,171 @@
+{
+  "capability": "M06-M09-information-resource-control-slice",
+  "mode": "real-compiled-cli-engineering-acceptance",
+  "modelInvoked": false,
+  "cliCalls": 30,
+  "results": [
+    {
+      "route": "rules capability",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives respond",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "registers create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "records put",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "resources offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "resources read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "resources accept",
+      "exitCode": 1,
+      "ok": false,
+      "error": "resource-controller-authority-required"
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "registers configure",
+      "exitCode": 1,
+      "ok": false,
+      "error": "record-not-found"
+    },
+    {
+      "route": "records read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "record-not-found"
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "records put",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "resources read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "resources accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "resources manage",
+      "exitCode": 1,
+      "ok": false,
+      "error": "information-resource-not-found"
+    },
+    {
+      "route": "resources list",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "independentTwoSidedAcceptance": true,
+  "collectiveMemberHasNoPersonalAdminBypass": true,
+  "oldOwnerPrivilegeRemoved": true,
+  "explicitUsagePermissionOnly": true,
+  "originalAndNewAuthorshipPreserved": true,
+  "successorPersonallyAccepted": true,
+  "atomicDecisionConsumption": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true
+}

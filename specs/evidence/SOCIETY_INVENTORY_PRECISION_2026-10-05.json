@@ -1,0 +1,55 @@
+{
+  "policyVersion": "inventory-request-precision-v1",
+  "sourceExperiment": ".local/open-residents/society-elapsed-study-20261005",
+  "sourceFailureSequence": 1059,
+  "strictHistoricalArithmeticUnchanged": true,
+  "newIntentsResolveDownToActualStock": true,
+  "fullGate": {
+    "command": "pnpm check",
+    "passed": 2708,
+    "skipped": 1,
+    "filesPassed": 383,
+    "filesSkipped": 1,
+    "log": "/tmp/quantity-check-2.log"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... build",
+    "passed": true,
+    "log": "/tmp/quantity-build.log"
+  },
+  "compiledCli": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-http-cli-not-free-emergence",
+    "calls": 4,
+    "expectedRefusals": 1,
+    "results": [
+      {
+        "route": "market give",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "market give",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "life eat",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "life eat",
+        "ok": false,
+        "exitCode": 1,
+        "error": "insufficient Apple Pie: required 0.000001, available 0"
+      }
+    ],
+    "actualRemainder": 0.19999999999999996,
+    "strictReplayPreserved": true,
+    "replayEqual": true,
+    "journalBytesUnchanged": true
+  },
+  "scope": "eat, consume, give, AMM sell, external export; escrow promises remain exact",
+  "enterpriseServiceIntegration": "pending; four pure service-business tests included, not usable integration"
+}

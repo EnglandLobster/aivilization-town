@@ -1,0 +1,146 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T20:03:51.047792+00:00",
+  "spec": "specs/SOCIETY_PARTITION_EXECUTION_V1.md",
+  "status": "local-independent-partition-compute-verified-not-full-R01",
+  "newResidentCapabilities": 0,
+  "newDomainRules": 0,
+  "newTests": 6,
+  "fullTests": {
+    "passed": 3162,
+    "skipped": 1,
+    "filesPassed": 471,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/partition-lint.log"
+    },
+    "finalTestLint": {
+      "exitCode": 0,
+      "log": "/tmp/partition-final-test-lint.log"
+    },
+    "finalScriptLint": {
+      "exitCode": 0,
+      "log": "/tmp/partition-script-lint.log"
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "log": "/tmp/partition-typecheck-verified.log"
+    },
+    "build": {
+      "exitCode": 0,
+      "log": "/tmp/partition-build-final.log"
+    },
+    "tests": {
+      "exitCode": 0,
+      "log": "/tmp/partition-tests-full.log"
+    },
+    "realOpenCode": {
+      "exitCode": 0,
+      "log": "/tmp/partition-opencode.log"
+    },
+    "format": {
+      "exitCode": 0,
+      "log": "/tmp/partition-format-final.log"
+    }
+  },
+  "freeRun": {
+    "passed": true,
+    "evidenceClass": "two-real-partition-free-opportunities-not-stable-emergence",
+    "partitions": [
+      {
+        "partition": "p1",
+        "code": 0,
+        "signal": null
+      },
+      {
+        "partition": "p2",
+        "code": 0,
+        "signal": null
+      }
+    ],
+    "providers": [
+      {
+        "artifact": "/home/dev/aivilization-town/.local/open-residents/partition-opencode-20261007/p1/resident-001/turn-3-resident-001.json",
+        "sha256": "247b65f38682305426eab8a6baf81eb12c99bb6c601118faac4671c2b2eed64a",
+        "status": "completed",
+        "task": "free-activity",
+        "elapsedMs": 97789,
+        "termination": {
+          "exitSignal": null,
+          "aborted": false,
+          "abortReason": null,
+          "providerErrorEvent": false
+        }
+      },
+      {
+        "artifact": "/home/dev/aivilization-town/.local/open-residents/partition-opencode-20261007/p2/resident-002/turn-2-resident-002.json",
+        "sha256": "3e025adde283e384287f7d957848d6efa5094e4bcda8fa3fbf511339e7604e51",
+        "status": "completed",
+        "task": "free-activity",
+        "elapsedMs": 211458,
+        "termination": {
+          "exitSignal": null,
+          "aborted": false,
+          "abortReason": null,
+          "providerErrorEvent": false
+        }
+      }
+    ],
+    "turns": [
+      {
+        "actorId": "resident-002",
+        "status": "waiting",
+        "calls": 22
+      },
+      {
+        "actorId": "resident-001",
+        "status": "waiting",
+        "calls": 21
+      }
+    ],
+    "calls": 43,
+    "refusals": [
+      {
+        "capability": "world.trade",
+        "error": "agent is busy with trade until simulation time 300000 (now 0)"
+      }
+    ],
+    "simulationTime": 0,
+    "fullReplayEqual": true
+  },
+  "independentAssignmentAndClockAudit": {
+    "passed": true,
+    "actorAssignmentCorrect": true,
+    "clockBarrierHeld": true,
+    "originalReportPreserved": true
+  },
+  "sourceHashes": {
+    "apps/residents/src/partitionExecution.ts": "cfe72d94164ffcca595368074c2327bf5ac348e9d8b7ef22cd8fd630db0d54f7",
+    "apps/residents/src/partitionBindings.ts": "7620b1a86e16f198e4fa9f09ecacfe5b56f7c7047d5bd00ec69571174fb644f5",
+    "apps/residents/src/partitionRunner.ts": "8e52182662989259e9032aaa3d0cb3dee3706ab4d7d3dd1fc4622579ed46e60f",
+    "apps/residents/src/partitionExecution.test.ts": "545691868918ccdecc0309e750baa17ec10fb95d035c3d0d91f571dcf329789d",
+    "apps/residents/src/residentWake.ts": "e3a21815f3fef5720aa8f43458526ec71d11dc0fc2e91b843180019932cc9b92",
+    "apps/residents/src/daemon.ts": "5f152f35042f4ebb1acc0acc06e281de50ae8fa9ee1de10b6a143aae097f6250",
+    "apps/residents/src/server.ts": "d492ed57d502c560fa76c20dc8196ad521fac349c87d07fc27abf5556ebb83dc",
+    "apps/residents/src/cli.ts": "f747b8bc90ffe0aea13b24b4f87a00f26103bf41c1bbc4b6c450e5cb32b3225e",
+    "apps/residents/src/index.ts": "d4e14ca8b7d409259c54700cb31dd85c72a5d78db29e843ea3776a5404d2c624",
+    "apps/worker/src/openSociety/runtime.ts": "b1a8a97cfc0dd9c7000aa2e435a674ce0a8c70c228a87a249a7a2d6508ab0cc4",
+    "apps/residents/scripts/verify-partition-opencode.mjs": "c67b974b1c328dd94c9a21eab7ca488ae0b038cf707488de1d024f4ea50640af"
+  },
+  "initialVerificationIssues": [
+    "wait test used durationMs instead of existing until contract; corrected fixture",
+    "test config literal widened version to string; explicitly typed fixture",
+    "free verifier originally recorded assignment and clock but did not enforce them in passed; independent read-back asserted both, future script now enforces them without rerunning model or replacing original report"
+  ],
+  "limitations": [
+    "local independent processes, not multi-host network deployment",
+    "single-opportunity worker adapter; persistent partition worker loop remains",
+    "provider session recovery across interrupted distributed handoff remains",
+    "static actor assignments; automatic migration and multi-authority failover not implemented",
+    "canonical historical data and whole 25-capability scope incomplete",
+    "two free opportunities are not stable organization emergence"
+  ]
+}

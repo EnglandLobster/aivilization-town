@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "society-service-principals-evidence-v1",
+  "date": "2026-10-06",
+  "policy": "resident-service-principals-v2",
+  "entrypoints": [
+    "principals.list/read/control/operate",
+    "enable-service-principals",
+    "services/bookings/queues personal participation"
+  ],
+  "catalog": 55,
+  "skill": 54,
+  "rulebook": 44,
+  "fullGate": {
+    "command": "pnpm check",
+    "testsPassed": 2898,
+    "testsSkipped": 1,
+    "lintPassed": true,
+    "sortedRepositoryTypecheckPassed": true,
+    "logSha256": "08722dc71f87b34534f88f9cbf9645bc75c7dde41fd2cf9bbf04aa117948a693"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... --sort build",
+    "passed": true
+  },
+  "compiledCli": {
+    "passed": true,
+    "commands": 26,
+    "expectedRefusals": 8,
+    "policy": "resident-service-principals-v2",
+    "checks": [
+      "compiled-authenticated-cli",
+      "explicit-old-manifest-activation",
+      "current-enterprise-control",
+      "manager-not-personal-provider",
+      "no-old-author-backdoor",
+      "active-provider-revocation-rejected",
+      "booking-not-body-consent",
+      "actual-provider-overlap",
+      "private-booking-visibility",
+      "external-directory-estate-guard",
+      "inactive-directory-independent-handover",
+      "exact-journal-replay"
+    ]
+  },
+  "invariants": [
+    "Unique services directory; actual pre-event read-only port for authority/replay",
+    "Current enterprise, independent collective/public approval; same atomic source consumption",
+    "Author, original affiliation and actual provider history preserved",
+    "Management not provider permission, body consent, wages or payment",
+    "Active provider, requested/accepted bookings and queues block directory closure",
+    "Cash/capital enterprise closure cannot strand directory control/supply obligations; absent port refuses",
+    "Inactive directory control can transfer independently before enterprise estate closure",
+    "Ordinary management records cannot bypass v2 envelope; capacity checked against world source",
+    "Original manifest unchanged by explicit activation; default bounded pointer and private booking ACL"
+  ],
+  "remainingInFullGoal": [
+    "Direct organizational creation/reopening",
+    "Independent multi-actor enterprise affiliation consent",
+    "Organizational service income/wages/contracts and full estate",
+    "Public physical procurement/construction and housing H3-H6",
+    "Long obligations, bilateral remedy and exit",
+    "Canonical/partition wiring",
+    "All 25 contracts and multi-condition long unprompted society experiments"
+  ]
+}

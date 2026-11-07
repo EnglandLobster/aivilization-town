@@ -1,0 +1,78 @@
+{
+  "recordedAt": "2026-10-06T17:10:14.791371+00:00",
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-lint-final.log"
+    },
+    "sortedTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-typecheck-2.log"
+    },
+    "finalResidentsTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-residents-typecheck-final.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-tests-final.log"
+    },
+    "dependencyBuild": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-build.log"
+    },
+    "finalResidentsBuild": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-build-2.log"
+    },
+    "existingAuthenticatedCLI": {
+      "exitCode": 0,
+      "log": "/tmp/capability-discovery-existing-cli.log"
+    }
+  },
+  "fullTests": {
+    "passed": 3127,
+    "skipped": 1,
+    "filesPassed": 462,
+    "filesSkipped": 1
+  },
+  "existingCLI": {
+    "calls": 59,
+    "expectedRefusals": 19
+  },
+  "schemaVersion": "society-capability-verification-v1",
+  "spec": "specs/SOCIETY_CAPITAL_EXIT_CONTINUITY_V1.md",
+  "status": "original-capital-income-and-refund-engineering-verified-not-full-exit",
+  "newTests": {
+    "capitalEstateContinuity": 6,
+    "additionalEstateCashTimeBoundary": 1
+  },
+  "verified": [
+    "Objectively earned dividend and expired contribution refund keep the original cash subject without creating a living body or new manager permission.",
+    "Original owning capital ledger and physical cash receipt are independently bound and replayed atomically.",
+    "Whole and split time advances agree on the full estate state; forged source, stale revision, policy substitution and duplicate settlement refuse.",
+    "Old valid living-subject events remain compatible."
+  ],
+  "format": {
+    "log": "/tmp/capital-estate-format-final.log",
+    "passed": true
+  },
+  "notDelivered": [
+    "New resident succession or estate CLI/manifest activation.",
+    "Natural permanent population and protected activity/cargo termination.",
+    "Capital rights distribution, all original obligations and full estate liquidation.",
+    "Canonical/partition and complete twenty-five contracts."
+  ],
+  "freeExperimentEnabled": false,
+  "verifiedSourceSha256": {
+    "packages/world/src/capitalEstateContinuity.ts": "842a396b76b59b8f17c9c7efee4204f564c11d8e45cb0feae782c6f43459ed4f",
+    "packages/world/src/capitalEstateContinuity.test.ts": "e75f754e762193a75a80cb34fbe7c2aa2ada9ee5b8032ec17c80d573b3ea59b6",
+    "packages/world/src/capitalModel.ts": "c079457c5685fcc2b67f4f08a15256ccd0cd3ff79aa1688a9927e9bf1d8e0e59",
+    "packages/world/src/capitalSettlement.ts": "0384332ffda0958e0905c9ec052eda89531c37bd67ea857bfcba0e74d32971cc",
+    "packages/world/src/residentEstateCashEffects.ts": "6332de26949475f9efe8712e4777cb4fc34cd78c8785194735f5e8566314b43e",
+    "packages/world/src/residentEstateCashEffects.test.ts": "7b1931caeaba24268d85f59487b198e1e801d0dbb7c815b92d370562255667b4",
+    "packages/world/src/residentEscrowAccounting.ts": "669e961c5d3814480721b1d0478f6766cc1e2e7387bfceb703c639f13c23a540",
+    "packages/world/src/residentExitPreservation.ts": "bb9f62c2c9fd5b728aec1cd2e50c41f73d556ae205f9c36963644f671234125c",
+    "packages/world/src/index.ts": "9a5e06385e704e6e53798e2a09901e773730e82eba4063eb6e3880df3ae28b38"
+  }
+}

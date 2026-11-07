@@ -1,3 +1,4 @@
+import { RuntimeOperationDrain } from './runtimeOperationDrain';
 import type { SimulationTimestamp } from '@aivilization/sim-core';
 import type {
   LocalSimulationRuntimeRunQueueJob,
@@ -74,6 +75,8 @@ export type LocalSimulationRuntimeRecoveryHost = {
   readonly runOnce: () => Promise<LocalSimulationRuntimeRecoveryReport>;
   readonly start: () => void;
   readonly stop: () => void;
+  /** Permanently refuse new operations and await in-flight work. stop() remains restartable. */
+  readonly shutdown: () => Promise<void>;
   readonly getStatus: () => LocalSimulationRuntimeRecoveryHostStatus;
 };
 
@@ -155,8 +158,8 @@ export function createLocalSimulationRuntimeRecoveryHost(input: {
     setTimeout: (callback: () => void, delayMs: number) => setTimeout(callback, delayMs),
     clearTimeout: (handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>),
   };
+  const operations = new RuntimeOperationDrain();
   let running = false;
-  let inFlight = false;
   let scheduledTimer: { readonly handle: unknown } | undefined;
   let attemptedRecoveryCount = 0;
   let recoveredCount = 0;
@@ -167,31 +170,31 @@ export function createLocalSimulationRuntimeRecoveryHost(input: {
   let lastError: LocalSimulationRuntimeRecoveryHostError | undefined;
 
   const host: LocalSimulationRuntimeRecoveryHost = {
-    runOnce: async () => {
-      const observedAt = clock.now();
-      assertNonNegativeFinite(observedAt, 'observedAt');
-      inFlight = true;
-      lastRecoveryStartedAt = observedAt;
-      attemptedRecoveryCount += 1;
-      try {
-        const report = await input.recovery.recover({ observedAt });
-        if (report.status === 'recovered') {
-          recoveredCount += 1;
-        } else {
-          idleCount += 1;
+    runOnce: () =>
+      operations.run(async () => {
+        const observedAt = clock.now();
+        assertNonNegativeFinite(observedAt, 'observedAt');
+        lastRecoveryStartedAt = observedAt;
+        attemptedRecoveryCount += 1;
+        try {
+          const report = await input.recovery.recover({ observedAt });
+          if (report.status === 'recovered') {
+            recoveredCount += 1;
+          } else {
+            idleCount += 1;
+          }
+          lastReport = report;
+          lastError = undefined;
+          return report;
+        } catch (error) {
+          lastError = serializeHostError(error);
+          throw error;
+        } finally {
+          lastRecoveryCompletedAt = clock.now();
         }
-        lastReport = report;
-        lastError = undefined;
-        return report;
-      } catch (error) {
-        lastError = serializeHostError(error);
-        throw error;
-      } finally {
-        lastRecoveryCompletedAt = clock.now();
-        inFlight = false;
-      }
-    },
+      }),
     start: () => {
+      operations.assertOpen();
       if (running) {
         return;
       }
@@ -205,9 +208,13 @@ export function createLocalSimulationRuntimeRecoveryHost(input: {
         scheduledTimer = undefined;
       }
     },
+    shutdown: () => {
+      host.stop();
+      return operations.close();
+    },
     getStatus: () => ({
       running,
-      inFlight,
+      inFlight: operations.inFlight,
       recoveryIntervalMs: input.recoveryIntervalMs,
       attemptedRecoveryCount,
       recoveredCount,
@@ -232,7 +239,7 @@ export function createLocalSimulationRuntimeRecoveryHost(input: {
   }
 
   async function runScheduledTick(): Promise<void> {
-    if (!running || inFlight) {
+    if (!running || operations.inFlight) {
       scheduleNext(input.recoveryIntervalMs);
       return;
     }

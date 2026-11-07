@@ -1,0 +1,264 @@
+{
+  "capability": "W03-W07-real-service-delivery",
+  "mode": "real-compiled-cli-http-engineering-acceptance",
+  "modelInvoked": false,
+  "explicitTestSeed": {
+    "residents": 4,
+    "constructionDonor": {
+      "Wood": 30,
+      "Iron Ingot": 5,
+      "Copper Ingot": 5,
+      "Book": 3,
+      "Apple": 10
+    },
+    "mobileServiceSupplier": {
+      "Book": 1,
+      "Apple": 4
+    },
+    "otherMobileResidents": {
+      "Apple": 1
+    },
+    "logisticsLoadLimitsEnabled": true,
+    "providerEducationScore": 2000,
+    "otherEducationScore": 1000,
+    "worldPolicyRecordedAfterSeed": true
+  },
+  "cliCalls": 44,
+  "results": [
+    {
+      "route": "rules read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements models",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "premises configure",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements facilities",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements accept",
+      "exitCode": 1,
+      "ok": false,
+      "error": "service-recipient-consent-required"
+    },
+    {
+      "route": "engagements accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements fund",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements start",
+      "exitCode": 1,
+      "ok": false,
+      "error": "personal-service-participation-required"
+    },
+    {
+      "route": "engagements start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements ledger",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements ledger",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements leave",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements fund",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials withdraw",
+      "exitCode": 1,
+      "ok": false,
+      "error": "material-reservation-not-offered"
+    },
+    {
+      "route": "engagements start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements leave",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements fund",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements list",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements fund",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements cancel",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "builtPhysicalCareAndTeachingStations": true,
+  "actualTravelAndStorage": true,
+  "independentRecipientAndSponsor": true,
+  "waitingDoesNotCountAsService": true,
+  "measuredCareAndEarnedShares": true,
+  "partialExitRefund": true,
+  "realFoodConsumption": true,
+  "reusableBookReturned": true,
+  "measuredTeachingNoCredential": true,
+  "bodilyPrivacy": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true
+}

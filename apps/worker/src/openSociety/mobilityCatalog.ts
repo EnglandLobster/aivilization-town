@@ -4,6 +4,12 @@ const id = text('Record ID', 96),
   expiresAt = integer('Simulation deadline in milliseconds');
 export const MOBILITY_TOOLS = [
   tool(
+    'vehicles.drive',
+    'Personally drive an authorized idle vehicle along a real route; load and freight custody permissions apply. No passenger or ride offer is invented.',
+    true,
+    { id, destinationId: text('Real destination', 200), expectedRevision: revision },
+  ),
+  tool(
     'vehicles.list',
     'List vehicles you own or may drive; registration never creates a vehicle.',
     false,

@@ -1,0 +1,53 @@
+{
+  "version": "canonical-partition-handoff-failure-evidence-v1",
+  "beforeRevision": 756,
+  "afterRevision": 763,
+  "bootStateUnchanged": true,
+  "historicalPrefixPreserved": true,
+  "manifestUnchanged": true,
+  "fullReplayEqual": true,
+  "attempts": [
+    {
+      "claim": 0,
+      "partitionId": "p1",
+      "code": 0,
+      "status": "waiting",
+      "actorId": null,
+      "turnId": null
+    },
+    {
+      "claim": 1,
+      "partitionId": "p2",
+      "code": 1,
+      "status": "provider-error",
+      "actorId": "smoke-25-world-main-agent-012",
+      "turnId": "turn-758-smoke-25-world-main-agent-012"
+    }
+  ],
+  "driver": {
+    "status": "provider-error",
+    "termination": {
+      "exitSignal": "SIGTERM",
+      "aborted": true,
+      "abortReason": "TimeoutError",
+      "providerErrorEvent": false
+    },
+    "elapsedMs": 299560,
+    "sessionId": null
+  },
+  "driverEventCount": 0,
+  "exportedProviderSession": {
+    "directory": "/tmp/aivilization-resident-workspaces/64a44ec3aacab15a4ebf6534c44eed9f",
+    "lastMessageFinish": "stop",
+    "lastMessageTime": {
+      "created": 1791345598948,
+      "completed": 1791345602175
+    }
+  },
+  "diagnosis": "Evidence relocation changed directory-derived provider workspace identity. Real commands committed and exported session completed, while driver saw no structured events and timed out. Preserve provider workspace identity separately; do not lengthen timeout or erase actions.",
+  "rawEvidenceRoot": ".local/canonical-cutover-20261007/partition-handoff-1",
+  "limits": [
+    "Vendor internal event filtering is not directly instrumented.",
+    "Repair still requires real OpenCode verification."
+  ]
+}

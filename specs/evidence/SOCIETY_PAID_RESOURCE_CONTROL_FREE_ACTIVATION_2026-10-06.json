@@ -1,0 +1,29 @@
+{
+  "kind": "explicit-paid-resource-control-activation",
+  "afterOpportunities": 736,
+  "simulationTime": 905444000,
+  "commitsBefore": 5250,
+  "commitsAfter": 5251,
+  "implementation": {
+    "root": "/tmp/aivilization-paid-resource-control-20261006",
+    "versions": {
+      "catalog": 60,
+      "skill": 59,
+      "rulebook": 49
+    },
+    "validation": {
+      "command": "pnpm check + pnpm build + compiled authenticated CLI",
+      "testsPassed": 2957,
+      "testsSkipped": 1,
+      "compiledCalls": 20,
+      "expectedRefusals": 4
+    },
+    "fingerprints": 81
+  },
+  "source": "operator-capability-migration",
+  "retainsOriginalManifest": true,
+  "prescribedSocialGoal": false,
+  "addsAssetsOrForcedBodyActivity": false,
+  "replayMatches736FullStateAndTwoExactHousingActivationEvents": true,
+  "allPreviousWorldFactsUnchanged": true
+}

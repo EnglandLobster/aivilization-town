@@ -1,0 +1,208 @@
+{
+  "schemaVersion": "society-free-checkpoint-evidence-v1",
+  "opportunities": 608,
+  "journalCommits": 4387,
+  "capabilityCalls": 2167,
+  "simulationTime": 690515000,
+  "journalSha256": "3ed8a708a63f973d5fef3d47c557828110c124dd05233d1c2357d11350df8eca",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFingerprints": 81,
+  "implementationVersions": {
+    "catalog": 54,
+    "skill": 53,
+    "rulebook": 43
+  },
+  "providerStatusCounts": {
+    "completed": 602,
+    "provider-error": 6
+  },
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 456.0000000000102,
+      "educationLevel": 5,
+      "residentialTier": 3,
+      "job": "Maintenance Worker",
+      "balance": 500,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 2,
+      "job": "Receptionist",
+      "balance": 558.9543142108098
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 367.66666666700684,
+      "educationLevel": 3,
+      "residentialTier": 4,
+      "job": "Chef",
+      "balance": 500
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 4,
+      "job": "Chef",
+      "balance": 500
+    }
+  ],
+  "observedEntities": {
+    "enterprises": [],
+    "collectives": [],
+    "programs": [],
+    "projects": [],
+    "principalOrders": []
+  },
+  "residentAuthoredCounts": {
+    "spaces": 0,
+    "documents": 6,
+    "messages": 243,
+    "groups": 0,
+    "collectives": 0,
+    "registers": 0,
+    "views": 0,
+    "programs": 0,
+    "services": 0
+  },
+  "newPhase": {
+    "opportunities": 32,
+    "providerStatuses": {
+      "completed": 32
+    },
+    "commitsIncludingExplicitMigration": 229,
+    "calls": 118,
+    "actualMaterialReceipts": [
+      {
+        "sequence": 4213,
+        "at": 656003000,
+        "receipt": {
+          "actorId": "system",
+          "at": 656003000,
+          "conversions": [
+            {
+              "consumed": {
+                "Apple": 1,
+                "Flour": 1
+              },
+              "produced": {
+                "Apple Pie": 1
+              },
+              "productionId": "prod-003-apple-pie-1",
+              "recipeVersion": "resident-processing-v1",
+              "units": 1
+            }
+          ],
+          "efforts": [
+            {
+              "actorId": "resident-003",
+              "energyCost": 7.666666666700003,
+              "from": 655980000,
+              "productionId": "prod-003-apple-pie-1",
+              "satietyCost": 1.9166666666999994,
+              "through": 656003000,
+              "workMs": 23000
+            }
+          ],
+          "endReason": "completed",
+          "id": "productive-body-130964",
+          "operation": "production-progress",
+          "productionId": "prod-003-apple-pie-1",
+          "stockId": "stock-003-workshop",
+          "transfers": []
+        }
+      },
+      {
+        "sequence": 4222,
+        "at": 656063000,
+        "receipt": {
+          "actorId": "resident-003",
+          "at": 656063000,
+          "conversions": [],
+          "efforts": [],
+          "id": "materials-229fa94b50f737c9e706c1b5f7c010d9",
+          "operation": "withdraw",
+          "stockId": "stock-003-workshop",
+          "transfers": [
+            {
+              "from": {
+                "id": "stock-003-workshop",
+                "kind": "stock"
+              },
+              "items": {
+                "Apple Pie": 1
+              },
+              "to": {
+                "id": "resident-003",
+                "kind": "resident"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "actualTransfers": [
+      {
+        "sequence": 4223,
+        "at": 656063000,
+        "facts": {
+          "commodityName": "Apple Pie",
+          "note": "我们合做的派，你那份，尝尝",
+          "quantity": 0.25,
+          "sourceAgentId": "resident-003",
+          "targetAgentId": "resident-004"
+        }
+      },
+      {
+        "sequence": 4256,
+        "at": 656303000,
+        "facts": {
+          "commodityName": "Apple Pie",
+          "note": "你那份苹果派，谢谢今晚来一起做",
+          "quantity": 0.25,
+          "sourceAgentId": "resident-003",
+          "targetAgentId": "resident-002"
+        }
+      }
+    ],
+    "refusals": [
+      {
+        "sequence": 4224,
+        "capability": "world.give",
+        "error": "resource transfer participants must be co-located at a known location"
+      },
+      {
+        "sequence": 4225,
+        "capability": "world.give",
+        "error": "resource transfer participants must be co-located at a known location"
+      },
+      {
+        "sequence": 4254,
+        "capability": "world.give",
+        "error": "agent is busy with sleep until simulation time 684863000 (now 656303000)"
+      },
+      {
+        "sequence": 4291,
+        "capability": "production.gather",
+        "error": "material-stock-revision-conflict"
+      },
+      {
+        "sequence": 4342,
+        "capability": "world.study",
+        "error": "actual-scenario-course-location-required"
+      }
+    ]
+  },
+  "limits": [
+    "No organization, construction or new organizational fee order observed",
+    "Personal flour contribution/production and delivery are observed; not inferred collective labor",
+    "No stable-society claim; original six provider failures retained",
+    "New service-principal code not part of this frozen phase"
+  ]
+}

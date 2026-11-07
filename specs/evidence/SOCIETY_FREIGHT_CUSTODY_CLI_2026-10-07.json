@@ -1,0 +1,304 @@
+{
+  "capability": "W04-real-freight-custody",
+  "handoffPolicy": "freight-custody-handoff-v1",
+  "independentHandoffSignatures": true,
+  "duplicateHandoffAppliedOnce": true,
+  "originalFeeBeneficiaryPreserved": true,
+  "invitedSuccessorReadsOnlyAfterProposal": true,
+  "actualSuccessorTravelAndDelivery": true,
+  "mode": "real-compiled-cli-http-engineering-acceptance",
+  "modelInvoked": false,
+  "explicitTestSeed": {
+    "residents": 5,
+    "sourceWood": 10,
+    "otherWoodPerResident": 1,
+    "vehicleCargoUnits": 40,
+    "distinctRealLocations": [
+      "town-square",
+      "market"
+    ],
+    "worldPolicyRecordedAfterSeed": true
+  },
+  "cliCalls": 44,
+  "results": [
+    {
+      "route": "freight.rules",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "rules.read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials.reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.fund",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "freight-not-found"
+    },
+    {
+      "route": "freight.load",
+      "exitCode": 1,
+      "ok": false,
+      "error": "freight-personal-carrier-required"
+    },
+    {
+      "route": "freight.load",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.handoff",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.handoffs",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.handoff",
+      "exitCode": 1,
+      "ok": false,
+      "error": "custody-independent-consents-required"
+    },
+    {
+      "route": "freight.handoff",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.handoff",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.handoff",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.handoff",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.handoff",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.handoff",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.deliver",
+      "exitCode": 1,
+      "ok": false,
+      "error": "freight-personal-carrier-required"
+    },
+    {
+      "route": "travel.go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.deliver",
+      "exitCode": 1,
+      "ok": false,
+      "error": "freight-carrier-not-present-and-idle"
+    },
+    {
+      "route": "freight.deliver",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.deliver",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.ledger",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials.reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.fund",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "vehicles.authorize",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.load",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "vehicles.revoke",
+      "exitCode": 1,
+      "ok": false,
+      "error": "vehicle-custody-obligation"
+    },
+    {
+      "route": "vehicles.drive",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.cancel",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.return",
+      "exitCode": 1,
+      "ok": false,
+      "error": "freight-carrier-not-present-and-idle"
+    },
+    {
+      "route": "vehicles.drive",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.return",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.list",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.ledger",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "independentRecipientPayerAndCarrier": true,
+  "ordinaryInventorySeparateFromEntrustedCargo": true,
+  "actualHandTravelAndDelivery": true,
+  "duplicateDeliveryPaidOnce": true,
+  "actualVehicleJourney": true,
+  "loadedCancellationRetainsCargoAndEscrow": true,
+  "actualReturnAndPartialRefund": true,
+  "outsiderPrivacy": true,
+  "unrelatedPassengerIdentityNotDisclosed": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true,
+  "version": "society-freight-custody-cli-evidence-v1",
+  "date": "2026-10-07",
+  "ok": true,
+  "scope": "Personal stationary freight handoff through authenticated compiled town CLI, HTTP, runtime and journal",
+  "transportAcceptance": false,
+  "canonicalAcceptance": false,
+  "partitionAcceptance": false,
+  "emergenceAcceptance": false,
+  "verification": {
+    "targetedTestsPassed": 41,
+    "newRuntimeTests": 3,
+    "repositoryTestsPassed": 3376,
+    "repositoryTestsSkipped": 1,
+    "lint": true,
+    "sortedTypecheck": true,
+    "residentsAndDependenciesBuild": true,
+    "finalChangedSourceLint": true,
+    "cliCallsSucceeded": 37,
+    "cliExpectedRefusals": 7,
+    "diffCheck": true
+  },
+  "versions": {
+    "skill": "town-resident-skill-v71",
+    "rulebook": "society-rulebook-v58"
+  },
+  "limits": [
+    "Collective persistent grant and exact decision consumption pending",
+    "Interrupted route recovery pending",
+    "Natural population atomic journal integration pending",
+    "No new OpenCode model run; scripted engineering acceptance only",
+    "Canonical and partition not activated"
+  ],
+  "logs": [
+    "/tmp/custody-cli-target.log",
+    "/tmp/custody-cli-lint.log",
+    "/tmp/custody-cli-lint-final.log",
+    "/tmp/custody-cli-typecheck.log",
+    "/tmp/custody-cli-tests.log",
+    "/tmp/custody-cli-build.log",
+    "/tmp/custody-cli-http.log"
+  ]
+}

@@ -1,0 +1,170 @@
+{
+  "schemaVersion": "society-engineering-verification-v1",
+  "scope": "explicit-private-enterprise-earned-labor",
+  "fullCheck": {
+    "command": "pnpm check",
+    "passed": true,
+    "testsPassed": 2673,
+    "testsSkipped": 1,
+    "filesPassed": 373,
+    "filesSkipped": 1,
+    "log": "/tmp/elapsed-labor-check-release.log"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... build",
+    "passed": true,
+    "log": "/tmp/elapsed-labor-build-release.log"
+  },
+  "cli": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-http-cli-not-free-emergence",
+    "calls": 23,
+    "expectedRefusals": 7,
+    "results": [
+      {
+        "route": "business found",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business post-job",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business join",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business work",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": false,
+        "exitCode": 1,
+        "error": "own-labor-not-found"
+      },
+      {
+        "route": "life stop-work",
+        "ok": false,
+        "exitCode": 1,
+        "error": "own-labor-required"
+      },
+      {
+        "route": "business work",
+        "ok": false,
+        "exitCode": 1,
+        "error": "agent is busy with labor until simulation time 1800000 (now 0)"
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "life stop-work",
+        "ok": false,
+        "exitCode": 1,
+        "error": "labor-revision-conflict"
+      },
+      {
+        "route": "business close",
+        "ok": false,
+        "exitCode": 1,
+        "error": "enterprise-earned-obligations-require-settlement"
+      },
+      {
+        "route": "life stop-work",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business leave",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business claim-wage",
+        "ok": false,
+        "exitCode": 1,
+        "error": "own-labor-required"
+      },
+      {
+        "route": "business fund",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business claim-wage",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business claim-wage",
+        "ok": false,
+        "exitCode": 1,
+        "error": "earned-wage-revision-conflict"
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business close",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      }
+    ],
+    "noPrepaidWage": true,
+    "actualPartialLabor": true,
+    "wageDebtSurvivesLeaving": true,
+    "onlyOwnDebtPaid": true,
+    "cashAndWithholdingVerified": true,
+    "unpaidClosureRejected": true,
+    "residentDefinedOccupationQueryable": true,
+    "replayEqual": true,
+    "journalBytesUnchanged": true
+  },
+  "versions": {
+    "catalog": 36,
+    "skill": 35,
+    "rulebook": 25,
+    "routes": 355
+  },
+  "limitations": [
+    "public wage remains legacy",
+    "paid time does not itself produce goods or services",
+    "collective enterprise control incomplete",
+    "canonical and partition integration pending",
+    "free adoption not yet verified"
+  ]
+}

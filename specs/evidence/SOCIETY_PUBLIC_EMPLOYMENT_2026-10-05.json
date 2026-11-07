@@ -1,0 +1,149 @@
+{
+  "stage": "public-employment-rules-v1",
+  "evidenceKind": "engineering-not-free-emergence",
+  "gate": {
+    "command": "pnpm check",
+    "passed": 2779,
+    "skipped": 1,
+    "filesPassed": 395,
+    "filesSkipped": 1,
+    "log": "/tmp/public-employment-check-2.log"
+  },
+  "build": {
+    "passed": true,
+    "log": "/tmp/public-employment-build.log",
+    "typeOnlyWorldRebuild": "/tmp/public-employment-world-build-final.log"
+  },
+  "httpCli": {
+    "ok": true,
+    "validation": "compiled-authenticated-HTTP-CLI-not-emergence",
+    "calls": 19,
+    "refusals": 5,
+    "activeRevision": 2,
+    "routes": [
+      {
+        "route": "governance.employment",
+        "exitCode": 1,
+        "ok": false,
+        "error": "public-employment-not-enabled"
+      },
+      {
+        "route": "governance.employment",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.employment",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 1,
+        "ok": false,
+        "error": "public-action-outside-grant-or-invalid"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 1,
+        "ok": false,
+        "error": "public-decision-outside-execution-window"
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 1,
+        "ok": false,
+        "error": "public-employment-revision-conflict"
+      },
+      {
+        "route": "governance.employment",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.employment",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "business.apply-job",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.employment",
+        "exitCode": 1,
+        "ok": false,
+        "error": "public-employment-revision-not-found"
+      }
+    ]
+  },
+  "versions": {
+    "catalog": 44,
+    "skill": 43,
+    "rulebook": 33,
+    "routes": 361
+  },
+  "boundaries": [
+    "inherited initial terms, no spontaneous reform claim",
+    "independent ballots before execution",
+    "next cycle only, historical ranking remains frozen",
+    "qualification and financial facts unchanged",
+    "stale decisions fail without consumption",
+    "query and actual admission share authoritative policy",
+    "manifest and journal replay compatibility"
+  ],
+  "remainingScope": [
+    "wage/qualification/initial supply institutions",
+    "full shared capital, dividends, liquidation",
+    "housing and public assets/construction",
+    "long obligations and succession",
+    "canonical and partition integration",
+    "long autonomous experiments under multiple conditions"
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-05",
+  "source": {
+    "experiment": ".local/open-residents/society-public-rest-20261005",
+    "reminderFailureCommit": 158,
+    "cognitionEmptyStringCommits": [
+      22,
+      99
+    ],
+    "frozenExperimentUnmodified": true
+  },
+  "changes": [
+    "Own qualified reminder receipt IDs now cancel directly; local IDs preserved; other owners denied",
+    "CLI required-array flags describe omission as [] and preserve empty string as an item, not fabricated evidence"
+  ],
+  "fullGate": {
+    "command": "pnpm check",
+    "passed": true,
+    "testsPassed": 2616,
+    "testsSkipped": 1,
+    "filesPassed": 360,
+    "filesSkipped": 1,
+    "log": "/tmp/public-feedback-check.log"
+  },
+  "build": {
+    "passed": true,
+    "log": "/tmp/public-feedback-build.log"
+  },
+  "cli": {
+    "passed": true,
+    "commands": 42,
+    "checks": [
+      "compiled-cli",
+      "original-reading",
+      "own-sent-message-is-firsthand-evidence",
+      "unread-member-and-outsider-cannot-cite-message",
+      "exact-page-receipts",
+      "search-by-person-source",
+      "personal-pin",
+      "self-chosen-interval",
+      "receipt-reminder-id-cancels-own-only",
+      "legacy-local-reminder-id-preserved",
+      "empty-array-omission-is-not-empty-string-evidence",
+      "remote-service",
+      "independent-settlement-consent",
+      "escrow-conservation",
+      "actual-provider-time",
+      "voluntary-early-departure",
+      "exact-replay"
+    ]
+  },
+  "versions": {
+    "catalog": "open-capabilities-v31",
+    "skill": "town-resident-skill-v30",
+    "rulebook": "society-rulebook-v21"
+  }
+}

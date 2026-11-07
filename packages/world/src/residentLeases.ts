@@ -1,3 +1,7 @@
+import { prepareLeaseContinuity, leaseHasDepartedParty } from './leaseEstateContinuity';
+import { residentPhysicalFinancialAccount } from './residentExitPreservation';
+import type { LeaseContinuitySource } from '@aivilization/society';
+import { premisesAtLocation, premisesLeaseRightAvailable } from './premisesAccess';
 import {
   emptyResidentLeaseState,
   decideResidentLease,
@@ -29,9 +33,36 @@ function settle(
   input: LeaseApplication,
   event: ResidentLeaseEvent,
   settlement: LeaseSettlement | undefined,
+  source?: LeaseContinuitySource,
 ): { accepted: true; events: readonly WorldEvent[] } | { accepted: false; reason: string } {
+  if (source && leaseHasDepartedParty(input.projection, event.lease)) {
+    try {
+      const continuity = prepareLeaseContinuity(
+        input.projection,
+        event.lease,
+        source,
+        settlement?.rent ?? 0,
+      );
+      const e = createEventEnvelope({
+        id: input.requestId + ':lease',
+        simulationId: input.simulationId,
+        type: 'ResidentLeaseChanged',
+        sequence: input.nextSequence,
+        occurredAt: source.at,
+        payload: { lease: event.lease, policyVersion: 'resident-leases-v1', continuity },
+      });
+      applyWorldEvent(input.projection, e);
+      return { accepted: true, events: [e] };
+    } catch (error) {
+      return {
+        accepted: false,
+        reason: error instanceof Error ? error.message : 'lease-continuity-failed',
+      };
+    }
+  }
   let w = input.projection;
   const events: WorldEvent[] = [];
+  let leaseRecorded = false;
   const append = (es: readonly WorldEvent[]) => {
     for (const e of es) {
       w = applyWorldEvent(w, e);
@@ -84,6 +115,20 @@ function settle(
       });
       if (!d.accepted) return d;
     }
+    if (t.locationId && premisesAtLocation(w, t.locationId)) {
+      // Commit accepted tenancy inside the same atomic application result before the residence action.
+      append([
+        createEventEnvelope({
+          id: input.requestId + ':lease',
+          simulationId: input.simulationId,
+          type: 'ResidentLeaseChanged',
+          sequence: input.nextSequence + events.length,
+          occurredAt: w.clock.now,
+          payload: { lease: event.lease, policyVersion: 'resident-leases-v1' },
+        }),
+      ]);
+      leaseRecorded = true;
+    }
     if (t.locationId && resolveAgentResidenceLocationId(w, w.agents[t.payerId]!) !== t.locationId) {
       const es = dispatchWorldCommand({
         projection: w,
@@ -104,23 +149,53 @@ function settle(
       append(es);
     }
   }
-  append([
-    createEventEnvelope({
-      id: input.requestId + ':lease',
-      simulationId: input.simulationId,
-      type: 'ResidentLeaseChanged',
-      sequence: input.nextSequence + events.length,
-      occurredAt: w.clock.now,
-      payload: { lease: event.lease, policyVersion: 'resident-leases-v1' },
-    }),
-  ]);
+  if (!leaseRecorded)
+    append([
+      createEventEnvelope({
+        id: input.requestId + ':lease',
+        simulationId: input.simulationId,
+        type: 'ResidentLeaseChanged',
+        sequence: input.nextSequence + events.length,
+        occurredAt: w.clock.now,
+        payload: { lease: event.lease, policyVersion: 'resident-leases-v1' },
+      }),
+    ]);
   return { accepted: true, events };
 }
 export function residentLeaseCommand(
   input: LeaseApplication & { actorId: string; command: ResidentLeaseCommand },
 ): { accepted: true; events: readonly WorldEvent[] } | { accepted: false; reason: string } {
   const w = input.projection;
+  if (!w.agents[input.actorId]) return { accepted: false, reason: 'lease-living-actor-required' };
   if (!w.residentCommerce) return { accepted: false, reason: 'life-not-enabled' };
+  const requestedLease =
+    input.command.type === 'offer'
+      ? input.command
+      : input.command.type === 'accept'
+        ? w.residentLeases?.leases[input.command.id]
+        : undefined;
+  if (
+    requestedLease &&
+    !premisesLeaseRightAvailable(
+      w,
+      requestedLease.tenantId,
+      requestedLease.locationId,
+      requestedLease.expiresAt,
+    )
+  )
+    return { accepted: false, reason: 'lease-conflicts-with-premises-use-rights' };
+  if (input.command.type === 'offer') {
+    const b = premisesAtLocation(w, input.command.locationId);
+    if (
+      b &&
+      (b.status !== 'operational' ||
+        b.condition <= 0 ||
+        b.control.controller.kind !== 'resident' ||
+        b.control.controller.id !== input.actorId)
+    )
+      return { accepted: false, reason: 'premises-lease-authority-required' };
+  }
+
   const d = decideResidentLease(
     w.residentLeases ?? emptyResidentLeaseState(),
     input.actorId,
@@ -136,6 +211,9 @@ export function residentLeaseCommand(
         return (
           !!a &&
           l?.kind === 'residence' &&
+          (!premisesAtLocation(w, location) ||
+            (premisesAtLocation(w, location)!.status === 'operational' &&
+              premisesAtLocation(w, location)!.condition > 0)) &&
           a.locationId === location &&
           !w.transitByAgent?.[id] &&
           (w.activityTimeByAgent[id]?.availableAt ?? 0) <= w.clock.now &&
@@ -147,7 +225,14 @@ export function residentLeaseCommand(
     },
   );
   if (!d.accepted) return d;
-  return settle(input, d.events[0]!, d.settlement);
+  return settle(
+    input,
+    d.events[0]!,
+    d.settlement,
+    input.command.type === 'end' || input.command.type === 'pay'
+      ? { kind: 'resident', at: w.clock.now, actorId: input.actorId, operation: input.command.type }
+      : undefined,
+  );
 }
 export function nextResidentLeaseBoundary(w: WorldProjection): number | undefined {
   const values = Object.values(w.residentLeases?.leases ?? {}).flatMap((l) => {
@@ -169,7 +254,7 @@ export function advanceResidentLeases(input: LeaseApplication): readonly WorldEv
     const d = settleLeaseBoundary(
       l,
       nextLeaseBoundary(l)!,
-      (w.agents[l.tenantId]?.balance ?? 0) >= l.rent,
+      (residentPhysicalFinancialAccount(w, l.tenantId)?.balance ?? 0) >= l.rent,
     );
     const result = settle(
       {
@@ -180,6 +265,7 @@ export function advanceResidentLeases(input: LeaseApplication): readonly WorldEv
       },
       d.event,
       d.settlement,
+      { kind: 'boundary', at: nextLeaseBoundary(l)! },
     );
     if (!result.accepted) throw new Error(`lease-settlement-failed:${result.reason}`);
     for (const e of result.events) {

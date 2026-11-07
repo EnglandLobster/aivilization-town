@@ -1,7 +1,12 @@
 import { posix } from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
-import { OPEN_SOCIETY_TOOLS } from '@aivilization/worker';
-import { RESIDENT_COMMANDS, flagName } from './cliCatalog';
+import {
+  OPEN_SOCIETY_TOOLS,
+  createOpenSocietyManifest,
+  RESIDENT_CLI_VERSION,
+  RESIDENT_SKILL_VERSION,
+} from '@aivilization/worker';
+import { RESIDENT_COMMANDS, flagName, commandHelp } from './cliCatalog';
 import { parseResidentCommand } from './commandLine';
 import { parseCliFlags, runResidentCli } from './residentCli';
 import { residentSkillPages } from './residentSkill';
@@ -12,7 +17,7 @@ const connection = { endpoint: 'http://127.0.0.1:12345', token: 'test-resident-t
 afterEach(() => vi.unstubAllGlobals());
 
 test('all registered capabilities have unique executable CLI routes with typed HTTP arguments', async () => {
-  expect(RESIDENT_COMMANDS).toHaveLength(180);
+  expect(RESIDENT_COMMANDS).toHaveLength(390);
   expect(new Set(RESIDENT_COMMANDS.map((command) => command.route)).size).toBe(
     OPEN_SOCIETY_TOOLS.length,
   );
@@ -33,14 +38,19 @@ test('all registered capabilities have unique executable CLI routes with typed H
       const value =
         property.type === 'array'
           ? ['a', 'b']
-          : property.type === 'boolean'
-            ? true
-            : ['number', 'integer'].includes(property.type)
-              ? (property.minimum ?? 0)
-              : (property.enum?.[0] ?? 'literal');
+          : property.type === 'object'
+            ? { literal: '原文 $ 不执行' }
+            : property.type === 'boolean'
+              ? true
+              : ['number', 'integer'].includes(property.type)
+                ? (property.minimum ?? 0)
+                : (property.enum?.[0] ?? 'literal');
       args[name] = value;
       for (const item of Array.isArray(value) ? value : [value])
-        flags.push(`--${flagName(name)}`, String(item));
+        flags.push(
+          `--${flagName(name)}`,
+          typeof item === 'object' ? JSON.stringify(item) : String(item),
+        );
     }
     const result = await runResidentCli(
       [...route.split(' '), ...flags, '--request-id', 'route-test'],
@@ -53,6 +63,21 @@ test('all registered capabilities have unique executable CLI routes with typed H
       requestId: 'route-test',
     });
   }
+});
+
+test('structured CLI parameters preserve JSON and refuse invalid objects without shell evaluation', async () => {
+  const definition = RESIDENT_COMMANDS.find(
+    (c) => c.definition.name === 'records.append',
+  )!.definition;
+  const values = { note: '原文 $(whoami); $HOME', amount: 5 };
+  const argv = parseResidentCommand(
+    `town records append --register-id journal --values '${JSON.stringify(values)}'`,
+  );
+  expect((await parseCliFlags(definition, argv.slice(2))).args.values).toEqual(values);
+  for (const invalid of ['null', '[]', '{broken'])
+    await expect(
+      parseCliFlags(definition, ['--register-id', 'journal', '--values', invalid]),
+    ).rejects.toThrow();
 });
 
 test.each([
@@ -213,4 +238,98 @@ test('result navigation becomes executable CLI arguments without interpreting or
     data: { content: 'files.read', items: [{ expandedBy: 'made-up-original' }] },
   };
   expect(residentCliResult('files.read', document)).toBe(document);
+});
+
+test('new manifest and generated Skill share the actual adapter version contract', () => {
+  const manifest = createOpenSocietyManifest({ count: 1 });
+  expect(manifest.provenance.residentSkill).toBe(RESIDENT_SKILL_VERSION);
+  expect(manifest.provenance.transport).toBe(RESIDENT_CLI_VERSION);
+  expect(residentSkillPages()['SKILL.md']).toContain(RESIDENT_SKILL_VERSION);
+});
+
+test('array help explains omission while CLI preserves an explicitly empty string as an item', async () => {
+  const c = RESIDENT_COMMANDS.find((c) => c.route === 'cognition update')!;
+  expect(commandHelp(c)).toContain('--evidence-ids <array> (optional flag; omitted means [])');
+  const flags = [
+    '--key',
+    'goal',
+    '--kind',
+    'goal',
+    '--statement',
+    'An independent goal',
+    '--confidence',
+    '0.7',
+    '--expected-revision',
+    '0',
+    '--active',
+    'true',
+  ];
+  expect((await parseCliFlags(c.definition, flags)).args.evidenceIds).toEqual([]);
+  expect(
+    (await parseCliFlags(c.definition, [...flags, '--evidence-ids', ''])).args.evidenceIds,
+  ).toEqual(['']);
+});
+
+test('production requires explicit workers rather than help promising that an empty worker list works', async () => {
+  for (const operation of ['gather', 'create']) {
+    const c = RESIDENT_COMMANDS.find((c) => c.route === `production ${operation}`)!;
+    expect(commandHelp(c)).toContain('--workers <array> (required)');
+    expect(commandHelp(c)).toContain('minItems=1');
+    const flags = [
+      '--id',
+      'batch',
+      '--stock-id',
+      'stock',
+      '--expected-revision',
+      '1',
+      '--quantity',
+      '1',
+      '--product-name',
+      'Food',
+      '--description',
+      'My purpose',
+      ...(operation === 'gather'
+        ? ['--source-id', 'source-apple', '--source-revision', '1']
+        : ['--recipe-id', 'bread']),
+    ];
+    await expect(parseCliFlags(c.definition, flags)).rejects.toThrow('missing-argument:workers');
+    expect(
+      (await parseCliFlags(c.definition, [...flags, '--workers', 'resident-001'])).args.workers,
+    ).toEqual(['resident-001']);
+  }
+});
+
+test('every known command gives an executable local repair entry without sending invalid input', async () => {
+  const fetch = vi.fn();
+  vi.stubGlobal('fetch', fetch);
+  for (const command of RESIDENT_COMMANDS) {
+    const result = await runResidentCli(
+      [...command.route.split(' '), '--not-a-real-option', 'x'],
+      connection,
+    );
+    expect(result.exitCode).toBe(2);
+    const error = JSON.parse(result.output) as { error: string; help: string };
+    expect(error.error).toBe('unknown-flag:--not-a-real-option');
+    expect(error.help).toBe(`town ${command.route} --help`);
+    const expanded = await runResidentCli(parseResidentCommand(error.help));
+    expect(expanded.exitCode).toBe(0);
+    expect(expanded.output).toBe(commandHelp(command));
+  }
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+test('unknown operations use only a registered group repair entry and never invent commands', async () => {
+  const fetch = vi.fn();
+  vi.stubGlobal('fetch', fetch);
+  for (const [args, help] of [
+    [['files', 'invented'], 'town help files'],
+    [['invented', 'operation'], 'town help'],
+    [['messages', 'read', 'positional-id'], 'town messages read --help'],
+  ] as const) {
+    const rejected = await runResidentCli(args, connection);
+    expect(rejected.exitCode).toBe(2);
+    expect(JSON.parse(rejected.output)).toMatchObject({ ok: false, help });
+    expect((await runResidentCli(parseResidentCommand(help))).exitCode).toBe(0);
+  }
+  expect(fetch).not.toHaveBeenCalled();
 });

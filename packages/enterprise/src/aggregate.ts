@@ -1,5 +1,53 @@
+import {
+  applyEnterpriseLaborTermsEvent,
+  laborTermsAfterJoin,
+  type EnterpriseLaborTermsEvent,
+} from './laborTerms';
+import {
+  applyEnterpriseResourceSaleAccounting,
+  type EnterpriseResourceSaleAccountingEvent,
+} from './resourceSalesAccounting';
+import {
+  applyEnterprisePeriodicAccounting,
+  hasOpenEnterprisePeriodicPositions,
+  enterprisePeriodicArrears,
+} from './periodicAccounting';
+import type { EnterprisePeriodicAccountingEvent } from './periodicAccountingModel';
+import {
+  applyEnterpriseTradeAccounting,
+  hasOpenTradeAccounting,
+  type EnterpriseTradeAccountingEvent,
+} from './tradeAccounting';
+import {
+  applyEnterpriseCapitalEvent,
+  assertCapitalDividend,
+  type EnterpriseCapitalEvent,
+} from './capitalAggregate';
+import { enterpriseRequiresManagement } from './control';
+import {
+  applyEnterpriseControlEvent,
+  enterpriseManagementAuthority,
+  assertEnterpriseManagementAuthority,
+  type EnterpriseControlEvent,
+  type EnterpriseManagementAuthority,
+} from './control';
+import type { ControlAuthorizationPort } from '@aivilization/authority';
+import {
+  applyServiceBusinessEvent,
+  hasOpenServiceBusiness,
+  type EnterpriseServiceBusinessEvent,
+} from './serviceBusiness';
 import type { Inventory } from '@aivilization/economy';
+import {
+  applyProductionEmploymentEvent,
+  type ProductionEmploymentEvent,
+} from './productionEmployment';
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
+import {
+  applyEarnedPayrollEvent,
+  hasProtectedEarnedLabor,
+  type EarnedPayrollEvent,
+} from './earnedPayroll';
 import { assertValidEnterprisePolicy, type EnterprisePolicy } from './policy';
 import {
   assertValidEnterpriseState,
@@ -9,6 +57,15 @@ import {
 } from './model';
 
 export type EnterpriseDomainEvent =
+  | EnterpriseLaborTermsEvent
+  | EnterpriseCapitalEvent
+  | EnterpriseControlEvent
+  | EnterpriseTradeAccountingEvent
+  | EnterpriseResourceSaleAccountingEvent
+  | EnterprisePeriodicAccountingEvent
+  | EnterpriseServiceBusinessEvent
+  | ProductionEmploymentEvent
+  | EarnedPayrollEvent
   | {
       readonly type: 'EnterpriseFounded';
       readonly enterpriseId: string;
@@ -42,11 +99,16 @@ export type EnterpriseDomainEvent =
   | { readonly type: 'EnterpriseTaxRecorded'; readonly amount: number }
   | {
       readonly type: 'EnterpriseJobPostingUpdated';
+      readonly authority?: EnterpriseManagementAuthority;
       readonly wageOffer: number;
       readonly openSlots: number;
     }
   | { readonly type: 'EnterpriseEmployeeLeft'; readonly agentId: AgentId }
-  | { readonly type: 'EnterpriseEmployeeLaidOff'; readonly agentId: AgentId }
+  | {
+      readonly type: 'EnterpriseEmployeeLaidOff';
+      readonly agentId: AgentId;
+      readonly authority?: EnterpriseManagementAuthority;
+    }
   | {
       /** Wage-arrears memo update; carries no money movement of its own. */
       readonly type: 'EnterpriseWageArrearsUpdated';
@@ -62,6 +124,7 @@ export type EnterpriseDomainEvent =
     }
   | {
       readonly type: 'EnterpriseClosed';
+      readonly authority?: EnterpriseManagementAuthority;
       readonly closedAt: number;
     };
 
@@ -138,6 +201,7 @@ export function decideJoinEnterprise(input: {
 export function decideSetEnterpriseJobPosting(input: {
   readonly enterprise: EnterpriseState;
   readonly actorAgentId: AgentId;
+  readonly authorize?: ControlAuthorizationPort;
   readonly wageOffer: number;
   readonly openSlots: number;
 }): EnterpriseDecision {
@@ -145,8 +209,18 @@ export function decideSetEnterpriseJobPosting(input: {
   if (!isEnterpriseOperational(enterprise)) {
     return rejected('enterprise is bankrupt or closed');
   }
-  if (enterprise.ownerAgentId !== input.actorAgentId) {
-    return rejected('only the enterprise owner may set the job posting');
+  const authority = enterpriseManagementAuthority(
+    enterprise,
+    input.actorAgentId,
+    'post-job',
+    input.authorize,
+  );
+  if (!authority) {
+    return rejected(
+      enterpriseRequiresManagement(enterprise)
+        ? 'enterprise-management-authority-required'
+        : 'only the enterprise owner may set the job posting',
+    );
   }
   if (!Number.isFinite(input.wageOffer) || input.wageOffer <= 0) {
     return rejected('job posting wageOffer must be positive finite');
@@ -159,6 +233,7 @@ export function decideSetEnterpriseJobPosting(input: {
   }
   return accepted({
     type: 'EnterpriseJobPostingUpdated',
+    ...(enterpriseRequiresManagement(enterprise) ? { authority } : {}),
     wageOffer: input.wageOffer,
     openSlots: input.openSlots,
   });
@@ -178,19 +253,34 @@ export function decideLeaveEnterprise(input: {
 export function decideLayoffEmployee(input: {
   readonly enterprise: EnterpriseState;
   readonly actorAgentId: AgentId;
+  readonly authorize?: ControlAuthorizationPort;
   readonly employeeAgentId: AgentId;
 }): EnterpriseDecision {
   const enterprise = normalizeAndValidate(input.enterprise);
   if (enterprise.status === 'closed') {
     return rejected('enterprise is closed');
   }
-  if (enterprise.ownerAgentId !== input.actorAgentId) {
-    return rejected('only the enterprise owner may lay off employees');
+  const authority = enterpriseManagementAuthority(
+    enterprise,
+    input.actorAgentId,
+    'layoff',
+    input.authorize,
+  );
+  if (!authority) {
+    return rejected(
+      enterpriseRequiresManagement(enterprise)
+        ? 'enterprise-management-authority-required'
+        : 'only the enterprise owner may lay off employees',
+    );
   }
   if (!enterprise.employeeAgentIds.includes(input.employeeAgentId)) {
     return rejected('agent is not an enterprise employee');
   }
-  return accepted({ type: 'EnterpriseEmployeeLaidOff', agentId: input.employeeAgentId });
+  return accepted({
+    type: 'EnterpriseEmployeeLaidOff',
+    ...(enterpriseRequiresManagement(enterprise) ? { authority } : {}),
+    agentId: input.employeeAgentId,
+  });
 }
 
 /**
@@ -223,7 +313,10 @@ export function decideFundEnterprise(input: {
   readonly amount: number;
 }): EnterpriseDecision {
   const enterprise = normalizeAndValidate(input.enterprise);
-  if (enterprise.status === 'bankrupt' || enterprise.status === 'closed') {
+  if (
+    (enterprise.status === 'bankrupt' && !enterprise.earnedPayroll) ||
+    enterprise.status === 'closed'
+  ) {
     return rejected('enterprise is bankrupt or closed');
   }
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
@@ -235,16 +328,40 @@ export function decideFundEnterprise(input: {
 export function decideCloseEnterprise(input: {
   readonly enterprise: EnterpriseState;
   readonly actorAgentId: AgentId;
+  readonly authorize?: ControlAuthorizationPort;
   readonly closedAt: number;
 }): EnterpriseDecision {
   const enterprise = normalizeAndValidate(input.enterprise);
   if (enterprise.status === 'closed') {
     return rejected('enterprise is already closed');
   }
-  if (enterprise.ownerAgentId !== input.actorAgentId) {
-    return rejected('only the enterprise owner may close it');
+  if (enterprise.capital) return rejected('capital-liquidation-plan-required');
+  const authority = enterpriseManagementAuthority(
+    enterprise,
+    input.actorAgentId,
+    'close',
+    input.authorize,
+  );
+  if (!authority) {
+    return rejected(
+      enterpriseRequiresManagement(enterprise)
+        ? 'enterprise-management-authority-required'
+        : 'only the enterprise owner may close it',
+    );
   }
-  return accepted({ type: 'EnterpriseClosed', closedAt: input.closedAt });
+  if (hasOpenTradeAccounting(enterprise))
+    return rejected('enterprise-has-unsettled-trade-accounting');
+  if (hasOpenServiceBusiness(enterprise))
+    return rejected('enterprise-service-contracts-require-settlement');
+  if (hasProtectedEarnedLabor(enterprise))
+    return rejected('enterprise-earned-obligations-require-settlement');
+  if (hasOpenEnterprisePeriodicPositions(enterprise))
+    return rejected('enterprise-periodic-obligations-require-settlement');
+  return accepted({
+    type: 'EnterpriseClosed',
+    ...(enterpriseRequiresManagement(enterprise) ? { authority } : {}),
+    closedAt: input.closedAt,
+  });
 }
 
 /**
@@ -264,9 +381,20 @@ export function decideCloseEnterpriseOnOwnerDeparture(input: {
   if (enterprise.status === 'closed') {
     return rejected('enterprise is already closed');
   }
+  if (enterprise.capital) return rejected('capital-liquidation-plan-required');
+  if (enterpriseRequiresManagement(enterprise))
+    return rejected('enterprise-controlled-succession-required');
   if (enterprise.ownerAgentId !== input.ownerAgentId) {
     return rejected('owner-departure closure requires the owning agent');
   }
+  if (hasOpenTradeAccounting(enterprise))
+    return rejected('enterprise-has-unsettled-trade-accounting');
+  if (hasOpenServiceBusiness(enterprise))
+    return rejected('enterprise-service-contracts-require-settlement');
+  if (hasProtectedEarnedLabor(enterprise))
+    return rejected('enterprise-earned-obligations-require-settlement');
+  if (hasOpenEnterprisePeriodicPositions(enterprise))
+    return rejected('enterprise-periodic-obligations-require-settlement');
   return accepted({ type: 'EnterpriseClosed', closedAt: input.closedAt });
 }
 
@@ -297,12 +425,53 @@ export function applyEnterpriseDomainEvent(
   if (state === undefined) {
     throw new Error(`cannot apply ${event.type} to a missing enterprise`);
   }
+  if (event.type === 'EnterpriseCapitalEnabled') {
+    assertValidEnterpriseState(state);
+    return applyEnterpriseCapitalEvent(state, event);
+  }
   const current = normalizeAndValidate(state);
+  if (enterpriseRequiresManagement(current)) {
+    if (event.type === 'EnterpriseJobPostingUpdated')
+      assertEnterpriseManagementAuthority(current, event.authority, 'post-job');
+    if (event.type === 'EnterpriseEmployeeLaidOff')
+      assertEnterpriseManagementAuthority(current, event.authority, 'layoff');
+    if (event.type === 'EnterpriseClosed' && (event.authority || current.status !== 'bankrupt'))
+      assertEnterpriseManagementAuthority(current, event.authority, 'close');
+  }
   switch (event.type) {
+    case 'EnterpriseLaborTermsEnabled':
+    case 'EnterpriseLaborTermsChanged':
+      return applyEnterpriseLaborTermsEvent(current, event);
+    case 'EnterprisePeriodicPositionRegistered':
+    case 'EnterprisePeriodicPositionChanged':
+      return normalizeEnterpriseState(applyEnterprisePeriodicAccounting(current, event));
+    case 'EnterpriseResourceSaleAccountingRecorded':
+      return normalizeEnterpriseState(applyEnterpriseResourceSaleAccounting(current, event));
+    case 'EnterpriseTradeAccountingRecorded':
+      return normalizeEnterpriseState(applyEnterpriseTradeAccounting(current, event));
+    case 'EnterpriseCapitalClosed':
+    case 'EnterpriseCapitalAgreementCommitted':
+      return applyEnterpriseCapitalEvent(current, event);
+    case 'EnterpriseCapitalDividendPaid':
+      assertCapitalDividend(current, event);
+      return applyDividendFact(current, event);
+    case 'EnterpriseControlChanged':
+      return applyEnterpriseControlEvent(current, event);
+    case 'EnterpriseServiceAuthorized':
+    case 'EnterpriseServiceAuthorizationRevoked':
+    case 'EnterpriseServiceAccountingRecorded':
+      return applyServiceBusinessEvent(current, event);
+    case 'EnterpriseProductionEmploymentAssigned':
+      return applyProductionEmploymentEvent(current, event);
+    case 'EnterpriseEarnedPayrollEnabled':
+    case 'EnterpriseEarnedWageRecorded':
+    case 'EnterpriseEarnedWagePaid':
+      return normalizeEnterpriseState(applyEarnedPayrollEvent(current, event));
     case 'EnterpriseMemberJoined':
       return normalizeEnterpriseState({
         ...current,
         employeeAgentIds: [...current.employeeAgentIds, event.agentId],
+        ...(current.laborTerms ? { laborTerms: laborTermsAfterJoin(current, event.agentId) } : {}),
         ...(event.wageOffer === undefined
           ? {}
           : {
@@ -331,6 +500,7 @@ export function applyEnterpriseDomainEvent(
         inventory: adjustInventory(current.inventory, event.commodityName, event.quantity),
       });
     case 'EnterprisePayrollRecorded':
+      if (current.earnedPayroll) throw Error('earned-payroll-requires-creditor-payment');
       return normalizeEnterpriseState({
         ...current,
         balance: current.balance - event.amount,
@@ -355,6 +525,7 @@ export function applyEnterpriseDomainEvent(
         employeeAgentIds: current.employeeAgentIds.filter((agentId) => agentId !== event.agentId),
       });
     case 'EnterpriseWageArrearsUpdated':
+      if (current.earnedPayroll) throw Error('earned-payroll-requires-creditor-obligation');
       if (!Number.isFinite(event.nextArrears) || event.nextArrears < 0) {
         throw new Error('enterprise wage arrears must be non-negative finite');
       }
@@ -381,14 +552,17 @@ export function applyEnterpriseDomainEvent(
         lastSolvencyEvaluatedAt: event.declaredAt,
       });
     case 'EnterpriseDividendPaid':
-      return normalizeEnterpriseState({
-        ...current,
-        balance: current.balance - event.totalAmount,
-        retainedEarnings: (current.retainedEarnings ?? 0) - event.totalAmount,
-        cumulativeDividends: (current.cumulativeDividends ?? 0) + event.totalAmount,
-        lastDividendPaidAt: event.paidAt,
-      });
+      if (current.capital) throw Error('capital-dividend-source-required');
+      return applyDividendFact(current, event);
     case 'EnterpriseClosed':
+      if (current.capital) throw Error('capital-liquidation-plan-required');
+      if (hasOpenTradeAccounting(current)) throw Error('enterprise-has-unsettled-trade-accounting');
+      if (hasOpenServiceBusiness(current))
+        throw Error('enterprise-service-contracts-require-settlement');
+      if (hasProtectedEarnedLabor(current))
+        throw Error('enterprise-earned-obligations-require-settlement');
+      if (hasOpenEnterprisePeriodicPositions(current))
+        throw Error('enterprise-periodic-obligations-require-settlement');
       return normalizeEnterpriseState({
         ...current,
         balance: 0,
@@ -440,6 +614,7 @@ export function ownershipPayments(input: {
   readonly enterprise: EnterpriseState;
   readonly totalAmount: number;
 }): readonly { readonly agentId: AgentId; readonly amount: number }[] {
+  if (input.enterprise.capital) throw Error('capital-account-payment-port-required');
   const shares = normalizeEnterpriseState(input.enterprise).ownershipShares ?? {};
   const entries = Object.entries(shares).sort(([left], [right]) => left.localeCompare(right));
   let allocated = 0;
@@ -448,5 +623,21 @@ export function ownershipPayments(input: {
       index === entries.length - 1 ? input.totalAmount - allocated : input.totalAmount * share;
     allocated += amount;
     return { agentId: asAgentId(agentId), amount };
+  });
+}
+
+function applyDividendFact(
+  current: EnterpriseState,
+  event: { totalAmount: number; paidAt: number },
+): EnterpriseState {
+  if (hasProtectedEarnedLabor(current)) throw Error('enterprise-earned-obligations-block-dividend');
+  if (enterprisePeriodicArrears(current) > 0)
+    throw Error('enterprise-periodic-arrears-block-dividend');
+  return normalizeEnterpriseState({
+    ...current,
+    balance: current.balance - event.totalAmount,
+    retainedEarnings: (current.retainedEarnings ?? 0) - event.totalAmount,
+    cumulativeDividends: (current.cumulativeDividends ?? 0) + event.totalAmount,
+    lastDividendPaidAt: event.paidAt,
   });
 }

@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "scope": "existing-service-participant-exit-after-boundary-settlement",
+  "quality": {
+    "lint": true,
+    "typecheck": true,
+    "testsPassed": 3323,
+    "testsSkipped": 1
+  },
+  "newCases": 4,
+  "cases": [
+    "provider departed legacy time",
+    "recipient departed legacy time",
+    "provider departed actual time",
+    "recipient departed actual time"
+  ],
+  "assertions": [
+    "preserved actual earned progress and payments",
+    "both service presences ended",
+    "living participant reservation released",
+    "unused escrow refunded",
+    "departed body absent and estate preserved",
+    "money supply conserved and replay equal"
+  ],
+  "limitations": [
+    "Pre-exit interval explicitly settled in fixture",
+    "Natural population ordering not integrated",
+    "Earned wage continuity only source-audited, not implemented"
+  ],
+  "canonicalRevisionUnchanged": 802
+}

@@ -1,3 +1,4 @@
+import { hasEnterprisePrincipalAssets } from '../principalResourceObligations';
 import {
   assertMoneySupplyDelta,
   createAccountingTransaction,
@@ -5,7 +6,10 @@ import {
   economicAccount,
   type Inventory,
 } from '@aivilization/economy';
-import { applyEnterpriseDomainEvent } from '@aivilization/enterprise';
+import {
+  applyEnterpriseDomainEvent,
+  enterpriseCapitalDistributions,
+} from '@aivilization/enterprise';
 import type { AgentId } from '@aivilization/sim-core';
 import type { WorldEnterpriseState } from '../enterprise';
 import type { WorldEvent } from '../events';
@@ -74,6 +78,9 @@ export function applyEnterpriseProjectionEvent(
       return updateEnterprise(projection, event.payload.enterpriseId, (enterprise) =>
         applyEnterpriseDomainEvent(enterprise, {
           type: 'EnterpriseJobPostingUpdated',
+          ...(event.payload.managementAuthority
+            ? { authority: event.payload.managementAuthority }
+            : {}),
           wageOffer: event.payload.wageOffer,
           openSlots: event.payload.openSlots,
         }),
@@ -91,6 +98,9 @@ export function applyEnterpriseProjectionEvent(
                 ? 'EnterpriseEmployeeLeft'
                 : 'EnterpriseEmployeeLaidOff',
             agentId: event.payload.agentId,
+            ...(event.type === 'EnterpriseEmployeeLaidOff' && event.payload.managementAuthority
+              ? { authority: event.payload.managementAuthority }
+              : {}),
           }),
         ),
         event.payload.agentId,
@@ -185,6 +195,10 @@ export function applyEnterpriseProjectionEvent(
       return next;
     }
     case 'EnterpriseClosed': {
+      if (hasEnterprisePrincipalAssets(projection, event.payload.enterpriseId))
+        throw Error('enterprise-resource-estate-unsettled');
+      if (projection.enterprises[event.payload.enterpriseId]?.control)
+        return applyControlledEnterpriseClosure(projection, event);
       if (event.payload.reason === 'owner-departed') {
         // The owner permanently left the town: nothing returns to them. The
         // firm's cash burns out of the town economy (the departure carried
@@ -300,4 +314,63 @@ function updateEnterprise(
     ...projection,
     enterprises: { ...projection.enterprises, [enterpriseId]: update(current) },
   };
+}
+
+/** The manager executes closure; capital rights determine recipients and the aggregate protects creditors. */
+function applyControlledEnterpriseClosure(
+  w: WorldProjection,
+  event: Extract<WorldEvent, { type: 'EnterpriseClosed' }>,
+): WorldProjection {
+  const p = event.payload,
+    e = w.enterprises[p.enterpriseId]!;
+  const expected = enterpriseCapitalDistributions(e),
+    actual = p.capitalDistributions;
+  const sameInventory = (a: Inventory, b: Inventory) =>
+    Object.keys(a).length === Object.keys(b).length &&
+    Object.entries(a).every(([k, v]) => b[k] === v);
+  if (
+    p.reason === 'owner-departed' ||
+    p.ownerAgentId !== e.ownerAgentId ||
+    p.returnedBalance !== e.balance ||
+    !sameInventory(p.returnedInventory, e.inventory) ||
+    !actual ||
+    actual.length !== expected.length ||
+    actual.some(
+      (d, i) =>
+        d.agentId !== expected[i]!.agentId ||
+        d.balance !== expected[i]!.balance ||
+        !sameInventory(d.inventory, expected[i]!.inventory) ||
+        !w.agents[d.agentId],
+    ) ||
+    p.employeeAgentIds.length !== e.employeeAgentIds.length ||
+    p.employeeAgentIds.some((id) => !e.employeeAgentIds.includes(id))
+  )
+    throw Error('enterprise-capital-distribution-source-mismatch');
+  if (p.reason === 'insolvent' && e.status !== 'bankrupt')
+    throw Error('enterprise-bankruptcy-source-required');
+  const closed = applyEnterpriseDomainEvent(e, {
+    type: 'EnterpriseClosed',
+    closedAt: event.occurredAt,
+    ...(p.managementAuthority ? { authority: p.managementAuthority } : {}),
+  });
+  let next: WorldProjection = { ...w, enterprises: { ...w.enterprises, [e.enterpriseId]: closed } };
+  for (const d of actual) {
+    if (d.balance > 0)
+      assertDomesticTransfer({
+        transactionId: `${event.id}:capital:${d.agentId}`,
+        reason: 'enterprise-capital-liquidation',
+        fromSector: 'enterprise',
+        fromId: e.enterpriseId,
+        toSector: 'agent',
+        toId: d.agentId,
+        amount: d.balance,
+      });
+    next = updateAgent(next, d.agentId, (a) => ({
+      ...a,
+      balance: a.balance + d.balance,
+      inventory: addInventoryBatch(a.inventory, d.inventory),
+    }));
+  }
+  for (const id of p.employeeAgentIds) next = updateAgent(next, id, (a) => ({ ...a, job: null }));
+  return next;
 }

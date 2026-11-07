@@ -41,13 +41,66 @@ const call = async (actor, argv, expected = 0) => {
   return JSON.parse(result.out);
 };
 try {
+  const reminderId = 'x'.repeat(96);
+  const reminder = (
+    await call(a, ['schedule', 'remind', '--id', reminderId, '--at', '10000', '--text', '可以取消'])
+  ).data;
+  await call(b, ['schedule', 'remind', '--id', reminderId, '--at', '10000', '--text', '独立提醒']);
+  await call(b, ['schedule', 'cancel', '--id', reminder.id], 1);
+  await call(a, ['schedule', 'cancel', '--id', reminder.id]);
+  assert.equal(runtime.state.reminders[`${b}:${reminderId}`].done, false);
+  await call(b, ['schedule', 'cancel', '--id', reminderId]);
+  assert.equal((await call(a, ['schedule', 'list'])).data.items[0].done, true);
+  const ownIdea = [
+    'cognition',
+    'update',
+    '--key',
+    'new-idea',
+    '--kind',
+    'goal',
+    '--statement',
+    '自主的新想法，不假称有证据',
+    '--confidence',
+    '0.5',
+    '--expected-revision',
+    '0',
+    '--active',
+    'true',
+  ];
+  await call(a, [...ownIdea, '--evidence-ids', ''], 1);
+  assert.deepEqual((await call(a, ownIdea)).data.evidenceIds, []);
   await call(a, ['groups', 'create', '--id', 'g', '--title', '自由讨论']);
   const invitation = (await call(a, ['groups', 'invite', '--group-id', 'g', '--resident-id', b]))
     .data;
   await call(b, ['groups', 'accept', '--id', invitation.id, '--expected-revision', '1']);
-  await call(b, ['groups', 'send', '--group-id', 'g', '--content', '我的原话，允许不认同。']);
+  const sent = (
+    await call(b, ['groups', 'send', '--group-id', 'g', '--content', '我的原话，允许不认同。'])
+  ).data;
+  const cite = [
+    'cognition',
+    'update',
+    '--key',
+    'receipt',
+    '--kind',
+    'note',
+    '--statement',
+    '这是一条已发生的发言，不代表他人同意',
+    '--confidence',
+    '0.8',
+    '--evidence-ids',
+    sent.id,
+    '--expected-revision',
+    '0',
+    '--active',
+    'true',
+  ];
+  await call(b, cite);
+  assert.equal((await call(b, ['memory', 'search', '--source-id', sent.id])).data.total, 1);
+  assert.equal((await call(a, cite, 1)).error, 'evidence-not-visible');
+  assert.equal((await call(c, cite, 1)).error, 'evidence-not-visible');
   const message = (await call(a, ['groups', 'messages', '--group-id', 'g', '--limit', '1'])).data
     .items[0];
+  await call(a, cite);
   const memories = (
     await call(a, ['memory', 'search', '--person-id', b, '--source-id', message.id])
   ).data;
@@ -196,10 +249,15 @@ try {
       checks: [
         'compiled-cli',
         'original-reading',
+        'own-sent-message-is-firsthand-evidence',
+        'unread-member-and-outsider-cannot-cite-message',
         'exact-page-receipts',
         'search-by-person-source',
         'personal-pin',
         'self-chosen-interval',
+        'receipt-reminder-id-cancels-own-only',
+        'legacy-local-reminder-id-preserved',
+        'empty-array-omission-is-not-empty-string-evidence',
         'remote-service',
         'independent-settlement-consent',
         'escrow-conservation',

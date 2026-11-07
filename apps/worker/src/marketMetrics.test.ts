@@ -1,3 +1,7 @@
+import { ESTATE_CASH_POLICY, applyEstateCashEvent } from '@aivilization/economy';
+import { ESTATE_MATERIAL_CUSTODY_POLICY, applyEstateMaterialEvent } from '@aivilization/materials';
+import { RESIDENT_SUCCESSION_POLICY, applySuccessionEvent } from '@aivilization/society';
+import { RESIDENT_EXIT_PRESERVATION_POLICY, prepareResidentExitCapture } from '@aivilization/world';
 import { createAmmPool } from '@aivilization/economy';
 import {
   InMemoryEventStore,
@@ -677,4 +681,75 @@ describe('worker economic composition metrics', () => {
       ],
     });
   });
+});
+
+test('economic composition reports actual preserved personal cash as a separate circulating sector, with legacy observations unchanged', () => {
+  const base = createWorldProjection({
+    moneySupply: 25,
+    agents: [
+      {
+        agentId: asAgentId('departed-a'),
+        balance: 25,
+        inventory: {},
+        locationId: null,
+        job: null,
+        residentialTier: 1,
+        educationScore: 0,
+        physiology: { energy: 90, satiety: 90, health: 90 },
+      },
+    ],
+  });
+  const before: WorldProjection = {
+    ...base,
+    residentExits: {
+      policy: RESIDENT_EXIT_PRESERVATION_POLICY,
+      records: {},
+      cash: applyEstateCashEvent(undefined, {
+        type: 'EstateCashEnabled',
+        policy: ESTATE_CASH_POLICY,
+      }),
+      materials: applyEstateMaterialEvent(undefined, {
+        type: 'EstateMaterialCustodyEnabled',
+        policy: ESTATE_MATERIAL_CUSTODY_POLICY,
+      }),
+      arrangements: applySuccessionEvent(undefined, {
+        type: 'SuccessionArrangementsEnabled',
+        policy: RESIDENT_SUCCESSION_POLICY,
+      }),
+    },
+  };
+  const event = createEventEnvelope({
+    id: 'actual-death-a',
+    simulationId,
+    sequence: 1,
+    occurredAt: 0,
+    type: 'AgentDied' as const,
+    payload: {
+      agentId: asAgentId('departed-a'),
+      cause: 'starvation' as const,
+      diedAt: 0,
+      ageDays: 0,
+      retired: false,
+      policyVersion: 'starvation-v1',
+      estate: {
+        burnedCurrency: 0,
+        inventoryByCommodity: {},
+        depositForfeited: 0,
+        writtenOffLoanIds: [],
+      },
+    },
+  });
+  const d = prepareResidentExitCapture(before, event);
+  if (!d.accepted) throw Error(d.reason);
+  const projection = applyWorldEvent(before, {
+    ...event,
+    payload: { ...event.payload, exitPreservation: d.capture },
+  });
+  const payload = createEconomicCompositionPayload({ projection, recordedAt: 0 });
+  expect(payload.composition.agents).toBe(0);
+  expect(payload.composition.estates).toBe(25);
+  expect(payload.moneySupply).toBe(25);
+  expect(
+    createEconomicCompositionPayload({ projection: base, recordedAt: 0 }).composition,
+  ).not.toHaveProperty('estates');
 });

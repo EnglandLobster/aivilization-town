@@ -31,6 +31,11 @@
     "@aivilization/commerce": "workspace:*",
     "@aivilization/services": "workspace:*",
     "@aivilization/enterprise": "workspace:*",
-    "@aivilization/mobility": "workspace:*"
+    "@aivilization/mobility": "workspace:*",
+    "@aivilization/authority": "workspace:*",
+    "@aivilization/materials": "workspace:*",
+    "@aivilization/logistics": "workspace:*",
+    "@aivilization/premises": "workspace:*",
+    "@aivilization/governance": "workspace:*"
   }
 }

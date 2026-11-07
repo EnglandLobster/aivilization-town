@@ -1,0 +1,132 @@
+{
+  "evidenceKind": "unprompted-free-run-not-directed-social-outcomes",
+  "opportunities": 256,
+  "newOpportunities": 32,
+  "journalCommits": 1987,
+  "capabilityCalls": 1085,
+  "newCapabilityCalls": 103,
+  "simulationTimeMs": 135820000,
+  "provider": {
+    "newStatuses": {
+      "completed": 32
+    },
+    "completedModelSteps": 124,
+    "elapsedMs": 1122353,
+    "reportedCost": 0.237176226
+  },
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "fingerprintsVerified": 81,
+  "journalSha256": "958db4712d2f54915455186f8997791031d0189628031b236ac64ebf8a01ff87",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "deltaCalls": {
+    "world.observe/accepted": 6,
+    "files.index/accepted": 1,
+    "messages.send/accepted": 6,
+    "schedule.wait/accepted": 32,
+    "messages.read/accepted": 1,
+    "cognition.update/accepted": 1,
+    "world.move/accepted": 11,
+    "stocks.read/accepted": 6,
+    "production.gather/accepted": 2,
+    "production.read/accepted": 1,
+    "production.start/accepted": 2,
+    "world.trade/accepted": 6,
+    "world.eat/accepted": 6,
+    "world.apply_job/accepted": 1,
+    "world.give/accepted": 2,
+    "sources.read/accepted": 2,
+    "stocks.withdraw/accepted": 4,
+    "world.sleep/accepted": 4,
+    "world.apply_job/refused": 6,
+    "housing.list/accepted": 1,
+    "world.work/accepted": 1,
+    "world.doctor/accepted": 1
+  },
+  "newRefusals": [
+    {
+      "sequence": 1829,
+      "actorId": "resident-004",
+      "capability": "world.apply_job",
+      "error": "unknown occupation Cook"
+    },
+    {
+      "sequence": 1830,
+      "actorId": "resident-004",
+      "capability": "world.apply_job",
+      "error": "unknown occupation Baker"
+    },
+    {
+      "sequence": 1831,
+      "actorId": "resident-004",
+      "capability": "world.apply_job",
+      "error": "residential-tier-too-low: residentialTier requires 4, available 1"
+    },
+    {
+      "sequence": 1833,
+      "actorId": "resident-004",
+      "capability": "world.apply_job",
+      "error": "application quota exceeded: allowed 1, used 1"
+    },
+    {
+      "sequence": 1910,
+      "actorId": "resident-001",
+      "capability": "world.apply_job",
+      "error": "application quota exceeded: allowed 1, used 1"
+    },
+    {
+      "sequence": 1983,
+      "actorId": "resident-004",
+      "capability": "world.apply_job",
+      "error": "application quota exceeded: allowed 1, used 1"
+    }
+  ],
+  "deltaAuthored": {
+    "spaces": 0,
+    "documents": 0,
+    "messages": 6,
+    "groups": 0,
+    "collectives": 0,
+    "registers": 0,
+    "views": 0,
+    "programs": 0,
+    "services": 0
+  },
+  "enterpriseIds": [],
+  "capitalImplementationDeployed": false,
+  "publicLabor": [
+    {
+      "id": "public-work-13053",
+      "actorId": "resident-003",
+      "status": "completed",
+      "elapsedMs": 28800000,
+      "earnedMicros": 253000000,
+      "paidMicros": 253000000,
+      "refundedMicros": 0
+    },
+    {
+      "id": "public-work-14735",
+      "actorId": "resident-002",
+      "status": "completed",
+      "elapsedMs": 14400000,
+      "earnedMicros": 125000000,
+      "paidMicros": 125000000,
+      "refundedMicros": 0
+    },
+    {
+      "id": "public-work-22919",
+      "actorId": "resident-003",
+      "status": "active",
+      "elapsedMs": 1020000,
+      "earnedMicros": 8960416,
+      "paidMicros": 8960416,
+      "refundedMicros": 0
+    }
+  ],
+  "limits": [
+    "four residents",
+    "initial seeded public jobs and housing restrictions",
+    "no autonomous enterprise or collective yet",
+    "not canonical or partition acceptance"
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "version": "resident-continuous-phase-observation-v1",
+  "finish": {
+    "event": "resident-society-finished",
+    "status": "limit-reached",
+    "opportunities": 1
+  },
+  "beforeRevision": 744,
+  "afterRevision": 756,
+  "simulationElapsedMs": 61000,
+  "historicalPrefixPreserved": true,
+  "journalHash": "90949d0ad7accf0e12bdf5290c71cb33345dc6b8c6b6aeaaad0ba8784a763224",
+  "opportunities": 1,
+  "capabilityCounts": {
+    "stocks.read/accepted": 2,
+    "production.read/accepted": 1,
+    "production.start/accepted": 1,
+    "sources.list/accepted": 1,
+    "production.gather/accepted": 2,
+    "schedule.wait/accepted": 1
+  },
+  "refusals": [],
+  "eventCounts": {
+    "worldEvents/SimulationTimeAdvanced": 3,
+    "worldEvents/ResidentMaterialsCommitted": 39,
+    "worldEvents/ResidentStudyCommitted": 6
+  },
+  "replayMatched": true,
+  "reopenDidNotAppend": true,
+  "provider": {
+    "actorId": "smoke-25-world-main-agent-017",
+    "turnId": "turn-746-smoke-25-world-main-agent-017",
+    "model": "opencode-go/deepseek-v4.1-flash",
+    "skillVersion": "town-resident-skill-v69",
+    "status": "completed",
+    "sha256": "cb403d9ea6ea416740ddec13c2f05b491367ebd3decebf79eb695d1d8eaa4631",
+    "termination": {
+      "exitSignal": null,
+      "aborted": false,
+      "abortReason": null,
+      "providerErrorEvent": false
+    }
+  },
+  "previousSessionPreserved": true,
+  "newlyEnabledCapabilitiesUsed": false,
+  "limitation": "One unprompted operational continuation; no evidence of adoption of periodic agreements, employment reform or housing choice."
+}

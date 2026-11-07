@@ -1,3 +1,5 @@
+import { residentIdentityAdmissionRejection } from '../residentAdmission';
+import { recognizeInitialQualification } from '@aivilization/society';
 import type { CommandEnvelope } from '@aivilization/sim-core';
 import {
   RUNTIME_AGENT_REGISTRATION_INITIAL_BALANCE,
@@ -9,11 +11,7 @@ import {
 import { assertRegisterAgentPayload } from '../commands';
 import type { WorldEvent } from '../events';
 import type { WorldProjection } from '../projection';
-import {
-  copyHumanAttribution,
-  makeEvent,
-  parsePayload,
-} from './shared';
+import { copyHumanAttribution, makeEvent, parsePayload } from './shared';
 
 export function handleRegisterAgentCommand(input: {
   readonly command: CommandEnvelope<'RegisterAgent', unknown>;
@@ -78,6 +76,21 @@ export function handleRegisterAgentCommand(input: {
       }),
     ];
   }
+  const admissionRejection = residentIdentityAdmissionRejection(input.projection, payload.agentId);
+  if (admissionRejection) {
+    return [
+      makeEvent(input, 0, 'AgentRegistrationRejected', {
+        registrationId: input.command.id,
+        policyVersion: RUNTIME_AGENT_REGISTRATION_POLICY_VERSION,
+        creatorId: payload.creatorId,
+        source: input.command.source,
+        displayName: payload.displayName,
+        agentId: payload.agentId,
+        reason: admissionRejection,
+        ...copyHumanAttribution(input.command),
+      }),
+    ];
+  }
   if (Object.keys(input.projection.agents).length >= RUNTIME_AGENT_REGISTRATION_MAX_POPULATION) {
     return [
       makeEvent(input, 0, 'AgentRegistrationRejected', {
@@ -123,6 +136,17 @@ export function handleRegisterAgentCommand(input: {
         locationId: null,
         physiology: { ...RUNTIME_AGENT_REGISTRATION_INITIAL_PHYSIOLOGY },
         educationScore: 0,
+        ...(input.projection.educationAuthority
+          ? {
+              educationLevel: 0 as const,
+              qualificationOrigin: recognizeInitialQualification({
+                educationScore: 0,
+                at: input.projection.clock.now,
+                mode: 'registration',
+                policy: input.projection.educationAuthority.institution,
+              }),
+            }
+          : {}),
         balance: RUNTIME_AGENT_REGISTRATION_INITIAL_BALANCE,
         residentialTier: RUNTIME_AGENT_REGISTRATION_INITIAL_RESIDENTIAL_TIER,
         job: null,

@@ -1,0 +1,91 @@
+{
+  "schemaVersion": "canonical-memory-continuity-evidence-v1",
+  "sourceSha256": {
+    "apps/worker/src/canonicalMemoryContinuation.ts": "13de5f6359a8fe56dd0dbc7506951a184bf93a67f5479e9cf201ce84399997d7",
+    "apps/worker/src/canonicalMemoryContinuation.test.ts": "8e180702036ff8c94f5d36d88a83f67915df5034b9b287e95d1e62147b7ff709",
+    "apps/worker/src/openSociety/canonicalMemory.ts": "4013c0988280bf19f3f36938bd0bcc557ae788ea36c2b84afbeaf635f184a1fb",
+    "apps/worker/src/openSociety/types.ts": "0bf4d95447229a5df89b94bf5cb13244bc5796c8b26d9ed1f692e8a7097de21b",
+    "apps/worker/src/openSociety/state.ts": "802e197d3c1003213b976c68cf81e3da426b74e284cc38046514cab595168498",
+    "apps/worker/src/openSociety/context.ts": "3d9f440967b36da321b9a6b230abab5b542548fc97e714ff169860b7adcec3d4",
+    "apps/worker/src/openSociety/cognitionTools.ts": "f27d40a590b5fed273ef462116a738882584b090ec0b6bac3bedfd243979ec9a",
+    "apps/residents/scripts/verify-canonical-memory-continuity.mjs": "180ed1e34906154c98a016b4f95340a2cd89c6e40644baa079a38590430ee9db",
+    "apps/residents/package.json": "0eb4afed721d2a9782a8417de7e92f833e5a2bf8dda1992ea3f305e056796ea5",
+    "pnpm-lock.yaml": "c808e86364a77f368a5d415c508fd195c4a080f5a5d59df52deb4296d5916038"
+  },
+  "validation": {
+    "targeted": {
+      "passed": 3,
+      "log": "/tmp/canonical-memory-tests2.log",
+      "covers": "601 records, non-monotonic timestamps, original raw records, private read, restart replay, no default text injection, malformed/non-progressing pages, legacy empty default."
+    },
+    "lint": {
+      "passed": true,
+      "log": "/tmp/canonical-memory-lint2.log"
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/canonical-memory-typecheck.log"
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/canonical-memory-build.log"
+    },
+    "tests": {
+      "passed": 3246,
+      "skipped": 1,
+      "filesPassed": 489,
+      "log": "/tmp/canonical-memory-full-tests.log"
+    }
+  },
+  "archive": {
+    "passed": true,
+    "archive": "/home/dev/aivilization-town/.local/canonical-ownership-20261007/archive",
+    "residents": 25,
+    "partitions": 1,
+    "ledgerRecords": 25,
+    "perResident": {
+      "smoke-25-world-main-agent-001": 1,
+      "smoke-25-world-main-agent-002": 1,
+      "smoke-25-world-main-agent-003": 1,
+      "smoke-25-world-main-agent-004": 1,
+      "smoke-25-world-main-agent-005": 1,
+      "smoke-25-world-main-agent-006": 1,
+      "smoke-25-world-main-agent-007": 1,
+      "smoke-25-world-main-agent-008": 1,
+      "smoke-25-world-main-agent-009": 1,
+      "smoke-25-world-main-agent-010": 1,
+      "smoke-25-world-main-agent-011": 1,
+      "smoke-25-world-main-agent-012": 1,
+      "smoke-25-world-main-agent-013": 1,
+      "smoke-25-world-main-agent-014": 1,
+      "smoke-25-world-main-agent-015": 1,
+      "smoke-25-world-main-agent-016": 1,
+      "smoke-25-world-main-agent-017": 1,
+      "smoke-25-world-main-agent-018": 1,
+      "smoke-25-world-main-agent-019": 1,
+      "smoke-25-world-main-agent-020": 1,
+      "smoke-25-world-main-agent-021": 1,
+      "smoke-25-world-main-agent-022": 1,
+      "smoke-25-world-main-agent-023": 1,
+      "smoke-25-world-main-agent-024": 1,
+      "smoke-25-world-main-agent-025": 1
+    },
+    "recordsSha256": "d5ffcca0f672f598722695907f15f35f4dfd3a3e67b2541bbd49d6bd8ee1f022",
+    "archiveUnchanged": true,
+    "limitations": [
+      "All ledger pages for current residents in all declared captured partitions; not proof of history for departed subjects.",
+      "Long-term profiles, planner intent and branch histories remain separately archived and are not imported by this slice.",
+      "No target activation or new model experiment."
+    ]
+  },
+  "archiveLog": "/tmp/canonical-memory-archive.log",
+  "retainedFailures": [
+    "/tmp/canonical-memory-tests.log: fixture used unavailable timestamp helper and omitted context policy argument; corrected against current public API.",
+    "/tmp/canonical-memory-lint.log: synchronous mock now returns Promise.resolve rather than async without await."
+  ],
+  "limits": [
+    "Full current-resident ledger, not full cognition: profiles, intent, branch history and exited residents still require mapping.",
+    "Initial historical records currently reside in manifest/read state; runtime memory proportional to retained history.",
+    "No migrated real world activated; no new model/emergence experiment; full 25-capability goal remains active."
+  ]
+}

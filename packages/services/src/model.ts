@@ -1,3 +1,27 @@
+import { applyServicePolicyUpgrade, type ServicePolicyUpgradeEvent } from './policyTransition';
+import { applyServiceSupplyRelationEvent } from './serviceSupplyRelations';
+import type {
+  ServiceSupplyRelation,
+  ServiceSupplyRelationEvent,
+  ServiceSupplyRelationPolicy,
+} from './serviceSupplyRelationModel';
+import { applyServiceAffiliationEvent } from './serviceAffiliation';
+import type { ServiceAffiliationEvent, ServiceAffiliations } from './serviceAffiliationModel';
+import { applyServicePrincipalEvent } from './servicePrincipals';
+import { applyServiceSupplyEvent } from './serviceSupply';
+import type { ServiceSupplyEvent, ServiceDirectoryRegistration } from './serviceSupplyModel';
+import type { ServicePrincipalEvent, ServicePrincipalsPolicy } from './servicePrincipalModel';
+import {
+  type ResourceControl,
+  type PrincipalControl,
+  type PrincipalAuthorization,
+  type PrincipalOperationRequest,
+} from '@aivilization/authority';
+import type { ServiceControlEvent, ServiceControlPolicy } from './serviceControlModel';
+import { applyServiceRecordEvent } from './serviceRecordEvents';
+import { assertOrdinaryServiceRecord } from './ordinaryServiceRecords';
+import { applyServiceControlEvent } from './serviceControl';
+
 export const SERVICES_POLICY = {
   version: 'resident-services-v1',
   maxCapacity: 100,
@@ -29,9 +53,15 @@ export function assertServicesPolicy(p: ServicesPolicy) {
     throw new Error('invalid-services-policy');
 }
 export type ServiceKind = 'appointment' | 'course' | 'event' | 'transport' | 'lodging';
+export const validServiceRecordId = (id: string): boolean =>
+  /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/.test(id) && id !== 'constructor';
 export type Service = {
+  supplyRelation?: ServiceSupplyRelation;
   id: string;
   ownerId: string;
+  control?: ResourceControl | PrincipalControl;
+  principalAt?: number;
+  namedProviders?: readonly string[];
   kind: ServiceKind;
   locationId: string;
   destinationId?: string;
@@ -86,7 +116,13 @@ export type QueueEntry = {
   at: number;
 };
 export type ServicesState = {
+  policyTransition?: Omit<ServicePolicyUpgradeEvent, 'type' | 'policy'>;
+  affiliations?: ServiceAffiliations;
+  relationPolicy?: ServiceSupplyRelationPolicy;
+  registration?: ServiceDirectoryRegistration;
   policy: ServicesPolicy;
+  controlPolicy?: ServiceControlPolicy;
+  principalPolicy?: ServicePrincipalsPolicy;
   services: Readonly<Record<string, Service>>;
   slots: Readonly<Record<string, ServiceSlot>>;
   bookings: Readonly<Record<string, Booking>>;
@@ -94,6 +130,12 @@ export type ServicesState = {
   sequence: number;
 };
 export type ServicesEvent =
+  | ServicePolicyUpgradeEvent
+  | ServiceSupplyRelationEvent
+  | ServiceAffiliationEvent
+  | ServiceSupplyEvent
+  | ServiceControlEvent
+  | ServicePrincipalEvent
   | { type: 'ServicesEnabled'; policy: ServicesPolicy }
   | { type: 'ServiceChanged'; service: Service }
   | { type: 'ServiceSlotChanged'; slot: ServiceSlot }
@@ -138,6 +180,7 @@ export type ServicesCommand =
   | { type: 'leave'; id: string }
   | { type: 'call'; id: string; slotId: string; bookingId: string };
 export type ServicesPorts = {
+  principalAdministration?: PrincipalAuthorization<PrincipalOperationRequest>;
   exists: (id: string) => boolean;
   controlsEnterprise?: (actorId: string, enterpriseId: string) => boolean;
   employedBy?: (actorId: string, enterpriseId: string) => boolean;
@@ -149,31 +192,44 @@ export function emptyServicesState(policy: ServicesPolicy = SERVICES_POLICY): Se
   return { policy, services: {}, slots: {}, bookings: {}, queues: {}, sequence: 0 };
 }
 export function applyServicesEvent(s: ServicesState | undefined, e: ServicesEvent): ServicesState {
+  if (
+    e.type === 'ServiceSupplyRelationsEnabled' ||
+    e.type === 'ServiceSupplyRelationChanged' ||
+    e.type === 'ServiceSupplyPrincipalControlChanged'
+  ) {
+    if (!s) throw Error('services-not-enabled');
+    return applyServiceSupplyRelationEvent(s, e);
+  }
+  if (
+    e.type === 'ServiceAffiliationsEnabled' ||
+    e.type === 'ServiceAffiliationConsentApproved' ||
+    e.type === 'ServiceAffiliationConsentRevoked' ||
+    e.type === 'ServiceAffiliatedPrincipalControlChanged'
+  ) {
+    if (!s) throw Error('services-not-enabled');
+    return applyServiceAffiliationEvent(s, e);
+  }
   if (e.type === 'ServicesEnabled') {
     if (s) throw new Error('services-already-enabled');
     return emptyServicesState(e.policy);
   }
   if (!s) throw new Error('services-not-enabled');
-  const revision = (previous: number | undefined, next: number) => {
-    if ((previous ?? 0) + 1 !== next) throw new Error('services-revision-gap');
-  };
-  switch (e.type) {
-    case 'ServiceChanged':
-      revision(s.services[e.service.id]?.revision, e.service.revision);
-      return { ...s, services: { ...s.services, [e.service.id]: e.service } };
-    case 'ServiceSlotChanged':
-      revision(s.slots[e.slot.id]?.revision, e.slot.revision);
-      return { ...s, slots: { ...s.slots, [e.slot.id]: e.slot } };
-    case 'BookingChanged':
-      revision(s.bookings[e.booking.id]?.revision, e.booking.revision);
-      return { ...s, bookings: { ...s.bookings, [e.booking.id]: e.booking } };
-    case 'QueueEntryChanged':
-      if (!s.queues[e.entry.id] && e.entry.sequence !== s.sequence + 1)
-        throw new Error('queue-sequence-gap');
-      return {
-        ...s,
-        sequence: Math.max(s.sequence, e.entry.sequence),
-        queues: { ...s.queues, [e.entry.id]: e.entry },
-      };
-  }
+  if (e.type === 'ServicePolicyUpgraded') return applyServicePolicyUpgrade(s, e);
+  if (
+    e.type === 'ServiceSupplyEnabled' ||
+    e.type === 'PrincipalServiceCreated' ||
+    e.type === 'PrincipalServiceReopened'
+  )
+    return applyServiceSupplyEvent(s, e);
+  if (
+    e.type === 'ServicePrincipalsEnabled' ||
+    e.type === 'ServicePrincipalAuthoritySeparated' ||
+    e.type === 'ServicePrincipalControlChanged' ||
+    e.type === 'ServicePrincipalOperationCommitted'
+  )
+    return applyServicePrincipalEvent(s, e);
+  if (e.type === 'ServiceControlEnabled' || e.type === 'ServiceControlChanged')
+    return applyServiceControlEvent(s, e);
+  assertOrdinaryServiceRecord(s, e);
+  return applyServiceRecordEvent(s, e);
 }

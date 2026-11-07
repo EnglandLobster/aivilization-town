@@ -1,0 +1,45 @@
+{
+  "ok": true,
+  "scope": "original-lease-settlement-engineering-only",
+  "quality": {
+    "lint": true,
+    "typecheck": true,
+    "dependencyOrderedBuild": true,
+    "testsPassed": 3314,
+    "testsSkipped": 1
+  },
+  "targetedTests": 23,
+  "newIntegrationTests": 6,
+  "compiled": {
+    "version": "lease-exit-continuity-verification-v1",
+    "acceptance": true,
+    "cases": [
+      {
+        "departed": "host",
+        "replayEqual": true,
+        "leaseStatus": "ended",
+        "depositHeld": 0,
+        "moneySupply": 40,
+        "preservedEstateCash": [
+          20
+        ]
+      },
+      {
+        "departed": "tenant",
+        "replayEqual": true,
+        "leaseStatus": "ended",
+        "depositHeld": 0,
+        "moneySupply": 40,
+        "preservedEstateCash": [
+          20
+        ]
+      }
+    ]
+  },
+  "limitations": [
+    "No natural population activation",
+    "No new succession CLI or OpenCode acceptance",
+    "Full consumer coverage and canonical/partition lifecycle still pending"
+  ],
+  "priorFailureEvidence": "SOCIETY_LEASE_EXIT_GAP_2026-10-07.json"
+}

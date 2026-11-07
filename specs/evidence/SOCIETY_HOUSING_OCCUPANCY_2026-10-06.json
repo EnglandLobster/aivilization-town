@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "society-housing-occupancy-verification-v1",
+  "scope": "H3 occupancy continuity slice; full housing and 25-capability target remain incomplete",
+  "versions": {
+    "catalog": 48,
+    "skill": 47,
+    "rulebook": 37,
+    "routes": 377
+  },
+  "domainWorldWorkerTests": 5,
+  "validation": {
+    "command": "pnpm check",
+    "testsPassed": 2813,
+    "testsSkipped": 1,
+    "filesPassed": 407,
+    "filesSkipped": 1
+  },
+  "build": "pnpm --filter @aivilization/residents... build",
+  "compiledCLI": {
+    "calls": 11,
+    "refusals": 5,
+    "replayEqual": true,
+    "originalManifestUnchanged": true
+  },
+  "liveFreeEngineContainsThisSlice": false,
+  "limitations": [
+    "No automatic eviction, debt erasure or private contract termination.",
+    "Enterprise/public asset principals and complete housing service supply remain pending.",
+    "Canonical/partition/full long-term modes remain pending."
+  ]
+}

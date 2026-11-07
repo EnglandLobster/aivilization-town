@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T19:46:18.480026+00:00",
+  "spec": "specs/SOCIETY_COMMIT_DELIVERY_V1.md",
+  "status": "complete-fact-delivery-verified-partition-compute-and-scheduling-incomplete",
+  "newResidentCapabilities": 0,
+  "newDomainRules": 0,
+  "newTests": 6,
+  "fullTests": {
+    "passed": 3156,
+    "skipped": 1,
+    "filesPassed": 470,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/society-delivery-lint-checked.log"
+    },
+    "finalTestLint": {
+      "exitCode": 0,
+      "log": "/tmp/society-delivery-final-test-lint.log"
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "log": "/tmp/society-delivery-typecheck-verified.log"
+    },
+    "build": {
+      "exitCode": 0,
+      "log": "/tmp/society-delivery-build-verified.log"
+    },
+    "tests": {
+      "exitCode": 0,
+      "log": "/tmp/society-delivery-tests-full.log"
+    },
+    "compiledProcess": {
+      "exitCode": 0,
+      "log": "/tmp/society-delivery-process-final.log"
+    }
+  },
+  "realProcess": {
+    "artifact": ".local/open-residents/commit-delivery-20261007-2/verification.json",
+    "sha256": "55deffd14ee82e628f57d23fecdb2a504e519e09f4a1faa57696c8649bcc571b",
+    "report": {
+      "passed": true,
+      "evidenceClass": "scripted-real-process-not-emergence",
+      "lostAcknowledgement": "receiver-killed-after-durable-return-no-cursor-saved",
+      "signal": "SIGKILL",
+      "restartFromDurableCursor": true,
+      "retryJournalUnchanged": true,
+      "completeStateEqual": true,
+      "originalDepositOnce": true,
+      "residentFeedDenied": true,
+      "replicaCannotOwnAuthority": true
+    }
+  },
+  "sourceHashes": {
+    "apps/worker/src/openSociety/journal.ts": "be7554125f076d625e06bebd072eacc300dd0acedf71f9e51b3de0d18df8cd03",
+    "apps/worker/src/openSociety/commitDelivery.ts": "87333b0a7b59e5816cc40d209b484ef0278001a92a0a48182312077b3f96d391",
+    "apps/worker/src/openSociety/commitDelivery.test.ts": "9440035f8bb6700af94eb14de7abd55f7c6fc1c55c049e30a44192b51f041006",
+    "apps/worker/src/index.ts": "c3118742717a9c69a753bcbc2cb81994e400384e82051a91e70efb58a0545205",
+    "apps/residents/src/replica.ts": "d9a3f287f55df275f09761217b4c74c9bba53ba475abefdff1345edc3a31f970",
+    "apps/residents/src/replica.test.ts": "14dbac55ef050d9af556868392ad64f17a72c824bf456608253fff560a38b75b",
+    "apps/residents/src/server.ts": "4d13332c333616b4c5a6ce66f3733f284b3714973ed8d40e4fbf3da29062617f",
+    "apps/residents/src/cli.ts": "9ac5e5815ef9eb421d585acbe77e0220cc51db4190f80a8131e50e464ebe9f11",
+    "apps/residents/src/index.ts": "204bdf0c85ba9966356aa491a640ad935c5e4f861e61b47b6adb6db1a589a454",
+    "apps/residents/scripts/verify-commit-delivery.mjs": "a59c52f16fd880ec45a8ce01322d0db588284109fc3124e64cc1541716bb7540"
+  },
+  "initialVerificationIssues": [
+    "readonly array narrowed to any by Array.isArray; retained explicit readonly alias without lint suppression",
+    "test receipt lacked revision/simulationTime; corrected fixture",
+    "temporary receiver source in experiment directory was included by lint; retained receiver.txt evidence and executed via stdin, no lint exclusion added"
+  ],
+  "limitations": [
+    "trusted admin feed is not least-privilege partition authentication",
+    "server still listens on localhost; no multi-host fencing or failover",
+    "replica does not execute resident decisions or schedule time",
+    "no canonical migration or full R01 completion",
+    "scripted process verification is not real-model or emergence evidence"
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "acceptance": false,
+  "kind": "verified-gap-diagnostic",
+  "cases": [
+    {
+      "state": "loaded-parked-vehicle",
+      "observed": "departure candidate accepted but entrusted cargo remains assigned to absent carrier; authorized other driver cannot move it or return cargo"
+    },
+    {
+      "state": "loaded-vehicle-mid-journey",
+      "observed": "candidate refused; capture-first deletes body transit while retaining vehicle journey, arrival never completes"
+    }
+  ],
+  "invariantsStillHeld": [
+    "original cargo remains in material custody",
+    "escrow and circulating cash conserved",
+    "dead personal actions and unauthorized substitute denied",
+    "input unchanged"
+  ],
+  "rootCauses": [
+    "immutable contract carrier is also current custodian and operator",
+    "capture uses origin locationId while physical trip is tracked separately",
+    "body removal deletes transit needed by vehicle arrival"
+  ],
+  "quality": {
+    "diagnosticCases": 2,
+    "testsPassed": 3352,
+    "testsSkipped": 1,
+    "lint": true,
+    "typecheck": true,
+    "finalFileLint": true,
+    "finalWorldTypecheck": true,
+    "build": "not rerun: tests and docs only"
+  },
+  "logs": {
+    "tests": "/tmp/transport-departure-gap-tests.log",
+    "lint": "/tmp/transport-departure-gap-lint.log",
+    "typecheck": "/tmp/transport-departure-gap-typecheck.log",
+    "finalWorldTypecheck": "/tmp/transport-departure-gap-final-world-typecheck.log"
+  },
+  "notClaimed": [
+    "physical interruption implementation",
+    "custody handoff implementation",
+    "natural population or atomic runtime integration",
+    "canonical/partition or OpenCode validation"
+  ]
+}

@@ -1,6 +1,10 @@
+import { enterpriseRequiresManagement } from '@aivilization/enterprise';
+import type { ControlAuthorizationPort } from '@aivilization/authority';
+import { enterpriseMayOperate, enterpriseManagementAuthority } from '@aivilization/enterprise';
 import { calculateLaborPay, type LaborPayPolicy } from '@aivilization/society';
 import {
   getInventoryQuantity,
+  resolveInventoryRequest,
   planProduction,
   type ProductionEfficiencyPolicy,
   type ProductionRecipeOverride,
@@ -65,7 +69,8 @@ export function handleAgentEatCommand(input: {
 
   const payload = payloadResult.payload;
   const available = getInventoryQuantity(agent.inventory, payload.commodityName);
-  if (available < payload.quantity) {
+  const resolved = resolveInventoryRequest(available, payload.quantity);
+  if (!resolved) {
     return rejectCommand(
       input,
       'AgentEat',
@@ -98,7 +103,7 @@ export function handleAgentEatCommand(input: {
     ...agent.physiology,
     satiety: Math.min(
       maxSatiety.value,
-      agent.physiology.satiety + satietyRecovery * payload.quantity,
+      agent.physiology.satiety + satietyRecovery * resolved.quantity,
     ),
   };
 
@@ -106,7 +111,8 @@ export function handleAgentEatCommand(input: {
     makeEvent(input, 0, 'InventoryChanged', {
       agentId: agent.agentId,
       itemName: payload.commodityName,
-      delta: -payload.quantity,
+      delta: -resolved.quantity,
+      ...(resolved.quantityResolution ? { quantityResolution: resolved.quantityResolution } : {}),
       reason: 'eat',
     }),
     makeEvent(input, 1, 'PhysiologyChanged', {
@@ -116,7 +122,7 @@ export function handleAgentEatCommand(input: {
       reason: 'eat',
     }),
     makeMemoryEvent(input, 2, {
-      summary: `Ate ${payload.quantity} ${payload.commodityName}.`,
+      summary: `Ate ${resolved.quantity} ${payload.commodityName}.`,
       status: 'succeeded',
       tags: ['eat', payload.commodityName],
     }),
@@ -738,6 +744,7 @@ export function handleAgentWorkCommand(input: {
 
 export function handleAgentProduceCommand(input: {
   readonly command: CommandEnvelope<'AgentProduce', unknown>;
+  readonly enterpriseAuthorization?: ControlAuthorizationPort;
   readonly projection: WorldProjection;
   readonly randomSeed?: string;
   readonly recipeOverrides?: readonly ProductionRecipeOverride[];
@@ -750,6 +757,12 @@ export function handleAgentProduceCommand(input: {
   };
   readonly nextSequence: number;
 }): WorldEvent[] {
+  if (input.projection.materials?.extraction)
+    return rejectCommand(
+      input,
+      'AgentProduce',
+      'physical-production-required: use town production recipes; town sources list; town production create or gather, then start',
+    );
   const agent = resolveCommandAgent(input.projection, input.command);
   const payloadResult = parsePayload(() => assertAgentProducePayload(input.command.payload));
   if (payloadResult.status === 'invalid') {
@@ -766,8 +779,7 @@ export function handleAgentProduceCommand(input: {
       return rejectCommand(input, 'AgentProduce', 'enterprise is missing or closed');
     }
     if (
-      enterprise.ownerAgentId !== agent.agentId &&
-      !enterprise.employeeAgentIds.includes(agent.agentId)
+      !enterpriseMayOperate(enterprise, agent.agentId, 'produce', input.enterpriseAuthorization)
     ) {
       return rejectCommand(input, 'AgentProduce', 'agent is not authorized for enterprise');
     }
@@ -872,6 +884,16 @@ export function handleAgentProduceCommand(input: {
   }
   events.push(
     makeEvent(input, events.length, 'CommodityProduced', {
+      ...(enterprise && enterpriseRequiresManagement(enterprise)
+        ? {
+            managementAuthority: enterpriseManagementAuthority(
+              enterprise,
+              agent.agentId,
+              'produce',
+              input.enterpriseAuthorization,
+            )!,
+          }
+        : {}),
       agentId: agent.agentId,
       produced: productionPlan.produced,
       consumedInputs: productionPlan.consumedInputs,

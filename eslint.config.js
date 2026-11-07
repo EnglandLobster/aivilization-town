@@ -3,7 +3,15 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**', '.qoder/**', '.zcode/**'],
+    // Runtime journals, provider workspaces and experiment artifacts are not repository source.
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      '.local/**',
+      '.qoder/**',
+      '.zcode/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -23,7 +31,13 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs', 'apps/web/tools/**/*.mjs', 'apps/residents/scripts/**/*.mjs'],
+    files: [
+      'scripts/**/*.mjs',
+      'apps/web/tools/**/*.mjs',
+      'apps/residents/scripts/**/*.mjs',
+      'apps/server/scripts/**/*.mjs',
+      'apps/worker/scripts/**/*.mjs',
+    ],
     ...tseslint.configs.disableTypeChecked,
     languageOptions: {
       parserOptions: {

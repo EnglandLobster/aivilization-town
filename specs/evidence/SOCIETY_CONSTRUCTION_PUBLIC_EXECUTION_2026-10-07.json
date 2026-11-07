@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T21:41:54.378321+00:00",
+  "spec": "specs/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md",
+  "status": "public-construction-consent-and-atomic-fiscal-composite-verified-runtime-entry-incomplete",
+  "newTests": 5,
+  "newResidentCapabilities": 0,
+  "fullTests": {
+    "passed": 3200,
+    "skipped": 1,
+    "filesPassed": 480,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/construction-public-lint.log"
+    },
+    "finalTestLint": {
+      "exitCode": 0,
+      "log": "/tmp/construction-public-final-test-lint.log"
+    },
+    "sortedFullTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/construction-public-typecheck-final.log"
+    },
+    "worldAndDependenciesBuild": {
+      "exitCode": 0,
+      "log": "/tmp/construction-public-build.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-public-full-tests.log"
+    },
+    "targetedTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-public-tests2.log"
+    },
+    "reserveTest": {
+      "exitCode": 0,
+      "log": "/tmp/construction-public-reserve-test.log"
+    }
+  },
+  "sourceSha256": {
+    "packages/governance/src/model.ts": "07b8d4808326fffcf91489b167a365c8e814ea65ba2459fed53a77f49f88002d",
+    "packages/governance/src/validation.ts": "9261e9cc84ba5fe3000ba8ce609ac206eba62c0cca90ea779b0d997053abace0",
+    "packages/governance/src/resourcePrincipal.ts": "88f1ec24db9cbcfd1c5409fb0bf301768054c3020bbf7863786dc28fdbd368bf",
+    "packages/governance/src/decisions.ts": "07045406c30f9b240da5b0523da0aab09e93a0616eaf3ca9731ee3d60375c3c6",
+    "packages/governance/src/events.ts": "f40568cfc9e3325ec4572fa6366701fcdb9d2c790cd7314429fb4dba92d26b60",
+    "packages/governance/src/constructionTradeAuthority.test.ts": "7a5feed2e7303ef83a2611d3062eca1c8db6f82b5ceb2d2ac4ede46bd1c9b4b1",
+    "packages/world/src/constructionTradeCommandCodec.ts": "9d5b5e327e3b250d012d4a5d9168fbb1efc8a3fc98d4d5834b3f8ea126f983eb",
+    "packages/world/src/constructionTradeCommandCodec.test.ts": "55698f9874146d58e441fcfdfeb9ac6e00645b29a7f43677c9743cf0f73bb38a",
+    "packages/world/src/constructionTradePorts.ts": "765d7aab152fa48d94b10d33900f0306219840f9c7ecbd967ff175419105be0b",
+    "packages/world/src/residentConstructionTrade.ts": "0588f88fa9cbf4a93fbe1d0be0b4bf36d2cc515da3f447cb8bc1e6ce55d79a41",
+    "packages/world/src/publicConstructionTradeOperation.ts": "6b7c222fd058675a4fd8553b601b801f27919d8f3b6505a04b4d42489f0aa2dc",
+    "packages/world/src/publicConstructionTrade.test.ts": "24bc45d296f5309de1c01dcc6edd285fa62bb13ab8b4cfdaeff4826f31982c94",
+    "packages/world/src/residentPublicGovernance.ts": "bf6cef1d557534f1bb7271955a7b8b8cf8fbc4576369906c6abcc2398191af10",
+    "packages/world/src/events.ts": "4d7875bcc013ae2187154a76112db32904de15273e12a9bf6eb0c9be43033171",
+    "packages/world/src/projectionReducers/publicGovernance.ts": "3f6612c41eb188a516b8ef73608c0548b8522cbad4d9c88f480423ba7507c2e3"
+  },
+  "verified": [
+    "explicit public procurement grant is distinct from physical construction authority",
+    "proposal captures scope version; prior absent scope does not acquire authority on activation",
+    "exact operation decoder rejects unknown fields, actor injection, nonfinite numbers and mismatched resource identity/version",
+    "independent two-voter approval and authorized execution atomically fund real treasury escrow and consume decision",
+    "standalone public packet, missing effect, altered transactions, repeated execution and reserve violation rejected without state publication",
+    "withdrawal retains escrow and physical project; separately approved settlement pays 7 and returns 23 to original treasury",
+    "full WorldEvent replay from explicit engineering public-project snapshot conserves 400 total; executor wallet unchanged"
+  ],
+  "initialFailures": [
+    {
+      "log": "/tmp/construction-public-pretype.log",
+      "reason": "decoded side widened to string; fixed by immutable typed base"
+    },
+    {
+      "log": "/tmp/construction-public-typecheck.log",
+      "reason": "test helper used pure domain PublicCommand instead of application command including execute; corrected helper type"
+    },
+    {
+      "log": "/tmp/construction-public-typecheck2.log",
+      "reason": "reserve test fixture omitted world governance provenance; added explicit fixture provenance"
+    }
+  ],
+  "remaining": [
+    "actual public project creation through procurement and completion via resident entry",
+    "actual common-account authorization and receipt consumption composition",
+    "worker action routing, cadence, manifest registry and explicit migration",
+    "CLI and bounded discovery with true OpenCode acceptance",
+    "canonical and partition integration, full 25-capability delivery",
+    "free adoption observation; no new model run in this slice"
+  ]
+}

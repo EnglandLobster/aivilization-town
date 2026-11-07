@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "canonical-planning-continuity-evidence-v1",
+  "sourceSha256": {
+    "apps/worker/src/canonicalCognitiveDocuments.ts": "687a6d97f5650af5300ca6dfd6fdc3223062feacfdc307dfb81885fa0da58e02",
+    "apps/worker/src/canonicalPlanningContinuation.test.ts": "12ee6ee5fd0c6f5a2c583509ccd882295f44628cab617c517d660e2e564130b3",
+    "apps/worker/src/openSociety/canonicalCognition.ts": "a6c9b3fb892fff8ae692eb37038a27dd61ad7f2158a071b80f1cfb7255bbf13e",
+    "apps/residents/scripts/verify-canonical-planning-continuity.mjs": "8d523de777578c805c558e64d467a625407de04e30c3163f591771ae676f60d8"
+  },
+  "validation": {
+    "targeted": {
+      "passed": 3,
+      "log": "/tmp/canonical-planning-tests.log",
+      "scope": "65 stored plans, 64 existing progress records, missing progress not synthesized, wrong plan progress rejected, incomplete partition planning source rejected, personal read and restart replay; prior profile/intention tests included."
+    },
+    "lint": {
+      "passed": true,
+      "log": "/tmp/canonical-planning-lint.log",
+      "scriptLog": "/tmp/canonical-planning-script-lint.log"
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/canonical-planning-typecheck.log"
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/canonical-planning-build.log"
+    },
+    "tests": {
+      "passed": 3249,
+      "skipped": 1,
+      "filesPassed": 491,
+      "log": "/tmp/canonical-planning-full-tests.log"
+    }
+  },
+  "archive": {
+    "passed": true,
+    "archive": "/home/dev/aivilization-town/.local/canonical-ownership-20261007/archive",
+    "residents": 25,
+    "partitions": 1,
+    "ledgerRecords": 25,
+    "branchPlans": 25,
+    "branchProgress": 25,
+    "profileSnapshots": 25,
+    "intentionSnapshots": 25,
+    "documentsSha256": "21b0547c671378b88e9d6e618d54f68d91414780c7973f69dae77eb8d2fe389a",
+    "perResident": {
+      "smoke-25-world-main-agent-001": 1,
+      "smoke-25-world-main-agent-002": 1,
+      "smoke-25-world-main-agent-003": 1,
+      "smoke-25-world-main-agent-004": 1,
+      "smoke-25-world-main-agent-005": 1,
+      "smoke-25-world-main-agent-006": 1,
+      "smoke-25-world-main-agent-007": 1,
+      "smoke-25-world-main-agent-008": 1,
+      "smoke-25-world-main-agent-009": 1,
+      "smoke-25-world-main-agent-010": 1,
+      "smoke-25-world-main-agent-011": 1,
+      "smoke-25-world-main-agent-012": 1,
+      "smoke-25-world-main-agent-013": 1,
+      "smoke-25-world-main-agent-014": 1,
+      "smoke-25-world-main-agent-015": 1,
+      "smoke-25-world-main-agent-016": 1,
+      "smoke-25-world-main-agent-017": 1,
+      "smoke-25-world-main-agent-018": 1,
+      "smoke-25-world-main-agent-019": 1,
+      "smoke-25-world-main-agent-020": 1,
+      "smoke-25-world-main-agent-021": 1,
+      "smoke-25-world-main-agent-022": 1,
+      "smoke-25-world-main-agent-023": 1,
+      "smoke-25-world-main-agent-024": 1,
+      "smoke-25-world-main-agent-025": 1
+    },
+    "recordsSha256": "d5ffcca0f672f598722695907f15f35f4dfd3a3e67b2541bbd49d6bd8ee1f022",
+    "archiveUnchanged": true,
+    "limitations": [
+      "All ledger pages for current residents in all declared captured partitions; not proof of history for departed subjects.",
+      "Latest existing profiles and intentions decoded via original repositories; latest plans and their existing progress included; historical revisions and orphan progress remain archived and require separate mapping.",
+      "No target activation or new model experiment."
+    ]
+  },
+  "archiveLog": "/tmp/canonical-planning-archive.log",
+  "limitations": [
+    "All stored plan IDs latest state and matching existing progress; not every historical revision or orphan progress.",
+    "Source raw files retained unchanged; no current execution permissions inferred from old plans.",
+    "No target activation, source retirement or new model experiment; complete R01 and all25 remain active."
+  ]
+}

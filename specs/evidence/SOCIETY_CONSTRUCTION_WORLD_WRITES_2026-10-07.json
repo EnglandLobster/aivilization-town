@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T21:31:56.507109+00:00",
+  "spec": "specs/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md",
+  "status": "atomic-private-and-enterprise-construction-world-writes-verified-public-runtime-entry-incomplete",
+  "newTests": 7,
+  "newResidentCapabilities": 0,
+  "fullTests": {
+    "passed": 3195,
+    "skipped": 1,
+    "filesPassed": 477,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/construction-write-lint.log"
+    },
+    "sortedFullTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/construction-write-typecheck.log"
+    },
+    "worldAndDependenciesBuild": {
+      "exitCode": 0,
+      "log": "/tmp/construction-write-build.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-write-full-tests.log"
+    },
+    "finalWorldTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/construction-write-final-typecheck.log"
+    },
+    "workerBuild": {
+      "exitCode": 0,
+      "log": "/tmp/construction-write-worker-build.log"
+    },
+    "finalTestLint": {
+      "exitCode": 0,
+      "log": "/tmp/construction-write-final-test-lint.log"
+    },
+    "enterpriseWorldTargetedTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-write-tests-3.log"
+    },
+    "finalWorldTargetedTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-write-enterprise-test.log"
+    }
+  },
+  "sourceSha256": {
+    "packages/world/src/residentConstructionTrade.ts": "2a287d7ce2fbf4247c6a7e1fa19be6df1afa9cff66a385820c57fa91e5a435ae",
+    "packages/world/src/constructionTradeEnterpriseAccounting.ts": "0583f94a3677cf4b21f2d28fc8be6e79737351afaf19cbd81db20e204d53f439",
+    "packages/world/src/residentConstructionTrade.test.ts": "ead52ee5d64ca899557f91625326f2761f78e442374eab18e12571492a301dea",
+    "packages/enterprise/src/tradeAccounting.ts": "fb5443c575ba37adbe590a5bbe10faf5b3c62fd518646e4a8eeef285de8a5e4c",
+    "packages/enterprise/src/tradeAccounting.test.ts": "aa07f7a88b85c61e46ae46e1a9d9af005706630ef6ba42dadfafe9172a643bd5",
+    "packages/economy/src/commonAccountModel.ts": "b3e9e80a6d5f39a9a34ef150a3d34a029ccf7caa4b9c71157648c02df6a0cb43",
+    "packages/world/src/escrowEnterpriseAccounting.ts": "55d3e9e1e71cc390ce1006dc3ccb5a81f18ce4dd6c328528ea33f97fda27b3ac",
+    "packages/commerce/src/constructionTrade.ts": "d6a6125b6cb248cad800b5139c5af7ee7b7b27be0b3ff82cc4cf57c7eb972c33",
+    "packages/sim-core/src/event.ts": "dff688cee44f6fc111e5a64e89bb3bf65a545cde22facd54314bc3e66f8856b5",
+    "packages/world/src/events.ts": "033b307cf690996400aaf034cc76096b0ff879411e445be27a9f5ef83d3d05dd",
+    "packages/world/src/projection.ts": "6eb4ff56fffcfb6f545660a040b16280e4be5d33a00cbb00077cef575be36f50",
+    "packages/world/src/index.ts": "f1164da5e15b202038c6db04d41dedf2fe253300b603eb8070166af0965e24ea",
+    "apps/worker/src/openSociety/principalCollectiveAuthority.ts": "fa9260cab9cee21cdeee60e2904119468d76f71052eebd0d1ced236fc309014d"
+  },
+  "verified": [
+    "actual wallet escrow, physical construction completion and seller payout with complete WorldEvent replay",
+    "wrong signer, fabricated facts, mismatched transaction and missing enterprise event reject atomically",
+    "withdrawal retains physical work and escrow until independently accepted settlement",
+    "unfunded offer expiry does not change wallets or physical projects",
+    "enterprise receives real revenue; manager wallet unchanged; v2 construction source preserves legacy permit replay",
+    "explicit enable rejects repeat; treasury account unavailable until public composite authorization exists"
+  ],
+  "initialFailure": {
+    "log": "/tmp/construction-write-tests.log",
+    "reason": "floating maximum account capacity rejected as invalid-trade-money",
+    "resolution": "normalize read-only available capacity to bounded micro-units; never round actual balances"
+  },
+  "remaining": [
+    "public construction grant and atomic independent decision consumption",
+    "actual collective common-account composition acceptance",
+    "worker action routing and expiry cadence, manifest and registry",
+    "CLI and bounded context discovery with true OpenCode acceptance",
+    "canonical and partition integration, full 25-capability delivery",
+    "free adoption observation; no new model run in this slice"
+  ]
+}

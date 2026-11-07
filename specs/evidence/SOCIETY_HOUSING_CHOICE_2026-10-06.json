@@ -1,0 +1,88 @@
+{
+  "stage": "housing-personal-choice-H1",
+  "date": "2026-10-06",
+  "versions": {
+    "catalog": 46,
+    "skill": 45,
+    "rulebook": 35,
+    "routes": 374
+  },
+  "validation": {
+    "command": "pnpm check",
+    "testsPassed": 2798,
+    "testsSkipped": 1,
+    "filesPassed": 401,
+    "filesSkipped": 1,
+    "targetedHousingTests": 7,
+    "build": "residents and transitive dependencies; final society/world rebuild"
+  },
+  "cli": {
+    "ok": true,
+    "validation": "compiled-authenticated-HTTP-CLI-not-emergence",
+    "calls": 10,
+    "refusals": 5,
+    "results": [
+      {
+        "route": "housing.standard",
+        "exitCode": 1,
+        "ok": false,
+        "error": "housing-choice-not-enabled"
+      },
+      {
+        "route": "housing.standard",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "life.sleep",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "housing.lower",
+        "exitCode": 1,
+        "ok": false,
+        "error": "housing-choice-requires-no-active-physical-commitment"
+      },
+      {
+        "route": "life.wake",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "housing.lower",
+        "exitCode": 2,
+        "ok": false,
+        "error": "unknown-flag:--actor-id"
+      },
+      {
+        "route": "housing.lower",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "housing.lower",
+        "exitCode": 1,
+        "ok": false,
+        "error": "housing-choice-revision-conflict"
+      },
+      {
+        "route": "housing.lower",
+        "exitCode": 1,
+        "ok": false,
+        "error": "housing-choice-requires-lower-standard"
+      },
+      {
+        "route": "housing.standard",
+        "exitCode": 0,
+        "ok": true
+      }
+    ]
+  },
+  "limitations": [
+    "H1 only; public tariffs and eligibility modification not yet implemented",
+    "physical housing service supply, public ownership/procurement, complete exit and debt enforcement incomplete",
+    "exact time settlement required; amortized canonical/partition modes not supported",
+    "not yet enabled in frozen free experiment"
+  ]
+}

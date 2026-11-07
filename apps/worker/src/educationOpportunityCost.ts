@@ -8,6 +8,8 @@ import {
   calculateEducationInvestmentRequirements,
   deriveEducationLevel,
   quoteStudyTuition,
+  calculateLaborPay,
+  type LaborPayPolicy,
 } from '@aivilization/society';
 import {
   EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION,
@@ -17,8 +19,7 @@ import {
 } from '@aivilization/world';
 
 export const EDUCATION_OPPORTUNITY_COST_POLICY_VERSION = 'education-opportunity-cost-v2';
-export const CANONICAL_EDUCATION_ACCUMULATION_POLICY_VERSION =
-  'education-accumulation-v2';
+export const CANONICAL_EDUCATION_ACCUMULATION_POLICY_VERSION = 'education-accumulation-v2';
 export const CANONICAL_STUDY_DURATION_SECONDS = 1800;
 export const CANONICAL_EDUCATION_RATE_PER_SECOND = 1 / 60;
 export const CANONICAL_WORK_LABOR_SECONDS = 3600;
@@ -60,6 +61,8 @@ export function createEducationOpportunityCostRule(input: {
    * coverage of the authoritative study settlement.
    */
   readonly treasuryBalance?: number | null;
+  /** Explicit actual-labor read port. Uses the same employment quote and period as authoritative work. */
+  readonly laborQuote?: { readonly wage: number; readonly pay: LaborPayPolicy };
 }): WorldDecisionEducationOpportunityCostRule | undefined {
   const investmentPolicy = input.policies.educationInvestment;
   if (investmentPolicy === undefined) {
@@ -75,10 +78,13 @@ export function createEducationOpportunityCostRule(input: {
   });
   const currentOccupationName = input.agent.job;
   const currentOccupationWage =
-    currentOccupationName === null ? 0 : input.policies.wageCalculator(currentOccupationName);
+    currentOccupationName === null
+      ? 0
+      : (input.laborQuote?.wage ?? input.policies.wageCalculator(currentOccupationName));
   assertNonNegativeFinite(currentOccupationWage, 'current occupation wage');
-  const foregoneLaborIncome =
-    currentOccupationWage * (settings.studyDurationSeconds / settings.workLaborSeconds);
+  const foregoneLaborIncome = input.laborQuote
+    ? calculateLaborPay(currentOccupationWage, settings.studyDurationSeconds, input.laborQuote.pay)
+    : currentOccupationWage * (settings.studyDurationSeconds / settings.workLaborSeconds);
   const balanceAfterDirectCost = input.agent.balance - directStudyCost.currencyCost;
   const directlyAffordable =
     balanceAfterDirectCost >= 0 &&
@@ -87,7 +93,9 @@ export function createEducationOpportunityCostRule(input: {
     );
 
   return {
-    policyVersion: EDUCATION_OPPORTUNITY_COST_POLICY_VERSION,
+    policyVersion: input.laborQuote
+      ? 'education-opportunity-cost-v3'
+      : EDUCATION_OPPORTUNITY_COST_POLICY_VERSION,
     studyDurationSeconds: settings.studyDurationSeconds,
     educationRatePerSecond: settings.educationRatePerSecond,
     expectedEducationGain: settings.studyDurationSeconds * settings.educationRatePerSecond,

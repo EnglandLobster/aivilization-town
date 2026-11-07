@@ -1,3 +1,4 @@
+import { RuntimeOperationDrain } from './runtimeOperationDrain';
 import type { SimulationTimestamp } from '@aivilization/sim-core';
 import type {
   LocalSimulationRuntimeRunQueueWorker,
@@ -53,6 +54,8 @@ export type LocalSimulationRuntimeRunQueueWorkerHost = {
   ) => Promise<LocalSimulationRuntimeRunQueueWorkerHostDrainResult>;
   readonly start: () => void;
   readonly stop: () => void;
+  /** Permanently refuse new operations and await in-flight work. stop() remains restartable. */
+  readonly shutdown: () => Promise<void>;
   readonly getStatus: () => LocalSimulationRuntimeRunQueueWorkerHostStatus;
 };
 
@@ -74,6 +77,7 @@ export function createLocalSimulationRuntimeRunQueueWorkerHost(input: {
     clearTimeout: (handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>),
   };
   const maxJobsPerPoll = input.maxJobsPerPoll ?? 1;
+  const operations = new RuntimeOperationDrain();
   let running = false;
   let inFlight = false;
   let timer: { readonly handle: unknown } | undefined;
@@ -85,35 +89,37 @@ export function createLocalSimulationRuntimeRunQueueWorkerHost(input: {
   let lastError: LocalSimulationRuntimeRunQueueWorkerHostError | undefined;
 
   const host: LocalSimulationRuntimeRunQueueWorkerHost = {
-    runOnce: async () => {
-      // Recovery and the polling loop share this host. Never allow both paths to
-      // claim work concurrently; lease renewal handles long-running ownership.
-      if (inFlight) {
-        return { status: 'idle' };
-      }
-      const claimedAt = clock.now();
-      inFlight = true;
-      lastRunStartedAt = claimedAt;
-      try {
-        const result = await input.worker.runNext({ claimedAt });
-        if (result.status === 'completed') {
-          processedJobCount += 1;
-          completedJobCount += 1;
-        } else if (result.status === 'failed') {
-          processedJobCount += 1;
-          failedJobCount += 1;
+    runOnce: () =>
+      operations.run(async () => {
+        // Recovery and the polling loop share this host. Never allow both paths to
+        // claim work concurrently; lease renewal handles long-running ownership.
+        if (inFlight) {
+          return { status: 'idle' };
         }
-        lastError = undefined;
-        return result;
-      } catch (error) {
-        lastError = serializeHostError(error);
-        throw error;
-      } finally {
-        lastRunCompletedAt = clock.now();
-        inFlight = false;
-      }
-    },
+        const claimedAt = clock.now();
+        inFlight = true;
+        lastRunStartedAt = claimedAt;
+        try {
+          const result = await input.worker.runNext({ claimedAt });
+          if (result.status === 'completed') {
+            processedJobCount += 1;
+            completedJobCount += 1;
+          } else if (result.status === 'failed') {
+            processedJobCount += 1;
+            failedJobCount += 1;
+          }
+          lastError = undefined;
+          return result;
+        } catch (error) {
+          lastError = serializeHostError(error);
+          throw error;
+        } finally {
+          lastRunCompletedAt = clock.now();
+          inFlight = false;
+        }
+      }),
     drain: async (request = {}) => {
+      operations.assertOpen();
       const maxJobs = request.maxJobs ?? maxJobsPerPoll;
       assertPositiveInteger(maxJobs, 'maxJobs');
       const results: Exclude<
@@ -125,6 +131,7 @@ export function createLocalSimulationRuntimeRunQueueWorkerHost(input: {
       let idle = false;
 
       for (let processedInDrain = 0; processedInDrain < maxJobs; ) {
+        if (operations.closed) break;
         const result = await host.runOnce();
         if (result.status === 'idle') {
           idle = true;
@@ -148,6 +155,7 @@ export function createLocalSimulationRuntimeRunQueueWorkerHost(input: {
       };
     },
     start: () => {
+      operations.assertOpen();
       if (running) {
         return;
       }
@@ -161,9 +169,13 @@ export function createLocalSimulationRuntimeRunQueueWorkerHost(input: {
         timer = undefined;
       }
     },
+    shutdown: () => {
+      host.stop();
+      return operations.close();
+    },
     getStatus: () => ({
       running,
-      inFlight,
+      inFlight: operations.inFlight,
       pollIntervalMs: input.pollIntervalMs,
       processedJobCount,
       completedJobCount,

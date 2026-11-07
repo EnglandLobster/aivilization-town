@@ -1,3 +1,4 @@
+import { PUBLIC_EMPLOYMENT_POLICY, type EmploymentRankingField } from './publicEmployment';
 export type RecruitmentApplication = {
   readonly applicationId: string;
   readonly agentId: string;
@@ -9,6 +10,7 @@ export type RecruitmentApplication = {
 
 export type RecruitmentCyclePolicy = {
   readonly policyVersion: string;
+  readonly employerRanking?: readonly EmploymentRankingField[];
   readonly cycleDurationMs: number;
   readonly defaultOccupationCapacity: number;
   readonly occupationCapacityOverrides: Readonly<Record<string, number>>;
@@ -103,7 +105,7 @@ export function resolveRecruitmentCycle(input: {
 
     const capacity = resolveOccupationCapacity(input.policy, proposal.occupationName);
     const candidates = [...(heldByOccupation.get(proposal.occupationName) ?? []), proposal].sort(
-      compareEmployerPreference,
+      (left, right) => compareEmployerPreference(left, right, input.policy.employerRanking),
     );
     const retained = candidates.slice(0, capacity);
     const rejected = candidates.slice(capacity);
@@ -119,29 +121,33 @@ export function resolveRecruitmentCycle(input: {
     }
   }
 
-  const acceptedApplications = [...heldByOccupation.values()].flat().sort(compareResolutionOrder);
+  const acceptedApplications = [...heldByOccupation.values()]
+    .flat()
+    .sort((left, right) => compareResolutionOrder(left, right, input.policy.employerRanking));
   const acceptedIds = new Set(acceptedApplications.map((application) => application.applicationId));
   const acceptedAgentIds = new Set(acceptedApplications.map((application) => application.agentId));
-  const resolutions = [...input.applications].sort(compareResolutionOrder).map((application) => {
-    if (acceptedIds.has(application.applicationId)) {
+  const resolutions = [...input.applications]
+    .sort((left, right) => compareResolutionOrder(left, right, input.policy.employerRanking))
+    .map((application) => {
+      if (acceptedIds.has(application.applicationId)) {
+        return {
+          applicationId: application.applicationId,
+          agentId: application.agentId,
+          occupationName: application.occupationName,
+          status: 'accepted',
+          reason: 'competitive-match',
+        } as const;
+      }
       return {
         applicationId: application.applicationId,
         agentId: application.agentId,
         occupationName: application.occupationName,
-        status: 'accepted',
-        reason: 'competitive-match',
+        status: 'rejected',
+        reason: acceptedAgentIds.has(application.agentId)
+          ? 'agent-matched-elsewhere'
+          : 'capacity-exhausted',
       } as const;
-    }
-    return {
-      applicationId: application.applicationId,
-      agentId: application.agentId,
-      occupationName: application.occupationName,
-      status: 'rejected',
-      reason: acceptedAgentIds.has(application.agentId)
-        ? 'agent-matched-elsewhere'
-        : 'capacity-exhausted',
-    } as const;
-  });
+    });
 
   return { acceptedApplications, resolutions };
 }
@@ -162,11 +168,18 @@ function compareApplicationPreference(
 function compareEmployerPreference(
   left: RecruitmentApplication,
   right: RecruitmentApplication,
+  ranking: readonly EmploymentRankingField[] = ['knowledge', 'housing', 'submitted'],
 ): number {
+  for (const field of ranking) {
+    const order =
+      field === 'knowledge'
+        ? right.educationScore - left.educationScore
+        : field === 'housing'
+          ? right.residentialTier - left.residentialTier
+          : left.submittedAt - right.submittedAt;
+    if (order) return order;
+  }
   return (
-    right.educationScore - left.educationScore ||
-    right.residentialTier - left.residentialTier ||
-    left.submittedAt - right.submittedAt ||
     left.agentId.localeCompare(right.agentId) ||
     left.applicationId.localeCompare(right.applicationId)
   );
@@ -175,14 +188,27 @@ function compareEmployerPreference(
 function compareResolutionOrder(
   left: RecruitmentApplication,
   right: RecruitmentApplication,
+  ranking?: readonly EmploymentRankingField[],
 ): number {
   return (
     left.occupationName.localeCompare(right.occupationName) ||
-    compareEmployerPreference(left, right)
+    compareEmployerPreference(left, right, ranking)
   );
 }
 
 function validateRecruitmentPolicy(policy: RecruitmentCyclePolicy): void {
+  const ranking = policy.employerRanking;
+  if (
+    (ranking !== undefined || policy.policyVersion === PUBLIC_EMPLOYMENT_POLICY.version) &&
+    (policy.policyVersion !== PUBLIC_EMPLOYMENT_POLICY.version ||
+      !Array.isArray(ranking) ||
+      ranking.length > 3 ||
+      new Set(ranking).size !== ranking.length ||
+      ranking.some(
+        (f: unknown) => typeof f !== 'string' || !['knowledge', 'housing', 'submitted'].includes(f),
+      ))
+  )
+    throw Error('invalid-versioned-recruitment-ranking');
   if (policy.policyVersion.trim().length === 0) {
     throw new Error('recruitment policyVersion must not be empty');
   }

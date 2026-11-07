@@ -1,0 +1,33 @@
+{
+  "kind": "explicit-housing-occupancy-and-physical-rest-activation",
+  "enabledPolicies": [
+    "resident-housing-occupancy-v1",
+    "resident-physical-housing-rest-v1"
+  ],
+  "afterOpportunities": 736,
+  "simulationTime": 905444000,
+  "commitsBefore": 5248,
+  "commitsAfter": 5250,
+  "implementation": {
+    "root": "/tmp/aivilization-physical-housing-rest-20261006",
+    "versions": {
+      "catalog": 59,
+      "skill": 58,
+      "rulebook": 48
+    },
+    "validation": {
+      "command": "pnpm lint + pnpm -r --sort typecheck + pnpm test",
+      "testsPassed": 2937,
+      "testsSkipped": 1,
+      "compiledCalls": 23,
+      "expectedRefusals": 5
+    },
+    "fingerprints": 81
+  },
+  "source": "operator-capability-migration",
+  "retainsOriginalManifest": true,
+  "prescribedSocialGoal": false,
+  "addsAssetsOrForcedBodyActivity": false,
+  "replayMatches736FullState": true,
+  "allPreviousWorldFactsUnchanged": true
+}

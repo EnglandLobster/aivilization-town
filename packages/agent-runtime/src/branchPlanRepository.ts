@@ -127,6 +127,22 @@ export class FileBranchPlanRepository implements BranchPlanRepository {
     });
   }
 
+  /** Includes retained older revisions and records outside the hot index. */
+  readHistory(
+    agentId: AgentId,
+  ): Promise<readonly { agentId: AgentId; sourceOrdinal: number; record: BranchPlanRecord }[]> {
+    if (this.plansFile.diagnostics().hasIncompleteTrailingRow)
+      throw new Error('plan-history-incomplete-tail');
+    const result: { agentId: AgentId; sourceOrdinal: number; record: BranchPlanRecord }[] = [];
+    let sourceOrdinal = 0;
+    this.plansFile.scanCommitted((record) => {
+      sourceOrdinal++;
+      if (record.agentId === agentId)
+        result.push({ agentId, sourceOrdinal, record: structuredClone(record) });
+    });
+    return Promise.resolve(result);
+  }
+
   get(lookup: BranchPlanLookup): Promise<BranchPlanRecord | undefined> {
     this.plansFile.refresh();
     const key = planKey(lookup.planId, lookup.agentId);

@@ -1,0 +1,287 @@
+{
+  "schemaVersion": "society-free-checkpoint-evidence-v1",
+  "opportunities": 736,
+  "journalCommits": 5248,
+  "capabilityCalls": 2527,
+  "simulationTime": 905444000,
+  "journalSha256": "c7012ba9e7be0ec8146e7249185f32a0afdc11d37ded0d718a5884a34df7279b",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFingerprints": 81,
+  "implementationVersions": {
+    "catalog": 58,
+    "skill": 57,
+    "rulebook": 47
+  },
+  "providerStatusCounts": {
+    "completed": 730,
+    "provider-error": 6
+  },
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 456.0000000000102,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Maintenance Worker",
+      "balance": 416.52038481616455,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 2,
+      "job": "Receptionist",
+      "balance": 520.9515474583856
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 898.131666666956,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Office Clerk",
+      "balance": 434.87613402303197,
+      "upkeepArrears": 1.6757897047188024
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Chef",
+      "balance": 378.8937261137828
+    }
+  ],
+  "treasury": 0,
+  "observedEntities": {
+    "enterprises": [],
+    "collectives": [],
+    "programs": [],
+    "projects": [],
+    "principalOrders": [],
+    "publicProposals": [
+      {
+        "createdAt": 138387000,
+        "id": "proposal-001-employment-quota",
+        "revision": 7,
+        "status": "executed",
+        "actionKind": "set-employment"
+      },
+      {
+        "createdAt": 311600000,
+        "id": "proposal-003-housing-subsidy",
+        "revision": 6,
+        "status": "withdrawn",
+        "actionKind": "set-subsidy"
+      },
+      {
+        "createdAt": 311840000,
+        "id": "proposal-003-housing-subsidy-2",
+        "revision": 7,
+        "status": "executed",
+        "actionKind": "set-subsidy"
+      },
+      {
+        "createdAt": 327560000,
+        "id": "proposal-004-subsidy-500",
+        "revision": 5,
+        "status": "approved",
+        "actionKind": "set-subsidy"
+      },
+      {
+        "createdAt": 355400000,
+        "id": "proposal-003-subsidy-500-fix",
+        "revision": 7,
+        "status": "executed",
+        "actionKind": "set-subsidy"
+      },
+      {
+        "createdAt": 434800000,
+        "id": "proposal-004-chef-capacity-2",
+        "revision": 7,
+        "status": "executed",
+        "actionKind": "set-employment"
+      }
+    ]
+  },
+  "residentAuthoredCounts": {
+    "spaces": 0,
+    "documents": 11,
+    "messages": 257,
+    "groups": 0,
+    "collectives": 0,
+    "registers": 0,
+    "views": 0,
+    "programs": 0,
+    "services": 0
+  },
+  "newPhase": {
+    "opportunities": 32,
+    "providerStatuses": {
+      "completed": 32
+    },
+    "commitsIncludingExplicitMigration": 247,
+    "calls": 126,
+    "refusals": [
+      {
+        "sequence": 5132,
+        "actorId": "resident-001",
+        "capability": "world.work",
+        "error": "public-wage-full-funding-required"
+      },
+      {
+        "sequence": 5139,
+        "actorId": "resident-001",
+        "capability": "production.gather",
+        "error": "material-source-location-or-revision-conflict"
+      },
+      {
+        "sequence": 5165,
+        "actorId": "resident-004",
+        "capability": "housing.lower",
+        "error": "housing-choice-requires-no-active-physical-commitment"
+      },
+      {
+        "sequence": 5182,
+        "actorId": "resident-002",
+        "capability": "files.read",
+        "error": "not-found"
+      },
+      {
+        "sequence": 5183,
+        "actorId": "resident-002",
+        "capability": "files.read",
+        "error": "not-found"
+      },
+      {
+        "sequence": 5236,
+        "actorId": "resident-004",
+        "capability": "production.gather",
+        "error": "material-source-location-or-revision-conflict"
+      }
+    ],
+    "capabilityCounts": {
+      "world.observe/accepted": 4,
+      "sources.list/accepted": 3,
+      "files.read/accepted": 3,
+      "files.create/accepted": 1,
+      "messages.send/accepted": 7,
+      "schedule.wait/accepted": 32,
+      "messages.read/accepted": 3,
+      "cognition.update/accepted": 1,
+      "world.move/accepted": 17,
+      "stocks.list/accepted": 1,
+      "stocks.read/accepted": 4,
+      "production.gather/accepted": 3,
+      "production.read/accepted": 4,
+      "production.start/accepted": 3,
+      "world.trade/accepted": 4,
+      "world.study/accepted": 1,
+      "world.eat/accepted": 4,
+      "world.apply_job/accepted": 1,
+      "sources.read/accepted": 2,
+      "stocks.withdraw/accepted": 2,
+      "world.sleep/accepted": 3,
+      "world.work/refused": 1,
+      "funds.list/accepted": 1,
+      "production.gather/refused": 2,
+      "world.stop_rest/accepted": 1,
+      "world.work/accepted": 2,
+      "governance.status/accepted": 3,
+      "housing.standard/accepted": 4,
+      "housing.lower/accepted": 4,
+      "world.stop_study/accepted": 1,
+      "housing.lower/refused": 1,
+      "files.read/refused": 2,
+      "files.search/accepted": 1
+    },
+    "actualProduction": [
+      {
+        "completed": 2,
+        "createdBy": "resident-001",
+        "held": {},
+        "id": "gather-001-silicon-2",
+        "productName": "Silicon Ore",
+        "progressMs": 120000,
+        "quantity": 2,
+        "sourceId": "source-silicon-ore",
+        "status": "completed",
+        "stockId": "stock-001-apple",
+        "workers": [
+          "resident-001"
+        ]
+      },
+      {
+        "completed": 3,
+        "createdBy": "resident-003",
+        "held": {},
+        "id": "prod-003-copper-1",
+        "productName": "Copper Ore",
+        "progressMs": 180000,
+        "quantity": 3,
+        "sourceId": "source-copper-ore",
+        "status": "completed",
+        "stockId": "stock-003-workshop",
+        "workers": [
+          "resident-003"
+        ]
+      },
+      {
+        "completed": 2,
+        "createdBy": "resident-004",
+        "held": {
+          "Copper Ore": 4
+        },
+        "id": "gather-004-copper-1",
+        "productName": "Copper Ore",
+        "progressMs": 120000,
+        "quantity": 6,
+        "session": {
+          "actorId": "resident-004",
+          "settledAt": 905444000,
+          "startedAt": 905324000,
+          "until": 905684000,
+          "workedMs": 120000
+        },
+        "sourceId": "source-copper-ore",
+        "status": "open",
+        "stockId": "stock-004-workshop",
+        "workers": [
+          "resident-004"
+        ]
+      }
+    ],
+    "housingStandardActions": 4,
+    "treasuryBefore": 3350.25735724983,
+    "treasuryAfter": 0,
+    "newResidentDocument": {
+      "id": "app-community/posts/resident-001-0006.md",
+      "authorId": "resident-001",
+      "title": "紧急：国库见底（treasuryBalance=0）——补贴停发、公共岗位无法开工",
+      "meaning": "attributed-original-resident-warning-not-system-consensus"
+    },
+    "pendingApplication": {
+      "agentId": "resident-003",
+      "occupationName": "Supermarket Manager",
+      "cycleNumber": 10,
+      "status": "pending"
+    },
+    "newPublicProposals": 0
+  },
+  "interpretation": [
+    "Actual treasury shortage prevents new fully prefunded public wages; no rescue money or forced resident decisions supplied",
+    "Residents independently lower existing service tiers and gather finite physical materials; gathering plans are not firms or social institutions",
+    "Completed actual production is 2 Silicon Ore by 001 and 3 Copper Ore by 003; 004 has only 2 of 6 produced with 4 reserved, not a completed six-item delivery",
+    "Original arrears, jobs, sessions and provider errors remain; old housing tier is not construction",
+    "Resident warning and messages retain actual author text; no computed consensus or ranking",
+    "Earlier residents actually changed existing public employment/subsidy rules through six proposals, four executed; this is real rule adoption, not newly founded organizations"
+  ],
+  "limitations": [
+    "Four original residents, one initial condition, no specified organization or partner",
+    "No enterprise, collective, new building or principal order; six previous resident public proposals exist (four executed), zero new public proposals in this phase",
+    "This phase used only verified service-supply-relations engine, not unverified paid-asset source or physical housing rest",
+    "All 25 contracts, H4-H6, long obligations, fixed asset/estate integration and canonical/partition remain unfinished"
+  ]
+}

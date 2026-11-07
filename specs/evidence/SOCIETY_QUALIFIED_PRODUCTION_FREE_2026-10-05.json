@@ -1,0 +1,382 @@
+{
+  "schemaVersion": "society-free-observation-v1",
+  "mode": "unprompted-social-outcomes-free-activity",
+  "root": "/home/dev/aivilization-town/.local/open-residents/society-elapsed-study-20261005",
+  "journalSha256": "82a88c2f89593899ee933c1bd243cff3fb6a17fd4f9dc8fcb704732a6598db50",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "simulationTime": 42060000,
+  "journalCommits": 1047,
+  "opportunities": {
+    "resident-001/waiting": 39,
+    "resident-002/waiting": 27,
+    "resident-003/waiting": 29,
+    "resident-004/waiting": 33
+  },
+  "capabilityCalls": 612,
+  "capabilityCounts": {
+    "world.observe/accepted": 88,
+    "production.list/accepted": 3,
+    "sources.list/accepted": 4,
+    "production.recipes/accepted": 5,
+    "files.read/accepted": 7,
+    "files.index/accepted": 6,
+    "messages.list/accepted": 1,
+    "memory.search/accepted": 1,
+    "files.create/accepted": 2,
+    "messages.send/accepted": 93,
+    "schedule.wait/accepted": 128,
+    "messages.read/accepted": 93,
+    "cognition.update/accepted": 9,
+    "world.move/accepted": 38,
+    "services.list/accepted": 1,
+    "stocks.list/accepted": 4,
+    "stocks.create/accepted": 4,
+    "stocks.read/accepted": 21,
+    "production.gather/accepted": 7,
+    "production.read/accepted": 9,
+    "production.start/accepted": 11,
+    "production.create/accepted": 4,
+    "world.trade/accepted": 10,
+    "world.trade/refused": 2,
+    "world.study/accepted": 8,
+    "orders.list/accepted": 1,
+    "offers.list/accepted": 1,
+    "trades.list/accepted": 1,
+    "world.eat/accepted": 3,
+    "files.update/accepted": 1,
+    "world.apply_job/accepted": 2,
+    "world.give/accepted": 1,
+    "schedule.remind/accepted": 3,
+    "payments.transfer/accepted": 1,
+    "sources.read/accepted": 6,
+    "stocks.withdraw/accepted": 5,
+    "world.sleep/accepted": 5,
+    "world.apply_exam/refused": 4,
+    "sites.list/accepted": 1,
+    "world.apply_job/refused": 1,
+    "world.observe/refused": 2,
+    "rules.capability/refused": 1,
+    "rules.capability/accepted": 1,
+    "rules.list/accepted": 1,
+    "world.move/refused": 3,
+    "vehicles.list/accepted": 1,
+    "stocks.deposit/accepted": 3,
+    "world.sleep/refused": 1,
+    "world.work/refused": 1,
+    "world.apply_exam/accepted": 1,
+    "world.upgrade_home/accepted": 1,
+    "schedule.cancel/accepted": 1
+  },
+  "refusals": [
+    {
+      "sequence": 399,
+      "actorId": "resident-004",
+      "capability": "world.trade",
+      "error": "agent is busy with trade until simulation time 3379000 (now 3079000)"
+    },
+    {
+      "sequence": 400,
+      "actorId": "resident-004",
+      "capability": "world.trade",
+      "error": "agent is busy with trade until simulation time 3379000 (now 3079000)"
+    },
+    {
+      "sequence": 659,
+      "actorId": "resident-003",
+      "capability": "world.apply_exam",
+      "error": "level-mismatch: exam into level 3 requires current level 2, got 3"
+    },
+    {
+      "sequence": 664,
+      "actorId": "resident-003",
+      "capability": "world.apply_job",
+      "error": "unknown occupation Trader"
+    },
+    {
+      "sequence": 666,
+      "actorId": "resident-003",
+      "capability": "world.observe",
+      "error": "unknown-rule-section"
+    },
+    {
+      "sequence": 667,
+      "actorId": "resident-003",
+      "capability": "rules.capability",
+      "error": "capability-not-found"
+    },
+    {
+      "sequence": 732,
+      "actorId": "resident-001",
+      "capability": "world.apply_exam",
+      "error": "score-below-threshold: exam into level 3 requires score 180, got 70"
+    },
+    {
+      "sequence": 742,
+      "actorId": "resident-003",
+      "capability": "world.move",
+      "error": "personal-load-capacity-exceeded"
+    },
+    {
+      "sequence": 743,
+      "actorId": "resident-003",
+      "capability": "world.observe",
+      "error": "unknown-rule-section"
+    },
+    {
+      "sequence": 747,
+      "actorId": "resident-003",
+      "capability": "world.move",
+      "error": "personal-load-capacity-exceeded"
+    },
+    {
+      "sequence": 755,
+      "actorId": "resident-002",
+      "capability": "world.apply_exam",
+      "error": "level-mismatch: exam into level 3 requires current level 2, got 3"
+    },
+    {
+      "sequence": 768,
+      "actorId": "resident-003",
+      "capability": "world.sleep",
+      "error": "agent is busy with trade until simulation time 10579000 (now 10279000)"
+    },
+    {
+      "sequence": 793,
+      "actorId": "resident-001",
+      "capability": "world.apply_exam",
+      "error": "level-mismatch: exam into level 3 requires current level 2, got 3"
+    },
+    {
+      "sequence": 853,
+      "actorId": "resident-002",
+      "capability": "world.work",
+      "error": "agent job none does not match Cleaner"
+    },
+    {
+      "sequence": 953,
+      "actorId": "resident-001",
+      "capability": "world.move",
+      "error": "personal-load-capacity-exceeded"
+    }
+  ],
+  "eventCounts": {
+    "informationEvents/SpaceCreated": 8,
+    "informationEvents/DocumentCreated": 17,
+    "distributionEvents/PublicationRecorded": 3,
+    "informationEvents/MessageSent": 93,
+    "worldEvents/SimulationTimeAdvanced": 267,
+    "worldEvents/PhysiologyChanged": 3405,
+    "informationEvents/MessageRead": 93,
+    "cognitiveEvents/PersonalCognitionUpdated": 9,
+    "worldEvents/AgentTravelStarted": 38,
+    "worldEvents/AgentActivityTimeCommitted": 53,
+    "worldEvents/ShortTermMemoryRecorded": 82,
+    "worldEvents/AgentLocationChanged": 38,
+    "worldEvents/ResidentMaterialsCommitted": 152,
+    "worldEvents/TradeExecuted": 10,
+    "worldEvents/ActionRejected": 12,
+    "worldEvents/ResidentStudyCommitted": 508,
+    "worldEvents/InventoryChanged": 3,
+    "informationEvents/DocumentUpdated": 1,
+    "worldEvents/JobApplicationSubmitted": 2,
+    "worldEvents/ResourceTransferred": 1,
+    "worldEvents/SocialInteractionCompleted": 1,
+    "worldEvents/ResidentCommerceCommitted": 1,
+    "worldEvents/ResidentLaborEnabled": 1,
+    "worldEvents/ResidentRestSessionChanged": 1641,
+    "worldEvents/PhysiologicalDistressChanged": 2,
+    "worldEvents/TradeTaxCharged": 4,
+    "worldEvents/ResidentProductiveEmploymentEnabled": 1,
+    "worldEvents/ResidentEducationAuthorityEnabled": 1,
+    "worldEvents/TownDayPhaseChanged": 1,
+    "worldEvents/EducationExamApplicationSubmitted": 1,
+    "worldEvents/ResidentialTierUpgraded": 1,
+    "worldEvents/ResidentialUpkeepCharged": 117
+  },
+  "limitations": [
+    "Short, single-seed observation; no claim of stable society or general emergence.",
+    "Map, public services, markets, initial assets and backgrounds are external initial conditions.",
+    "No organization, partner or transaction was specified in the free task; provider system rules still constrain transport and truthful reporting.",
+    "Provider usage is reported evidence, not independently verified billing; incomplete model steps are not counted as completed calls.",
+    "Replay comparison covers the saved administrator report, not an independently captured full live-world snapshot.",
+    "Absence of a capability in this sample is not proof that it is unnecessary."
+  ],
+  "checkpoint": "checkpoints/free-128",
+  "completedOpportunities": 128,
+  "currentPhase": {
+    "engine": "/tmp/aivilization-qualified-production-20261005",
+    "versions": {
+      "catalog": 38,
+      "skill": 37,
+      "rulebook": 27
+    },
+    "enableCommitSequences": [
+      813,
+      814
+    ],
+    "priorOpportunities": 96,
+    "newOpportunities": 32,
+    "frozenHashesVerified": 81,
+    "preEnableFullStateReplayEqual": true
+  },
+  "deltaCapabilities": {
+    "world.observe/accepted": 24,
+    "messages.send/accepted": 3,
+    "schedule.wait/accepted": 32,
+    "messages.read/accepted": 3,
+    "cognition.update/accepted": 1,
+    "world.move/accepted": 13,
+    "stocks.read/accepted": 8,
+    "production.gather/accepted": 2,
+    "production.read/accepted": 2,
+    "production.start/accepted": 3,
+    "production.create/accepted": 1,
+    "world.trade/accepted": 6,
+    "world.study/accepted": 1,
+    "world.eat/accepted": 1,
+    "sources.read/accepted": 1,
+    "stocks.withdraw/accepted": 3,
+    "world.sleep/accepted": 2,
+    "world.move/refused": 1,
+    "stocks.deposit/accepted": 1,
+    "world.work/refused": 1,
+    "world.apply_exam/accepted": 1,
+    "world.upgrade_home/accepted": 1,
+    "schedule.cancel/accepted": 1
+  },
+  "providerCumulative": {
+    "records": 128,
+    "completedModelSteps": 640,
+    "elapsedMs": 4059611,
+    "reportedCost": 0.541747932
+  },
+  "providerNewPhase": {
+    "records": 32,
+    "completedModelSteps": 133,
+    "elapsedMs": 956163,
+    "reportedCost": 0.15007524
+  },
+  "stateSummary": {
+    "at": 42060000,
+    "commits": 1047,
+    "enterpriseIds": [],
+    "examApplications": [
+      {
+        "agentId": "resident-004",
+        "targetLevel": 4,
+        "status": "pending"
+      }
+    ],
+    "residents": [
+      {
+        "agentId": "resident-001",
+        "educationScore": 180,
+        "educationLevel": 3,
+        "residentialTier": 2,
+        "job": null,
+        "balance": 37.97885980504986
+      },
+      {
+        "agentId": "resident-002",
+        "educationScore": 189.99999999999997,
+        "educationLevel": 3,
+        "residentialTier": 1,
+        "job": null,
+        "balance": 114.89898989898995
+      },
+      {
+        "agentId": "resident-003",
+        "educationScore": 181.66666666700002,
+        "educationLevel": 3,
+        "residentialTier": 1,
+        "job": null,
+        "balance": 230.47619047619054
+      },
+      {
+        "agentId": "resident-004",
+        "educationScore": 330.00000000000006,
+        "educationLevel": 3,
+        "residentialTier": 1,
+        "job": null,
+        "balance": 126.87931811274962
+      }
+    ],
+    "productions": [
+      {
+        "id": "res-002-wood-batch1",
+        "status": "completed",
+        "progressMs": 120000
+      },
+      {
+        "id": "res-002-book1",
+        "status": "completed",
+        "progressMs": 96000
+      },
+      {
+        "id": "order-004-apple-1",
+        "status": "completed",
+        "progressMs": 60000
+      },
+      {
+        "id": "order-004-wheat-1",
+        "status": "completed",
+        "progressMs": 60000
+      },
+      {
+        "id": "order-004-flour-1",
+        "status": "completed",
+        "progressMs": 60000
+      },
+      {
+        "id": "order-004-pie-1",
+        "status": "completed",
+        "progressMs": 120000
+      },
+      {
+        "id": "gather-003-apple-1",
+        "status": "completed",
+        "progressMs": 2400000
+      },
+      {
+        "id": "order-001-apple-1",
+        "status": "completed",
+        "progressMs": 1200000
+      },
+      {
+        "id": "res-002-copperore1",
+        "status": "completed",
+        "progressMs": 60000
+      },
+      {
+        "id": "res-002-copperingot1",
+        "status": "completed",
+        "progressMs": 144000
+      },
+      {
+        "id": "order-001-apple-2",
+        "status": "completed",
+        "progressMs": 1200000
+      }
+    ]
+  },
+  "authoredCounts": {
+    "spaces": 0,
+    "documents": 2,
+    "messages": 93,
+    "groups": 0,
+    "collectives": 0,
+    "registers": 0,
+    "views": 0,
+    "programs": 0,
+    "services": 0
+  },
+  "interpretation": {
+    "newQualificationAndRuleQueriesUsed": true,
+    "examTarget4ApplicationPending": true,
+    "earnedProductionEmploymentAdopted": false,
+    "noFormalGroupsOrPublicDecisions": true,
+    "meetingStillFutureAtCheckpoint": 43200000
+  }
+}

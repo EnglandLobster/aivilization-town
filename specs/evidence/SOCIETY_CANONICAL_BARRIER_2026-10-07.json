@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "canonical-society-barrier-evidence-v1",
+  "scope": "read-only captured source consistency; not a completed migration",
+  "sourceSha256": {
+    "apps/worker/src/canonicalSocietyBarrier.ts": "d03e2df3a980520a1473cf40c4cf0bfcd2d04700ec16cb80698e52defb82657e",
+    "apps/worker/src/canonicalSocietyBarrier.test.ts": "bc8258e0270d112ed18bf638192893dd4d572217de27bc921f56f8b926c9bca2",
+    "apps/worker/src/simulationWideAuthority.ts": "c3a2f1a63456a0ecb097f1024d06b103cc276b402c6e07849fb25aebfc26b777",
+    "apps/worker/src/index.ts": "aea8d6ffbbb7fd2532442b58b70090310a8c6250a28d83192a21d47ddfa99495"
+  },
+  "validation": {
+    "targeted": {
+      "passed": 48,
+      "log": "/tmp/canonical-barrier-tests2.log"
+    },
+    "lint": {
+      "passed": true,
+      "log": "/tmp/canonical-barrier-lint.log"
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/canonical-barrier-all-typecheck.log"
+    },
+    "tests": {
+      "passed": 3213,
+      "skipped": 1,
+      "filesPassed": 482,
+      "log": "/tmp/canonical-barrier-full-tests2.log"
+    },
+    "build": {
+      "passed": true,
+      "package": "@aivilization/worker",
+      "log": "/tmp/canonical-barrier-build.log"
+    },
+    "formatAndDiffCheck": true
+  },
+  "retainedFailures": [
+    {
+      "log": "/tmp/canonical-barrier-tests.log",
+      "reason": "Test fixture referenced nonexistent asPartitionKey; corrected to actual string PartitionKey API."
+    },
+    {
+      "log": "/tmp/canonical-barrier-typecheck.log",
+      "reason": "Fixture also expected simulationId on WorldProjection; now uses explicit typed simulation source identity."
+    },
+    {
+      "log": "/tmp/canonical-barrier-full-tests.log",
+      "reason": "One existing education test exceeded 30000ms while lint/typecheck also ran; other 3212 passed. No timeout or assertion changed. Isolated test passed in 10753ms, then independent full suite passed. Resource contention is consistent with evidence, not independently profiled proof."
+    }
+  ],
+  "remaining": [
+    "Actual writer fencing and frozen complete export",
+    "Full authority/partition/cognition/policy/obligation mapping",
+    "Atomic destination publish and source retirement",
+    "Canonical and partition UI/CLI/model acceptance",
+    "All original 25 capability contracts remain active"
+  ],
+  "noResidentCapabilitiesAdded": true,
+  "noDomainEventSemanticsChanged": true
+}

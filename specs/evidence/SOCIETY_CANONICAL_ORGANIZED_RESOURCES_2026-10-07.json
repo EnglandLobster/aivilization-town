@@ -1,0 +1,1229 @@
+{
+  "phase": "canonical-organized-resources-existing-adapters",
+  "status": "activation-and-directed-verification-passed-free-opportunity-completed-with-refusals",
+  "auditCorrection": "enable-resource-sales-v2 was already registered. The earlier temporary regex excluded digits; corrected source audit finds no missing enable/register/upgrade handlers.",
+  "activation": {
+    "passed": true,
+    "previousRevision": 196,
+    "revision": 202,
+    "results": [
+      {
+        "command": "enable-resource-principals",
+        "result": {
+          "ok": true,
+          "data": {
+            "enabled": true,
+            "version": "resource-principals-v2"
+          },
+          "revision": 197,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-premises-principals",
+        "result": {
+          "ok": true,
+          "data": {
+            "enabled": true,
+            "version": "premises-resource-principals-v2"
+          },
+          "revision": 198,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-principal-permits",
+        "result": {
+          "ok": true,
+          "data": {
+            "enabled": true,
+            "version": "resident-premises-principal-permits-v2"
+          },
+          "revision": 199,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-principal-trade",
+        "result": {
+          "ok": true,
+          "data": {
+            "enabled": true,
+            "version": "resident-principal-evidence-trade-v3"
+          },
+          "revision": 200,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-construction-trade",
+        "result": {
+          "ok": true,
+          "data": {
+            "enabled": true,
+            "version": "construction-trade-v1"
+          },
+          "revision": 201,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-resource-sales",
+        "result": {
+          "ok": true,
+          "data": {
+            "enabled": true,
+            "version": "resident-resource-sales-v1"
+          },
+          "revision": 202,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-resource-principals",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "resource-principals-v2"
+          },
+          "ok": true,
+          "revision": 197,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-premises-principals",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "premises-resource-principals-v2"
+          },
+          "ok": true,
+          "revision": 198,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-principal-permits",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "resident-premises-principal-permits-v2"
+          },
+          "ok": true,
+          "revision": 199,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-principal-trade",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "resident-principal-evidence-trade-v3"
+          },
+          "ok": true,
+          "revision": 200,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-construction-trade",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "construction-trade-v1"
+          },
+          "ok": true,
+          "revision": 201,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-resource-sales",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "resident-resource-sales-v1"
+          },
+          "ok": true,
+          "revision": 202,
+          "simulationTime": 3334000
+        }
+      }
+    ],
+    "v2Refusal": "invalid-resource-sales-activation",
+    "publicGrantBefore": {
+      "actions": [
+        "set-tax",
+        "set-budget",
+        "set-subsidy",
+        "set-procedure",
+        "invalidate-decision",
+        "control-resource",
+        "manage-resource"
+      ],
+      "id": "town",
+      "residents": [
+        "smoke-25-world-main-agent-001",
+        "smoke-25-world-main-agent-002",
+        "smoke-25-world-main-agent-003",
+        "smoke-25-world-main-agent-004",
+        "smoke-25-world-main-agent-005",
+        "smoke-25-world-main-agent-006",
+        "smoke-25-world-main-agent-007",
+        "smoke-25-world-main-agent-008",
+        "smoke-25-world-main-agent-009",
+        "smoke-25-world-main-agent-010",
+        "smoke-25-world-main-agent-011",
+        "smoke-25-world-main-agent-012",
+        "smoke-25-world-main-agent-013",
+        "smoke-25-world-main-agent-014",
+        "smoke-25-world-main-agent-015",
+        "smoke-25-world-main-agent-016",
+        "smoke-25-world-main-agent-017",
+        "smoke-25-world-main-agent-018",
+        "smoke-25-world-main-agent-019",
+        "smoke-25-world-main-agent-020",
+        "smoke-25-world-main-agent-021",
+        "smoke-25-world-main-agent-022",
+        "smoke-25-world-main-agent-023",
+        "smoke-25-world-main-agent-024",
+        "smoke-25-world-main-agent-025"
+      ],
+      "source": {
+        "description": "Scenario grants the initial resident electorate control over existing town fiscal policies and this procedure. This is an external initial institution, not unanimous resident consent.",
+        "kind": "explicit-scenario-grant",
+        "version": "open-town-public-grant-v1"
+      },
+      "services": {
+        "version": "public-service-principals-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "service"
+        ],
+        "scope": "exact-directory-and-named-supply-not-body-or-income"
+      },
+      "serviceCreation": {
+        "version": "public-service-creation-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "service-directory"
+        ],
+        "scope": "exact-directory-creation-not-personal-labor-or-physical-facilities"
+      }
+    },
+    "publicGrantAfter": {
+      "actions": [
+        "set-tax",
+        "set-budget",
+        "set-subsidy",
+        "set-procedure",
+        "invalidate-decision",
+        "control-resource",
+        "manage-resource"
+      ],
+      "id": "town",
+      "residents": [
+        "smoke-25-world-main-agent-001",
+        "smoke-25-world-main-agent-002",
+        "smoke-25-world-main-agent-003",
+        "smoke-25-world-main-agent-004",
+        "smoke-25-world-main-agent-005",
+        "smoke-25-world-main-agent-006",
+        "smoke-25-world-main-agent-007",
+        "smoke-25-world-main-agent-008",
+        "smoke-25-world-main-agent-009",
+        "smoke-25-world-main-agent-010",
+        "smoke-25-world-main-agent-011",
+        "smoke-25-world-main-agent-012",
+        "smoke-25-world-main-agent-013",
+        "smoke-25-world-main-agent-014",
+        "smoke-25-world-main-agent-015",
+        "smoke-25-world-main-agent-016",
+        "smoke-25-world-main-agent-017",
+        "smoke-25-world-main-agent-018",
+        "smoke-25-world-main-agent-019",
+        "smoke-25-world-main-agent-020",
+        "smoke-25-world-main-agent-021",
+        "smoke-25-world-main-agent-022",
+        "smoke-25-world-main-agent-023",
+        "smoke-25-world-main-agent-024",
+        "smoke-25-world-main-agent-025"
+      ],
+      "source": {
+        "description": "Scenario grants the initial resident electorate control over existing town fiscal policies and this procedure. This is an external initial institution, not unanimous resident consent.",
+        "kind": "explicit-scenario-grant",
+        "version": "open-town-public-grant-v1"
+      },
+      "services": {
+        "version": "public-service-principals-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "service"
+        ],
+        "scope": "exact-directory-and-named-supply-not-body-or-income"
+      },
+      "serviceCreation": {
+        "version": "public-service-creation-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "service-directory"
+        ],
+        "scope": "exact-directory-creation-not-personal-labor-or-physical-facilities"
+      },
+      "resourceCustody": {
+        "version": "public-resource-custody-v2",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "stock",
+          "premises"
+        ],
+        "scope": "exact-control-or-operation-not-personal-participation"
+      },
+      "construction": {
+        "version": "public-construction-principals-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "construction-site",
+          "construction-project"
+        ],
+        "scope": "exact-project-authority-not-personal-labor"
+      },
+      "principalPermits": {
+        "version": "public-principal-permits-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "premises-permit"
+        ],
+        "scope": "exact-permission-contract-not-personal-participation"
+      },
+      "principalTrade": {
+        "version": "public-principal-permit-fees-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "evidence-order"
+        ],
+        "scope": "exact-permit-order-and-original-treasury-account"
+      },
+      "constructionTrade": {
+        "version": "public-construction-trade-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "construction-project",
+          "construction-order"
+        ],
+        "capabilities": [
+          "construction-trades.offer",
+          "construction-trades.accept",
+          "construction-trades.observe",
+          "construction-trades.withdraw",
+          "construction-trades.propose-settlement",
+          "construction-trades.accept-settlement"
+        ],
+        "scope": "exact-project-order-accounts-price-and-independent-settlement-not-personal-labor"
+      },
+      "resourceSales": {
+        "version": "public-paid-resource-control-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "resource-sale"
+        ],
+        "scope": "exact-price-accounts-source-and-bound-control-effect"
+      }
+    },
+    "manifestUnchanged": true,
+    "existingPeopleFundsGoodsWorkAndAgreementsUnchanged": true,
+    "noResidentDecisionsOrOrganizationsCreated": true,
+    "retryCreatedNoCommits": true,
+    "replayMatched": true,
+    "limitations": [
+      "Existing explicit adapters add public grant scopes; they do not approve any public purchase or resident proposal.",
+      "Inventory/vehicle pricing v2 remains blocked by its existing vehicle-principal prerequisite.",
+      "No vehicle or enterprise is seeded to bypass that restriction.",
+      "Private integration still has legacy public-domain dependencies; independent activation requires an explicit compatible transition.",
+      "Whole 25-capability and full-mode integration remain incomplete."
+    ]
+  },
+  "repeatVerification": {
+    "passed": true,
+    "previousRevision": 202,
+    "revision": 202,
+    "results": [
+      {
+        "command": "enable-resource-principals",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "resource-principals-v2"
+          },
+          "ok": true,
+          "revision": 197,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-premises-principals",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "premises-resource-principals-v2"
+          },
+          "ok": true,
+          "revision": 198,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-principal-permits",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "resident-premises-principal-permits-v2"
+          },
+          "ok": true,
+          "revision": 199,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-principal-trade",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "resident-principal-evidence-trade-v3"
+          },
+          "ok": true,
+          "revision": 200,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-construction-trade",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "construction-trade-v1"
+          },
+          "ok": true,
+          "revision": 201,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-resource-sales",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "resident-resource-sales-v1"
+          },
+          "ok": true,
+          "revision": 202,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-resource-principals",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "resource-principals-v2"
+          },
+          "ok": true,
+          "revision": 197,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-premises-principals",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "premises-resource-principals-v2"
+          },
+          "ok": true,
+          "revision": 198,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-principal-permits",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "resident-premises-principal-permits-v2"
+          },
+          "ok": true,
+          "revision": 199,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-principal-trade",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "resident-principal-evidence-trade-v3"
+          },
+          "ok": true,
+          "revision": 200,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-construction-trade",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "construction-trade-v1"
+          },
+          "ok": true,
+          "revision": 201,
+          "simulationTime": 3334000
+        }
+      },
+      {
+        "command": "enable-resource-sales",
+        "result": {
+          "data": {
+            "enabled": true,
+            "version": "resident-resource-sales-v1"
+          },
+          "ok": true,
+          "revision": 202,
+          "simulationTime": 3334000
+        }
+      }
+    ],
+    "v2Refusal": "invalid-resource-sales-activation",
+    "publicGrantBefore": {
+      "actions": [
+        "set-tax",
+        "set-budget",
+        "set-subsidy",
+        "set-procedure",
+        "invalidate-decision",
+        "control-resource",
+        "manage-resource"
+      ],
+      "id": "town",
+      "residents": [
+        "smoke-25-world-main-agent-001",
+        "smoke-25-world-main-agent-002",
+        "smoke-25-world-main-agent-003",
+        "smoke-25-world-main-agent-004",
+        "smoke-25-world-main-agent-005",
+        "smoke-25-world-main-agent-006",
+        "smoke-25-world-main-agent-007",
+        "smoke-25-world-main-agent-008",
+        "smoke-25-world-main-agent-009",
+        "smoke-25-world-main-agent-010",
+        "smoke-25-world-main-agent-011",
+        "smoke-25-world-main-agent-012",
+        "smoke-25-world-main-agent-013",
+        "smoke-25-world-main-agent-014",
+        "smoke-25-world-main-agent-015",
+        "smoke-25-world-main-agent-016",
+        "smoke-25-world-main-agent-017",
+        "smoke-25-world-main-agent-018",
+        "smoke-25-world-main-agent-019",
+        "smoke-25-world-main-agent-020",
+        "smoke-25-world-main-agent-021",
+        "smoke-25-world-main-agent-022",
+        "smoke-25-world-main-agent-023",
+        "smoke-25-world-main-agent-024",
+        "smoke-25-world-main-agent-025"
+      ],
+      "source": {
+        "description": "Scenario grants the initial resident electorate control over existing town fiscal policies and this procedure. This is an external initial institution, not unanimous resident consent.",
+        "kind": "explicit-scenario-grant",
+        "version": "open-town-public-grant-v1"
+      },
+      "services": {
+        "version": "public-service-principals-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "service"
+        ],
+        "scope": "exact-directory-and-named-supply-not-body-or-income"
+      },
+      "serviceCreation": {
+        "version": "public-service-creation-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "service-directory"
+        ],
+        "scope": "exact-directory-creation-not-personal-labor-or-physical-facilities"
+      },
+      "resourceCustody": {
+        "version": "public-resource-custody-v2",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "stock",
+          "premises"
+        ],
+        "scope": "exact-control-or-operation-not-personal-participation"
+      },
+      "construction": {
+        "version": "public-construction-principals-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "construction-site",
+          "construction-project"
+        ],
+        "scope": "exact-project-authority-not-personal-labor"
+      },
+      "principalPermits": {
+        "version": "public-principal-permits-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "premises-permit"
+        ],
+        "scope": "exact-permission-contract-not-personal-participation"
+      },
+      "principalTrade": {
+        "version": "public-principal-permit-fees-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "evidence-order"
+        ],
+        "scope": "exact-permit-order-and-original-treasury-account"
+      },
+      "constructionTrade": {
+        "version": "public-construction-trade-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "construction-project",
+          "construction-order"
+        ],
+        "capabilities": [
+          "construction-trades.offer",
+          "construction-trades.accept",
+          "construction-trades.observe",
+          "construction-trades.withdraw",
+          "construction-trades.propose-settlement",
+          "construction-trades.accept-settlement"
+        ],
+        "scope": "exact-project-order-accounts-price-and-independent-settlement-not-personal-labor"
+      },
+      "resourceSales": {
+        "version": "public-paid-resource-control-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "resource-sale"
+        ],
+        "scope": "exact-price-accounts-source-and-bound-control-effect"
+      }
+    },
+    "publicGrantAfter": {
+      "actions": [
+        "set-tax",
+        "set-budget",
+        "set-subsidy",
+        "set-procedure",
+        "invalidate-decision",
+        "control-resource",
+        "manage-resource"
+      ],
+      "id": "town",
+      "residents": [
+        "smoke-25-world-main-agent-001",
+        "smoke-25-world-main-agent-002",
+        "smoke-25-world-main-agent-003",
+        "smoke-25-world-main-agent-004",
+        "smoke-25-world-main-agent-005",
+        "smoke-25-world-main-agent-006",
+        "smoke-25-world-main-agent-007",
+        "smoke-25-world-main-agent-008",
+        "smoke-25-world-main-agent-009",
+        "smoke-25-world-main-agent-010",
+        "smoke-25-world-main-agent-011",
+        "smoke-25-world-main-agent-012",
+        "smoke-25-world-main-agent-013",
+        "smoke-25-world-main-agent-014",
+        "smoke-25-world-main-agent-015",
+        "smoke-25-world-main-agent-016",
+        "smoke-25-world-main-agent-017",
+        "smoke-25-world-main-agent-018",
+        "smoke-25-world-main-agent-019",
+        "smoke-25-world-main-agent-020",
+        "smoke-25-world-main-agent-021",
+        "smoke-25-world-main-agent-022",
+        "smoke-25-world-main-agent-023",
+        "smoke-25-world-main-agent-024",
+        "smoke-25-world-main-agent-025"
+      ],
+      "source": {
+        "description": "Scenario grants the initial resident electorate control over existing town fiscal policies and this procedure. This is an external initial institution, not unanimous resident consent.",
+        "kind": "explicit-scenario-grant",
+        "version": "open-town-public-grant-v1"
+      },
+      "services": {
+        "version": "public-service-principals-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "service"
+        ],
+        "scope": "exact-directory-and-named-supply-not-body-or-income"
+      },
+      "serviceCreation": {
+        "version": "public-service-creation-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "service-directory"
+        ],
+        "scope": "exact-directory-creation-not-personal-labor-or-physical-facilities"
+      },
+      "resourceCustody": {
+        "version": "public-resource-custody-v2",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "stock",
+          "premises"
+        ],
+        "scope": "exact-control-or-operation-not-personal-participation"
+      },
+      "construction": {
+        "version": "public-construction-principals-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "construction-site",
+          "construction-project"
+        ],
+        "scope": "exact-project-authority-not-personal-labor"
+      },
+      "principalPermits": {
+        "version": "public-principal-permits-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "premises-permit"
+        ],
+        "scope": "exact-permission-contract-not-personal-participation"
+      },
+      "principalTrade": {
+        "version": "public-principal-permit-fees-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "evidence-order"
+        ],
+        "scope": "exact-permit-order-and-original-treasury-account"
+      },
+      "constructionTrade": {
+        "version": "public-construction-trade-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "construction-project",
+          "construction-order"
+        ],
+        "capabilities": [
+          "construction-trades.offer",
+          "construction-trades.accept",
+          "construction-trades.observe",
+          "construction-trades.withdraw",
+          "construction-trades.propose-settlement",
+          "construction-trades.accept-settlement"
+        ],
+        "scope": "exact-project-order-accounts-price-and-independent-settlement-not-personal-labor"
+      },
+      "resourceSales": {
+        "version": "public-paid-resource-control-v1",
+        "source": "explicit-scenario-extension",
+        "resourceKinds": [
+          "resource-sale"
+        ],
+        "scope": "exact-price-accounts-source-and-bound-control-effect"
+      }
+    },
+    "manifestUnchanged": true,
+    "existingPeopleFundsGoodsWorkAndAgreementsUnchanged": true,
+    "noResidentDecisionsOrOrganizationsCreated": true,
+    "retryCreatedNoCommits": true,
+    "replayMatched": true,
+    "limitations": [
+      "Existing explicit adapters add public grant scopes; they do not approve any public purchase or resident proposal.",
+      "Inventory/vehicle pricing v2 remains blocked by its existing vehicle-principal prerequisite.",
+      "No vehicle or enterprise is seeded to bypass that restriction.",
+      "Private integration still has legacy public-domain dependencies; independent activation requires an explicit compatible transition.",
+      "Whole 25-capability and full-mode integration remain incomplete."
+    ]
+  },
+  "directed": {
+    "resources": {
+      "ok": true,
+      "validation": "compiled-authenticated-HTTP-CLI-not-emergence",
+      "calls": 41,
+      "refusals": 7,
+      "results": [
+        {
+          "route": "principals.list",
+          "exitCode": 1,
+          "ok": false,
+          "error": "resource-principals-not-enabled"
+        },
+        {
+          "route": "stocks.create",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "stocks.deposit",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "business.found",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "principals.control",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "principals.control",
+          "exitCode": 2,
+          "ok": false,
+          "error": "unknown-flag:--actor-id"
+        },
+        {
+          "route": "principals.control",
+          "exitCode": 1,
+          "ok": false,
+          "error": "principal-control-authority-required"
+        },
+        {
+          "route": "principals.control",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "business.close",
+          "exitCode": 1,
+          "ok": false,
+          "error": "enterprise-resource-estate-unsettled"
+        },
+        {
+          "route": "stocks.withdraw",
+          "exitCode": 1,
+          "ok": false,
+          "error": "resource-controller-authority-required"
+        },
+        {
+          "route": "principals.operate",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "collectives.create",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "collectives.respond",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "principals.control",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "principals.control",
+          "exitCode": 1,
+          "ok": false,
+          "error": "principal-control-authority-required"
+        },
+        {
+          "route": "collectives.propose",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "collectives.vote",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "collectives.vote",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "collectives.decide",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "collectives.execute",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "business.close",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "collectives.propose",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "collectives.vote",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "collectives.vote",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "collectives.decide",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "collectives.execute",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.propose",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.vote",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.vote",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.vote",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.close",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.execute",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "stocks.withdraw",
+          "exitCode": 1,
+          "ok": false,
+          "error": "resource-controller-authority-required"
+        },
+        {
+          "route": "governance.propose",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.vote",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.vote",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.vote",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.close",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.execute",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "principals.read",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "principals.list",
+          "exitCode": 0,
+          "ok": true
+        }
+      ]
+    },
+    "buildingSale": {
+      "ok": true,
+      "validation": "compiled-authenticated-HTTP-CLI-not-emergence",
+      "policy": "resident-resource-sales-v1",
+      "calls": 20,
+      "refusals": 4,
+      "checks": [
+        "real-materials-and-own-labor",
+        "explicit-fiscal-control-scope",
+        "independent-public-price-vote",
+        "atomic-payment-and-control",
+        "manager-not-private-payee",
+        "no-free-price-bypass",
+        "old-author-assets-position-and-obligations",
+        "one-time-execution",
+        "identity-binding",
+        "full-journal-replay"
+      ],
+      "results": [
+        {
+          "route": "stocks.create",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "stocks.deposit",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "materials.reserve",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "construction.create",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "construction.start",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "principals.control",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "principals.read",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "principals.operate",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "principals.read",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "principals.control",
+          "exitCode": 1,
+          "ok": false,
+          "error": "paid-resource-sale-acceptance-required"
+        },
+        {
+          "route": "principals.operate",
+          "exitCode": 1,
+          "ok": false,
+          "error": "resource-sale-authority-required"
+        },
+        {
+          "route": "governance.propose",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.vote",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.vote",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.vote",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.close",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.execute",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "governance.execute",
+          "exitCode": 1,
+          "ok": false,
+          "error": "public-proposal-revision-conflict"
+        },
+        {
+          "route": "principals.read",
+          "exitCode": 0,
+          "ok": true
+        },
+        {
+          "route": "principals.operate",
+          "exitCode": 2,
+          "ok": false,
+          "error": "unknown-flag:--actor-id"
+        }
+      ]
+    },
+    "construction": {
+      "passed": true,
+      "root": "/home/dev/aivilization-town/.local/open-residents/construction-trade-cli",
+      "calls": 13,
+      "expectedRefusals": 2,
+      "replay": true
+    }
+  },
+  "targetedTests": {
+    "testsPassed": 19,
+    "filesPassed": 3,
+    "log": "/tmp/organized-resources-tests.log"
+  },
+  "checks": {
+    "scriptLint": "/tmp/organized-resources-lint.log",
+    "format": "/tmp/organized-resources-format-check.log"
+  },
+  "productionCodeChanged": false,
+  "sourceSha256": {
+    "apps/server/scripts/verify-canonical-organized-resources.mjs": "c4a7edb03d3f44b954001a9b547170c159192341d536c512ebc95599f4565b91"
+  },
+  "limitations": [
+    "Explicit initial public grant scopes extended; no resident approval or procurement was invented.",
+    "Resource sale v2 remains blocked by the existing vehicle-principal prerequisite.",
+    "Private adapter independence from public grant/global resource domain prerequisites remains work to implement compatibly.",
+    "No vehicles, enterprises or organizations created to satisfy prerequisites.",
+    "Complete 25-capability and all-mode delivery remains unfinished."
+  ],
+  "freeModel": {
+    "completed": true,
+    "status": "completed",
+    "exitCode": 0,
+    "elapsedMs": 109142,
+    "model": "opencode-go/deepseek-v4.1-flash",
+    "opportunities": 1,
+    "calls": 24,
+    "previousRevision": 202,
+    "revision": 229,
+    "journalSha256": "a4643fe9434dd434a669310d7ec1c793c4634014d523184261c053363e0360d3",
+    "worldEventCounts": {
+      "ResidentMaterialsCommitted": 5,
+      "SimulationTimeAdvanced": 1
+    },
+    "materialOperations": {
+      "create-stock": 1,
+      "create-extraction": 1,
+      "production-progress": 3
+    },
+    "rejections": [
+      {
+        "capability": "production.start",
+        "error": "production-workstation-unavailable"
+      },
+      {
+        "capability": "production.start",
+        "error": "production-workstation-unavailable"
+      },
+      {
+        "capability": "production.gather",
+        "error": "material-stock-revision-conflict"
+      }
+    ],
+    "sourceCapacityEvidence": {
+      "source": {
+        "at": 3334000,
+        "capacity": 2,
+        "commodity": "Wood",
+        "energyCost": 8,
+        "id": "declared-wood",
+        "initialQuantity": 100,
+        "locationId": "workshop",
+        "remaining": 82,
+        "revision": 5,
+        "satietyCost": 2,
+        "workMs": 60000
+      },
+      "jobs": [
+        {
+          "id": "gather-a004-wood-1",
+          "sourceId": "declared-wood",
+          "workers": [
+            "smoke-25-world-main-agent-004"
+          ],
+          "session": null
+        },
+        {
+          "id": "agent006-wood-order-1",
+          "sourceId": "declared-wood",
+          "workers": [
+            "smoke-25-world-main-agent-006"
+          ],
+          "session": {
+            "actorId": "smoke-25-world-main-agent-006",
+            "settledAt": 3335000,
+            "startedAt": 3332000,
+            "until": 3452000,
+            "workedMs": 3000
+          }
+        },
+        {
+          "id": "gather-wood-007-1",
+          "sourceId": "declared-wood",
+          "workers": [
+            "smoke-25-world-main-agent-007"
+          ],
+          "session": {
+            "actorId": "smoke-25-world-main-agent-007",
+            "settledAt": 3335000,
+            "startedAt": 3333000,
+            "until": 3573000,
+            "workedMs": 2000
+          }
+        },
+        {
+          "id": "008-gather-wood",
+          "sourceId": "declared-wood",
+          "workers": [
+            "smoke-25-world-main-agent-008"
+          ],
+          "session": null
+        }
+      ]
+    },
+    "replayMatched": true,
+    "reopenedWithoutNewCommits": true,
+    "writerReleased": true,
+    "limitations": [
+      "Source labor capacity was exhausted; constructing indoor workstations cannot add capacity to a raw source.",
+      "Current generic workstation refusal obscures the separate source constraint.",
+      "No resource sale, construction order or collective procurement adopted in this opportunity.",
+      "One opportunity is not stable social emergence."
+    ]
+  }
+}

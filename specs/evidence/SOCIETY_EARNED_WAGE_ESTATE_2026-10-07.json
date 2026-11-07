@@ -1,0 +1,48 @@
+{
+  "ok": true,
+  "scope": "timed-enterprise-earned-wage-continuity-after-preserved-exit",
+  "policyVersion": "resident-earned-wage-estate-v1",
+  "quality": {
+    "lint": true,
+    "typecheck": true,
+    "testsPassed": 3330,
+    "testsSkipped": 1,
+    "targetedTestsPassed": 28,
+    "dependencyBuild": "world-and-dependencies-passed"
+  },
+  "newIntegrationCases": 7,
+  "cases": [
+    "no cash at departure",
+    "partial previous payment",
+    "off-payment-cadence departure",
+    "already completed labor",
+    "zero labor elapsed",
+    "zero tax",
+    "full withholding"
+  ],
+  "assertions": [
+    "original earned obligation retained without future accrual",
+    "real enterprise recapitalization pays original creditor",
+    "original cumulative tax retained",
+    "estate net cash and all circulation cash conserved",
+    "no body or activity reservation recreated",
+    "later payment timestamp not backdated to departure",
+    "missing or forged proof and impersonation rejected",
+    "duplicate rejected and input unchanged",
+    "deterministic replay"
+  ],
+  "limitations": [
+    "Only timed enterprise labor integrated",
+    "Productive and service wage adapters still require living body",
+    "Natural population ordering and automatic debt settlement scheduler pending",
+    "No new resident CLI or OpenCode experiment evidence"
+  ],
+  "canonicalRevisionUnchanged": 802,
+  "logs": {
+    "target": "/tmp/wage-estate-target.log",
+    "lint": "/tmp/wage-estate-lint.log",
+    "typecheck": "/tmp/wage-estate-typecheck.log",
+    "tests": "/tmp/wage-estate-tests.log",
+    "build": "/tmp/wage-estate-build.log"
+  }
+}

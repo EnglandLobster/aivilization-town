@@ -1,7 +1,8 @@
+import { acquireCanonicalRuntimeOwnership } from './canonicalRuntimeOwnership';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { FileLocalSimulationRuntimeResolvedRunManifestRepository } from '@aivilization/worker';
 import { createTownStaticBearerCredentialDigest } from '@aivilization/api';
 import { createBranchPlan } from '@aivilization/agent-runtime';
@@ -53,6 +54,10 @@ afterEach(async () => {
     const root = roots.pop();
     if (root !== undefined) {
       rmSync(root, { recursive: true, force: true });
+      rmSync(join(dirname(root), `.${basename(root)}.canonical-ownership`), {
+        recursive: true,
+        force: true,
+      });
     }
   }
 });
@@ -1888,6 +1893,69 @@ describe('local runtime town executable composition', () => {
       objectiveTraces.every((trace) => trace.selectedCandidateId === 'paper-ablation-task-1'),
     ).toBe(true);
   }, 10_000);
+
+  test('retired canonical source cannot bootstrap another formal runtime', async () => {
+    const config = createDeterministicConfig(['--port', '0']);
+    const application = await startLocalRuntimeTownCli(config);
+    applications.push(application);
+    await application.close();
+    const owner = acquireCanonicalRuntimeOwnership(config.rootDir, 'archive');
+    try {
+      owner.retire({
+        sourceTreeSha256: 'a'.repeat(64),
+        targetManifestSha256: 'b'.repeat(64),
+        simulationId: 'test-source',
+        targetRoot: config.rootDir + '-society-target',
+      });
+    } finally {
+      owner.release();
+    }
+    await expect(startLocalRuntimeTownCli(config)).rejects.toThrow('canonical-source-retired');
+  });
+
+  test('application close waits for background shutdown and is idempotent', async () => {
+    const application = await startLocalRuntimeTownCli(createDeterministicConfig(['--port', '0']));
+    applications.push(application);
+    const worker = application.runtime.runtimeOrchestration.runQueueWorkerHost;
+    const original = worker.shutdown.bind(worker);
+    let release!: () => void;
+    let reached!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const entered = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const hook = vi.spyOn(worker, 'shutdown').mockImplementation(async () => {
+      reached();
+      await gate;
+      await original();
+    });
+    const closing = application.close();
+    expect(application.close()).toBe(closing);
+    let settled = false;
+    void closing.then(() => {
+      settled = true;
+    });
+    try {
+      await entered;
+      expect(settled).toBe(false);
+      expect(() => acquireCanonicalRuntimeOwnership(application.config.rootDir, 'archive')).toThrow(
+        'writers-active-or-unrecovered',
+      );
+    } finally {
+      release();
+    }
+    await closing;
+    expect(hook).toHaveBeenCalledTimes(1);
+    const archive = acquireCanonicalRuntimeOwnership(application.config.rootDir, 'archive');
+    await expect(startLocalRuntimeTownCli(application.config)).rejects.toThrow(
+      'archive-owns-source',
+    );
+    archive.release();
+    await expect(worker.runOnce()).rejects.toThrow('runtime-host-shutdown');
+    hook.mockRestore();
+  });
 
   test('listens on HTTP, exposes healthy auto-started components, and closes them together', async () => {
     const config = createDeterministicConfig(['--port', '0']);

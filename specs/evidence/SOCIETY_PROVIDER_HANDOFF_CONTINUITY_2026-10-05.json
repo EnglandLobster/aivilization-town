@@ -1,0 +1,62 @@
+{
+  "date": "2026-10-05",
+  "scope": "committed-wait-handoff-preservation",
+  "verification": {
+    "command": "pnpm check",
+    "lint": "passed",
+    "typecheck": "passed",
+    "testsPassed": 2637,
+    "testsSkipped": 1,
+    "filesPassed": 365,
+    "filesSkipped": 1
+  },
+  "runtimeRegressionTests": 2,
+  "diagnostics": {
+    "ok": true,
+    "evidenceKind": "controlled-local-process-diagnostics-not-real-provider",
+    "results": [
+      {
+        "kind": "normal",
+        "status": "completed",
+        "termination": {
+          "exitSignal": null,
+          "aborted": false,
+          "abortReason": null,
+          "providerErrorEvent": false
+        }
+      },
+      {
+        "kind": "error",
+        "status": "provider-error",
+        "termination": {
+          "exitSignal": null,
+          "aborted": false,
+          "abortReason": null,
+          "providerErrorEvent": true
+        }
+      },
+      {
+        "kind": "nonzero",
+        "status": "provider-error",
+        "termination": {
+          "exitSignal": null,
+          "aborted": false,
+          "abortReason": null,
+          "providerErrorEvent": false
+        }
+      },
+      {
+        "kind": "timeout",
+        "status": "provider-error",
+        "termination": {
+          "exitSignal": "SIGTERM",
+          "aborted": true,
+          "abortReason": "TimeoutError",
+          "providerErrorEvent": false
+        }
+      }
+    ]
+  },
+  "originalFailurePreserved": true,
+  "realProviderAcceptance": false
+}

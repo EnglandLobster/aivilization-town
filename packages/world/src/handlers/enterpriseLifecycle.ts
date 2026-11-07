@@ -1,7 +1,13 @@
+import { hasEnterprisePrincipalAssets } from '../principalResourceObligations';
+import { capitalCommit } from '../capitalSettlement';
+import { applyWorldEvent } from '../projection';
+import { enterpriseCapitalDistributions } from '@aivilization/enterprise';
 import {
   applyEnterpriseDomainEvent,
   evaluateEnterpriseLifecycle,
   normalizeEnterpriseState,
+  hasProtectedEarnedLabor,
+  hasOpenServiceBusiness,
   type EnterprisePolicy,
 } from '@aivilization/enterprise';
 import type { CommandEnvelope } from '@aivilization/sim-core';
@@ -45,9 +51,18 @@ export function appendEnterpriseLifecycleEvents(input: {
   // Running treasury view for audit payloads; the reducer applies treasury
   // deltas incrementally, so same-command budget spending stays consistent.
   let treasury = input.projection.treasury ?? 0;
+  let capitalWorld = input.projection,
+    capitalCursor = input.events.length;
   for (const evaluatedAt of boundaryTimes) {
     for (const [enterpriseId, initialEnterprise] of [...enterprises.entries()].sort(
-      ([left], [right]) => left.localeCompare(right),
+      ([left], [right]) =>
+        input.projection.residentLabor
+          ? left < right
+            ? -1
+            : left > right
+              ? 1
+              : 0
+          : left.localeCompare(right),
     )) {
       if (initialEnterprise.status === 'bankrupt' || initialEnterprise.status === 'closed') {
         continue;
@@ -84,20 +99,56 @@ export function appendEnterpriseLifecycleEvents(input: {
               policyVersion: policy.policyVersion,
             }),
           );
-        } else if (domainEvent.type === 'EnterpriseDividendPaid') {
-          input.events.push(
-            makeEvent(input, input.events.length, 'EnterpriseDividendPaid', {
+        } else if (
+          domainEvent.type === 'EnterpriseDividendPaid' ||
+          domainEvent.type === 'EnterpriseCapitalDividendPaid'
+        ) {
+          if (domainEvent.type === 'EnterpriseCapitalDividendPaid') {
+            capitalWorld = input.events.slice(capitalCursor).reduce(applyWorldEvent, capitalWorld);
+            capitalCursor = input.events.length;
+            const d = capitalCommit({
+              projection: capitalWorld,
+              actorId: 'system',
               enterpriseId,
-              totalAmount: domainEvent.totalAmount,
-              payments: decision.dividendPayments.map((payment) => ({ ...payment })),
-              previousBalance: enterprise.balance,
-              nextBalance: enterprise.balance - domainEvent.totalAmount,
-              previousRetainedEarnings: enterprise.retainedEarnings ?? 0,
-              nextRetainedEarnings: (enterprise.retainedEarnings ?? 0) - domainEvent.totalAmount,
-              paidAt: evaluatedAt,
-              policyVersion: policy.policyVersion,
-            }),
-          );
+              requestId: `capital-dividend-${input.nextSequence + input.events.length}`,
+              simulationId: input.command.simulationId,
+              nextSequence: input.nextSequence + input.events.length,
+              at: evaluatedAt,
+              invocation: { kind: 'automatic' },
+              events: [domainEvent],
+            });
+            if (!d.accepted) {
+              input.events.push(
+                makeEvent(
+                  { ...input, command: { ...input.command, issuedAt: evaluatedAt } },
+                  input.events.length,
+                  'ResidentCapitalDistributionDeferred',
+                  {
+                    enterpriseId,
+                    at: evaluatedAt,
+                    equityVersion: domainEvent.equityVersion,
+                    amount: domainEvent.totalAmount,
+                    reason: d.reason,
+                  },
+                ),
+              );
+              continue;
+            }
+            input.events.push(...d.events);
+          } else
+            input.events.push(
+              makeEvent(input, input.events.length, 'EnterpriseDividendPaid', {
+                enterpriseId,
+                totalAmount: domainEvent.totalAmount,
+                payments: decision.dividendPayments.map((payment) => ({ ...payment })),
+                previousBalance: enterprise.balance,
+                nextBalance: enterprise.balance - domainEvent.totalAmount,
+                previousRetainedEarnings: enterprise.retainedEarnings ?? 0,
+                nextRetainedEarnings: (enterprise.retainedEarnings ?? 0) - domainEvent.totalAmount,
+                paidAt: evaluatedAt,
+                policyVersion: policy.policyVersion,
+              }),
+            );
           enterprise = applyEnterpriseDomainEvent(enterprise, domainEvent);
           // Profit tax on the dividend payout: charged from the post-dividend
           // cash account into the treasury; skipped when the enterprise cannot
@@ -131,9 +182,22 @@ export function appendEnterpriseLifecycleEvents(input: {
         }
         enterprise = applyEnterpriseDomainEvent(enterprise, domainEvent);
       }
-      if (enterprise.status === 'bankrupt') {
+      if (
+        enterprise.status === 'bankrupt' &&
+        !hasEnterprisePrincipalAssets(input.projection, enterpriseId) &&
+        !enterprise.capital &&
+        (!enterprise.control ||
+          enterpriseCapitalDistributions(enterprise).every(
+            (d) => !!input.projection.agents[d.agentId],
+          )) &&
+        !hasProtectedEarnedLabor(enterprise) &&
+        !hasOpenServiceBusiness(enterprise)
+      ) {
         input.events.push(
           makeEvent(input, input.events.length, 'EnterpriseClosed', {
+            ...(enterprise.control
+              ? { capitalDistributions: enterpriseCapitalDistributions(enterprise) }
+              : {}),
             enterpriseId,
             ownerAgentId: enterprise.ownerAgentId,
             returnedBalance: enterprise.balance,

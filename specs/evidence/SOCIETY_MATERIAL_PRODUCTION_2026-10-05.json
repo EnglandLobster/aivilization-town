@@ -1,0 +1,226 @@
+{
+  "capability": "W01-M06-M09-material-production-foundation",
+  "mode": "real-compiled-cli-engineering-acceptance",
+  "modelInvoked": false,
+  "explicitTestSeed": {
+    "residents": 4,
+    "woodPerResident": 2,
+    "colocatedAtExistingProductionLocation": true
+  },
+  "cliCalls": 40,
+  "results": [
+    {
+      "route": "rules read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production recipes",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "material-stock-not-readable"
+    },
+    {
+      "route": "collectives create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives respond",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks withdraw",
+      "exitCode": 1,
+      "ok": false,
+      "error": "resource-controller-authority-required"
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 1,
+      "ok": false,
+      "error": "material-recipient-must-execute"
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks ledger",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives decide",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "collectives execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks settle",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks close",
+      "exitCode": 1,
+      "ok": false,
+      "error": "material-stock-unsettled"
+    },
+    {
+      "route": "stocks withdraw",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks close",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "realMaterialReservation": true,
+  "noOutputBeforeWork": true,
+  "independentWorkerSuccession": true,
+  "actualEffortAndRegisteredConversion": true,
+  "collectiveRecipientBound": true,
+  "failedExecutionKeepsDecision": true,
+  "independentHandoverAndSettlement": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true
+}

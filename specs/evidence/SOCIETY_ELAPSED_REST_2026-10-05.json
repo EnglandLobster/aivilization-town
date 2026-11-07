@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "society-engineering-verification-v1",
+  "scope": "explicit-open-resident-elapsed-rest-v1",
+  "fullCheck": {
+    "command": "pnpm check",
+    "passed": true,
+    "testsPassed": 2591,
+    "testsSkipped": 1,
+    "filesPassed": 355,
+    "filesSkipped": 1,
+    "log": "/tmp/rest-check-final.log"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... build",
+    "passed": true,
+    "log": "/tmp/rest-build.log"
+  },
+  "cli": {
+    "passed": true,
+    "commands": 11,
+    "expectedRefusals": 3,
+    "checks": [
+      "identity-bound-real-cli",
+      "no-prepaid-recovery",
+      "private-own-progress",
+      "elapsed-recovery",
+      "busy-body",
+      "own-current-consent",
+      "cancel-future-recovery",
+      "exact-off-grid-completion",
+      "durable-exact-replay"
+    ]
+  },
+  "targetedTests": 23,
+  "limitations": [
+    "Only explicitly enabled independent open-resident runtime; canonical planner and partition authority pending.",
+    "Lifecycle, migration, amortized settlement and legacy shared probability cadences rejected before activation.",
+    "Other legacy long actions retain existing policies pending their domain-specific migration.",
+    "CLI acceptance is prompted engineering verification, not free Agent adoption."
+  ]
+}

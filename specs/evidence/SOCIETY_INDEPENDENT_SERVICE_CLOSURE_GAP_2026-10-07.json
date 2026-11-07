@@ -1,0 +1,11 @@
+{
+  "version": "independent-service-closure-audit-v1",
+  "acceptance": false,
+  "publicGrantPresent": false,
+  "owningDomainOutstanding": [
+    "clinic"
+  ],
+  "applicationRefusal": null,
+  "gapConfirmed": true,
+  "scope": "Authoritative directory read-port; no closure command, event or world mutation."
+}

@@ -14,5 +14,10 @@
     "build": "tsup src/index.ts --format esm --dts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aivilization/authority": "workspace:*",
+    "@aivilization/economy": "workspace:*",
+    "@aivilization/society": "workspace:*"
   }
 }

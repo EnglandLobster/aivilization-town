@@ -1,0 +1,225 @@
+{
+  "capability": "W02-M06-M09-material-backed-premises",
+  "mode": "real-compiled-cli-engineering-acceptance",
+  "modelInvoked": false,
+  "explicitTestSeed": {
+    "residents": 4,
+    "woodPerResident": 30,
+    "colocatedAtExistingSite": true
+  },
+  "cliCalls": 39,
+  "results": [
+    {
+      "route": "rules read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "rules read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "sites list",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "sites read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction plan",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "material-reservation-not-readable"
+    },
+    {
+      "route": "construction create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials withdraw",
+      "exitCode": 1,
+      "ok": false,
+      "error": "material-reservation-not-offered"
+    },
+    {
+      "route": "construction start",
+      "exitCode": 1,
+      "ok": false,
+      "error": "construction-worker-not-authorized"
+    },
+    {
+      "route": "construction start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction leave",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "premises read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "housing choose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "premises close",
+      "exitCode": 1,
+      "ok": false,
+      "error": "premises-unsettled"
+    },
+    {
+      "route": "housing build",
+      "exitCode": 1,
+      "ok": false,
+      "error": "missing housing construction policy"
+    },
+    {
+      "route": "travel go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "housing choose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel go",
+      "exitCode": 1,
+      "ok": false,
+      "error": "premises-entry-not-authorized"
+    },
+    {
+      "route": "services publish",
+      "exitCode": 1,
+      "ok": false,
+      "error": "premises-operation-not-authorized"
+    },
+    {
+      "route": "materials reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction plan",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction plan",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "premises close",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "premises collect-salvage",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks ledger",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "donorConsentAndConsumerBinding": true,
+  "noBuildingBeforeLabor": true,
+  "personalWorkerSuccession": true,
+  "realSpaceAndBidirectionalRoute": true,
+  "independentEntryOperationResidence": true,
+  "materialBackedExpansionAndRepair": true,
+  "actualDemolitionSalvage": true,
+  "siteFreedOnlyAfterRubbleCollection": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true
+}

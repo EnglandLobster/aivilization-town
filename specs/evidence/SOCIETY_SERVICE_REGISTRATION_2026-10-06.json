@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "society-service-registration-evidence-v1",
+  "date": "2026-10-06",
+  "policy": "resident-service-supply-v3",
+  "entrypoints": [
+    "principals.read --kind service-directory --id resident-services",
+    "principals.operate services.create/services.reopen",
+    "enable-service-supply"
+  ],
+  "catalog": 56,
+  "skill": 55,
+  "rulebook": 45,
+  "fullGate": {
+    "command": "pnpm check",
+    "testsPassed": 2906,
+    "testsSkipped": 1,
+    "lintPassed": true,
+    "sortedRepositoryTypecheckPassed": true,
+    "logSha256": "1486973705c3984ebdbe1e43d66ca7c97bb460a49d1273faabcc00925b782491"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... --sort build",
+    "passed": true
+  },
+  "compiledCli": {
+    "passed": true,
+    "commands": 27,
+    "expectedRefusals": 7,
+    "policy": "resident-service-supply-v3",
+    "checks": [
+      "compiled-authenticated-cli",
+      "explicit-migration-no-assets-or-manifest-rewrite",
+      "positive-actual-directory-version",
+      "enterprise-current-authority",
+      "optional-enterprise-supply-separate",
+      "no-created-provider-or-body-or-payment",
+      "stale-approval-refused",
+      "reopening-preserves-identity",
+      "public-exact-approval-atomic",
+      "collective-exact-approval-atomic",
+      "external-service-estate-protected",
+      "exact-journal-replay"
+    ]
+  },
+  "invariants": [
+    "Creation uses actual positive directory revision, never temporary personal ownership or invented revision zero",
+    "Actual resident/collective/enterprise/public controller, exact independently approved source and atomic consumption",
+    "Current original affiliation is optional and separate from control; no arbitrary other employer",
+    "Initially empty named providers; no facilities, bodies, wages, money or contracts manufactured",
+    "Reopening preserves authors, control, obligations, slots and actual history, checks current capacity and premises use",
+    "Ordinary publications advance enabled registration, old manifest/records unchanged unless explicit activation",
+    "Domain proof records require source-validated world envelope; missing actual directory port refuses",
+    "Enterprise closure reads original supply and directory control estate; inactive does not erase assets"
+  ],
+  "remainingInFullGoal": [
+    "Independent multi-actor enterprise affiliation consent",
+    "Organizational service income/wages/contracts and full estate",
+    "Public physical procurement/construction and housing H3-H6",
+    "Long obligations, bilateral remedy and exit",
+    "Canonical/partition wiring",
+    "All 25 contracts and multi-condition long unprompted society experiments"
+  ]
+}

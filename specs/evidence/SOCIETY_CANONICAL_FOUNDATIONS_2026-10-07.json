@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "canonical-society-foundations-evidence-v1",
+  "sourceSha256": {
+    "apps/worker/src/openSociety/societyActivation.ts": "db15ae6539f8fcc3fb919418580d282725b00c81503efe3fd1545cb604f048d5",
+    "apps/worker/src/openSociety/societyActivation.test.ts": "fc6d85ab44d63279eaf14aa7f73fdf5e62a349a19d7c29dfd4e4cc695c680efd",
+    "apps/worker/src/openSociety/runtime.ts": "f3c372b8f8fb4859bcea51bda2d5181d78dba1fb8848d044139907dc6b82ea3c",
+    "apps/worker/src/openSociety/capabilityBoundaries.ts": "c8739f0207990a86a75ff596ac4d7c0eb8a7c80d355f6ac04414fbc2e30508ea",
+    "apps/worker/src/openSociety/catalog.ts": "2d882e13c4ff7067bc34acbc72954d16c9e3d50e530fb711ea2659db1948c1c1",
+    "apps/worker/src/openSociety/capabilityRoutes.ts": "92bf1ae0cb208547cb628f0f9d39e4e62adc46fd38920090c1303d6cc8264623",
+    "apps/worker/src/openSociety/context.ts": "8058fedce2e1206fe7c5bd462fde4aed66f73f7af6564718578c169070c520b3",
+    "apps/residents/src/cli.ts": "89ea66f6596d221558f7045ab6bcb83a414630c90f62018ed65f6e52abf63a7e",
+    "apps/residents/src/residentSkill.ts": "972776ded5829d5dd8348580487831d253b526887648ca1e447822c89ea0231c",
+    "apps/server/scripts/verify-society-foundations.mjs": "ddab7301ee8e08bd1eb8ee9eff9a301a9020ff27e65c421933b6aed61364e4ae"
+  },
+  "realMigratedWorld": {
+    "passed": true,
+    "root": "/home/dev/aivilization-town/.local/canonical-cutover-20261007/society",
+    "activation": {
+      "version": "society-foundations-activation-v1",
+      "status": "enabled",
+      "completed": [
+        "life",
+        "kernel",
+        "record-views",
+        "collectives",
+        "common-accounts",
+        "resource-control",
+        "group-control",
+        "materials",
+        "premises"
+      ],
+      "features": [
+        {
+          "feature": "life",
+          "enabled": true
+        },
+        {
+          "feature": "kernel",
+          "enabled": true
+        },
+        {
+          "feature": "record-views",
+          "enabled": true
+        },
+        {
+          "feature": "collectives",
+          "enabled": true
+        },
+        {
+          "feature": "common-accounts",
+          "enabled": true
+        },
+        {
+          "feature": "resource-control",
+          "enabled": true
+        },
+        {
+          "feature": "group-control",
+          "enabled": true
+        },
+        {
+          "feature": "materials",
+          "enabled": true
+        },
+        {
+          "feature": "premises",
+          "enabled": true
+        }
+      ],
+      "scope": "foundations-only-no-assets-or-complete-profile"
+    },
+    "previousRevision": 25,
+    "revision": 34,
+    "originalManifestUnchanged": true,
+    "agentsBalancesClockTravelUnchanged": true,
+    "stocksAndSitesEmpty": true,
+    "materialCustodyAvailable": true,
+    "finiteSourcesUnavailable": true,
+    "retryCreatedNoCommits": true,
+    "replayMatched": true,
+    "limitations": [
+      "Explicit foundations phase only; no complete integrated profile claim.",
+      "No physical sources, vehicles, sites or resident consent created.",
+      "Service provider policy upgrade, bodily time regime and source-backed facilities/resources remain required for full activation.",
+      "Operator CLI verification, not new model emergence evidence."
+    ]
+  },
+  "validation": {
+    "targeted": {
+      "passed": 6,
+      "log": "/tmp/society-foundations-tests.log"
+    },
+    "lint": {
+      "passed": true,
+      "logs": [
+        "/tmp/society-foundations-lint.log",
+        "/tmp/society-foundations-final-lint.log",
+        "/tmp/society-foundations-script-lint.log"
+      ]
+    },
+    "typecheck": {
+      "passed": true,
+      "logs": [
+        "/tmp/society-foundations-typecheck.log",
+        "/tmp/society-foundations-final-typecheck.log"
+      ]
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/society-foundations-final-build.log"
+    },
+    "tests": {
+      "passed": 3266,
+      "skipped": 1,
+      "filesPassed": 495,
+      "log": "/tmp/society-foundations-full-tests.log"
+    }
+  },
+  "initialFailures": [
+    "Activation guard initially treated retained activeTurnId as running. Completed turns intentionally retain that reference; guard now checks the durable finished receipt, retaining refusal for unfinished turns."
+  ],
+  "limitations": [
+    "Foundations phase only, not full integrated profile or all 25 capabilities.",
+    "No material sources/sites/vehicles/assets or personal consent are seeded.",
+    "Service v1 to recorded-provider v3, bodily time and proven resource/facility origins remain activation work.",
+    "Directory availability never guarantees permission, resources or all action-specific checks.",
+    "No new model run or emergence claim in this phase."
+  ]
+}

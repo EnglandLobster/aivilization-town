@@ -5,6 +5,11 @@ import {
   type OccupationConfig,
 } from '@aivilization/content';
 
+/** Discover the named initial institution; resident-defined enterprise positions are independent. */
+export function initialOccupationNames(): readonly string[] {
+  return occupations.map((occupation) => occupation.name);
+}
+
 export function resolveOccupation(input: {
   readonly occupationName: string;
   readonly occupationCatalog?: readonly OccupationConfig[];

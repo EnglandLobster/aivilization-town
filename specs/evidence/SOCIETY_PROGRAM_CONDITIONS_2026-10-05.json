@@ -1,0 +1,105 @@
+{
+  "capability": "M07-program-conditions",
+  "mode": "real-compiled-cli-engineering-acceptance",
+  "modelInvoked": false,
+  "cliCalls": 17,
+  "results": [
+    {
+      "route": "rules capability",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "registers create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "records put",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "mandates grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs check",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-conditions-not-met"
+    },
+    {
+      "route": "records put",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "views publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "mandates grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "registers configure",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs check",
+      "exitCode": 1,
+      "ok": false,
+      "error": "condition-source-unavailable"
+    },
+    {
+      "route": "programs run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "condition-source-unavailable"
+    },
+    {
+      "route": "programs runs",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "distinctResidentPurposes": true,
+  "falseConditionHasNoPayment": true,
+  "failedConditionPreservesMandate": true,
+  "actualSignedVersion": true,
+  "residentComputationNotWorldScore": true,
+  "sourceRevocationStopsExecution": true,
+  "noRepeatedUnapprovedEffects": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true
+}

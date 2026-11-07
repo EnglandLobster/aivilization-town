@@ -1,3 +1,4 @@
+import { canReadGroupInvitation } from './groupInvitationAccess';
 import {
   applyCommunicationEvent,
   canReadGroup,
@@ -37,7 +38,7 @@ export function executeCommunicationTool(
     return result(
       pageItems(
         Object.values(s.invitations)
-          .filter((i) => i.residentId === actorId || s.groups[i.groupId]?.ownerId === actorId)
+          .filter((i) => canReadGroupInvitation(state, i, actorId))
           .map((i) => ({
             ...i,
             groupRevision: s.groups[i.groupId]!.revision,
@@ -90,7 +91,12 @@ export function executeCommunicationTool(
       groupId,
       residentId: stringArg(args, 'residentId', actorId),
     };
-  else if (operation === 'accept' || operation === 'reject')
+  else if (
+    operation === 'accept' ||
+    operation === 'reject' ||
+    operation === 'withdraw-request' ||
+    operation === 'withdraw-invitation'
+  )
     command = { type: operation, id, expectedRevision: numberArg(args, 'expectedRevision') };
   else if (operation === 'send')
     command = { type: 'send', id: unique, groupId, content: stringArg(args, 'content') };
@@ -107,6 +113,7 @@ export function executeCommunicationTool(
     actorId,
     at: state.world.clock.now,
     command,
+    ...(state.resourceControlPolicy ? { resourceControlPolicy: state.resourceControlPolicy } : {}),
     exists: (id) => Object.hasOwn(state.residents, id),
   });
   if (!decision.accepted) throw new ToolRefusal(decision.reason);

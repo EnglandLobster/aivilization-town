@@ -5,6 +5,10 @@ import {
   type WorldBankState,
 } from '../credit';
 import { calculateCompletedRecruitmentCycleNumbers } from '@aivilization/society';
+import {
+  type CREDIT_SHARED_CASH_BUDGET_POLICY,
+  evaluateDailyCreditAccrualWithSharedCashBudget,
+} from '@aivilization/credit';
 import type { AgentId, CommandEnvelope } from '@aivilization/sim-core';
 import type { WorldEvent } from '../events';
 import type { WorldAgentState, WorldProjection } from '../projection';
@@ -25,6 +29,7 @@ export function appendCreditAccrualEvents(input: {
   readonly nextSequence: number;
   readonly events: WorldEvent[];
   readonly policy: CreditPolicy;
+  readonly collectionPolicy?: typeof CREDIT_SHARED_CASH_BUDGET_POLICY;
   readonly bank: WorldBankState;
   readonly agents: readonly WorldAgentState[];
   readonly balanceOf: (agentId: AgentId) => number | undefined;
@@ -55,12 +60,22 @@ export function appendCreditAccrualEvents(input: {
 
   for (const boundary of [...agentsByBoundary.keys()].sort((left, right) => left - right)) {
     const settling = new Set((agentsByBoundary.get(boundary) ?? []).map((agent) => agent.agentId));
-    const decision = evaluateDailyCreditAccrual({
+    const decisionInput = {
       bank,
       now: boundary,
       policy: input.policy,
-      borrowerBalance: (agentId) => (settling.has(agentId) ? input.balanceOf(agentId) : undefined),
-    });
+      borrowerBalance: (agentId: AgentId) =>
+        settling.has(agentId) ? input.balanceOf(agentId) : undefined,
+    };
+    const decision = input.collectionPolicy
+      ? evaluateDailyCreditAccrualWithSharedCashBudget({
+          ...decisionInput,
+          collectionPolicy: input.collectionPolicy,
+        })
+      : evaluateDailyCreditAccrual(decisionInput);
+    const collectionMetadata = input.collectionPolicy
+      ? { collectionPolicyVersion: input.collectionPolicy.version }
+      : {};
     for (const domainEvent of decision.events) {
       const bankPreviousBalance = bank.balance;
       const nextBank = applyCreditDomainEvent(bank, domainEvent);
@@ -85,6 +100,7 @@ export function appendCreditAccrualEvents(input: {
             bankPreviousBalance,
             bankNextBalance: nextBank.balance,
             policyVersion: input.policy.policyVersion,
+            ...collectionMetadata,
           }),
         );
         input.setBalance(domainEvent.borrowerAgentId, borrowerNextBalance);
@@ -128,6 +144,7 @@ export function appendCreditAccrualEvents(input: {
             bankPreviousBalance,
             bankNextBalance: nextBank.balance,
             policyVersion: input.policy.policyVersion,
+            ...collectionMetadata,
           }),
         );
         input.setBalance(domainEvent.borrowerAgentId, borrowerNextBalance);
@@ -166,6 +183,7 @@ export function appendCreditAccrualEvents(input: {
             bankPreviousBalance,
             bankNextBalance: nextBank.balance,
             policyVersion: input.policy.policyVersion,
+            ...collectionMetadata,
           }),
         );
         continue;

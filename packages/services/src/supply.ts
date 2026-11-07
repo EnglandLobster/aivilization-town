@@ -1,3 +1,4 @@
+import { currentServiceEnterprise } from './serviceSupplyRelationFacts';
 import type {
   Booking,
   ProviderShift,
@@ -6,6 +7,7 @@ import type {
   ServicesState,
   ServiceSlot,
 } from './model';
+import { personallyAdministersService } from './serviceControl';
 
 export const SERVICE_SUPPLY_VERSION = 'service-supply-v1';
 export function providerOverlap(slot: ServiceSlot, start: number, end: number): number {
@@ -96,11 +98,19 @@ export function canSupplyAttendance(
     });
 }
 export function canProvide(service: Service, actorId: string, p: ServicesPorts): boolean {
-  if (service.enterpriseId === undefined) return service.ownerId === actorId;
+  const enterpriseId = currentServiceEnterprise(service);
+  if (service.control?.policyVersion === 'resource-principals-v2')
+    return (
+      (service.namedProviders?.includes(actorId) ?? false) &&
+      (enterpriseId === undefined ||
+        p.employedBy?.(actorId, enterpriseId) === true ||
+        p.controlsEnterprise?.(actorId, enterpriseId) === true)
+    );
+  if (enterpriseId === undefined) return personallyAdministersService(service, actorId);
   return (
-    (service.ownerId === actorId &&
-      p.controlsEnterprise?.(actorId, service.enterpriseId) === true) ||
-    p.employedBy?.(actorId, service.enterpriseId) === true
+    (personallyAdministersService(service, actorId) &&
+      p.controlsEnterprise?.(actorId, enterpriseId) === true) ||
+    p.employedBy?.(actorId, enterpriseId) === true
   );
 }
 export function personalProviderOverlap(

@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T22:10:09.433175+00:00",
+  "spec": "specs/SOCIETY_INTEGRATED_PROFILE_V2.md",
+  "status": "explicit-integrated-v2-engineering-release-verified-free-run-pending",
+  "newTests": 2,
+  "newResidentCapabilities": 0,
+  "fullTests": {
+    "passed": 3207,
+    "skipped": 1,
+    "filesPassed": 481,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/construction-profile-lint2.log"
+    },
+    "sortedFullTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/construction-profile-typecheck.log"
+    },
+    "residentsAndDependenciesBuild": {
+      "exitCode": 0,
+      "log": "/tmp/construction-profile-build.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-profile-full-tests.log"
+    },
+    "targetedProfileTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-profile-tests.log"
+    }
+  },
+  "sourceSha256": {
+    "apps/worker/src/openSociety/runProfile.ts": "48155f4e52327c473ec294e72a6be0e8e6bf2f6d667c06e4edd9425984118f05",
+    "apps/worker/src/openSociety/runProfile.test.ts": "01a75a0d83dc65648f292dec54ddc45ad87fd3cf2e9b5dc4b78a09c5dab1701f",
+    "apps/residents/src/cli.ts": "d94e66ac6f03e200f9c8886a5ec3f2b429e861a361a594063235c358722b07fb"
+  },
+  "cliVerification": {
+    "artifact": ".local/open-residents/integrated-v2-cli-20261007/cli-verification.json",
+    "sha256": "fa586efc458d089f7d09ebc4b96ae9044b1359221d815c9d7b3a18b0f662f293",
+    "checks": 8,
+    "v2ManifestSha256": "3a83d3b19b2578c333942fc1aec4f9d23f667fbc449b0cafe2cb0135c47e5e78",
+    "v1ManifestSha256": "8dfc4128c559e9b765be914e42f7ca8d92bede0b70606de11e70d36a1e78e907"
+  },
+  "verified": [
+    "v2 enables existing construction trade and explicit public grant with empty orders",
+    "v1 default feature selection and original directory manifest preserved",
+    "residents, actual premises, money supply and treasury identical to v1 initial facts",
+    "actual v2 runtime advances and reopens full identical state and journal",
+    "compiled CLI creates v2, repeated initialization preserves original manifest",
+    "compiled CLI refuses v1 replacement, unknown profile, legacy conflict and non-init profile without invalid directory creation"
+  ],
+  "initialFailure": {
+    "log": "/tmp/construction-profile-lint.log",
+    "reason": "negative profile test returned Reflect.apply any value; changed callback to discard result, no weakened assertions"
+  },
+  "relatedModelEvidence": "specs/evidence/SOCIETY_CONSTRUCTION_MODEL_2026-10-07.json",
+  "limits": [
+    "model sample used explicit construction engineering manifest before v2 source changes, not a full-v2 model run",
+    "v2 free observation and conditions comparison pending",
+    "canonical/partition, long-term obligations and full 25-capability goal remain incomplete"
+  ]
+}

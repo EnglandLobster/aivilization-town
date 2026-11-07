@@ -1,0 +1,126 @@
+{
+  "spec": "agent-driven-society-v1",
+  "mode": "real-compiled-cli-mechanism-acceptance",
+  "modelInvoked": false,
+  "cliCalls": 22,
+  "results": [
+    {
+      "route": "rules list",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "rules capabilities",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "rules capability",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "rules capability",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "rules read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "registers create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "registers read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "record-not-found"
+    },
+    {
+      "route": "records put",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "records put",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "records history",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-not-found"
+    },
+    {
+      "route": "programs run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "programs read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "mandates grant",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs run",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs schedule",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs schedules",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs runs",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "programs run",
+      "exitCode": 1,
+      "ok": false,
+      "error": "program-mandate-required"
+    },
+    {
+      "route": "mandates revoke",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "successfulProgramRuns": 3,
+  "moneySupplyPreserved": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true
+}

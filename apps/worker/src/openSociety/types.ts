@@ -1,13 +1,57 @@
+import type { CanonicalRequestHistory } from '../canonicalRequestHistory';
+import type {
+  CanonicalCognitiveDocuments,
+  CanonicalCognitiveDocument,
+} from '../canonicalCognitiveDocuments';
+import type {
+  CanonicalMemoryContinuation,
+  CanonicalMemoryEntry,
+} from '../canonicalMemoryContinuation';
+import type { CanonicalPolicyContinuation } from '../canonicalPolicyContinuation';
+import type { ServiceSupplyRelationPolicy } from '@aivilization/services';
+import type { ServiceAffiliationPolicy } from '@aivilization/services';
+import type { ServicePrincipalsPolicy } from '@aivilization/services';
+import type { ServiceSupplyPolicy } from '@aivilization/services';
+import type { ResourceControlPolicy } from '@aivilization/authority';
+import type { SocietyEffectOrder } from './effectOrder';
+import type {
+  ProgramReactionsPolicy,
+  ProgramConditionsPolicy,
+  ProgramActionsPolicy,
+} from '@aivilization/collaboration';
+import type {
+  CollectivesPolicy,
+  CollectivesState,
+  CollectiveEvent,
+} from '@aivilization/collaboration';
 import type { ResidentRhythmPolicy } from '@aivilization/society';
+import type { SocietyKernelPolicy } from './kernelPolicy';
+import type { SharedRecordsState, SharedRecordsEvent } from '@aivilization/information';
+import type {
+  RecordViewsPolicy,
+  RecordViewsState,
+  RecordViewEvent,
+} from '@aivilization/information';
+import type { CoordinationState, CoordinationEvent } from '@aivilization/collaboration';
 import type { ResidentLifeState, ResidentLifeEvents, RESIDENT_LIFE_POLICIES } from './lifeState';
-import type { ServicesEvent, ServicesPolicy, ServicesState } from '@aivilization/services';
+import type {
+  ServicesEvent,
+  ServicesPolicy,
+  ServicesState,
+  ServiceControlPolicy,
+} from '@aivilization/services';
 import type {
   CollaborationEvent,
   CollaborationPolicy,
   CollaborationState,
 } from '@aivilization/collaboration';
-import type { OpenAgentPolicy, OpenToolResult } from '@aivilization/agent-runtime';
 import type {
+  OpenAgentActionPlansPolicy,
+  OpenAgentPolicy,
+  OpenToolResult,
+} from '@aivilization/agent-runtime';
+import type {
+  GroupControlPolicy,
   CommunicationEvent,
   CommunicationPolicy,
   CommunicationState,
@@ -29,6 +73,18 @@ export type ResidentIdentity = {
   readonly acquaintances?: readonly string[];
 };
 export type OpenSocietyManifest = {
+  readonly canonicalRequestHistory?: CanonicalRequestHistory;
+  readonly canonicalCognitiveDocuments?: CanonicalCognitiveDocuments;
+  readonly canonicalMemoryContinuation?: CanonicalMemoryContinuation;
+  readonly canonicalPolicyContinuation?: CanonicalPolicyContinuation;
+  readonly groupControlPolicy?: GroupControlPolicy;
+  readonly resourceControlPolicy?: ResourceControlPolicy;
+  readonly programConditionsPolicy?: ProgramConditionsPolicy;
+  readonly programReactionsPolicy?: ProgramReactionsPolicy;
+  readonly programActionsPolicy?: ProgramActionsPolicy;
+  readonly collectivesPolicy?: CollectivesPolicy;
+  readonly recordViewsPolicy?: RecordViewsPolicy;
+  readonly societyKernelPolicy?: SocietyKernelPolicy;
   readonly schemaVersion: typeof OPEN_SOCIETY_SCHEMA_VERSION;
   readonly simulationId: string;
   readonly seed: string;
@@ -40,6 +96,11 @@ export type OpenSocietyManifest = {
   readonly lifeVersion?: 'resident-life-v1';
   readonly lifePolicies?: typeof RESIDENT_LIFE_POLICIES;
   readonly servicesPolicy?: ServicesPolicy;
+  readonly servicePrincipalPolicy?: ServicePrincipalsPolicy;
+  readonly serviceSupplyPolicy?: ServiceSupplyPolicy;
+  readonly serviceAffiliationPolicy?: ServiceAffiliationPolicy;
+  readonly serviceSupplyRelationPolicy?: ServiceSupplyRelationPolicy;
+  readonly serviceControlPolicy?: ServiceControlPolicy;
   readonly communicationPolicy?: CommunicationPolicy;
   readonly distributionPolicy?: DistributionPolicy;
   readonly cognitionVersion: string;
@@ -56,7 +117,9 @@ export type ResidentExperience = {
   readonly summary: string;
   readonly sourceIds: readonly string[];
   readonly people: readonly string[];
-  readonly provenance: 'firsthand' | 'message-claim' | 'self-belief';
+  readonly provenance: 'firsthand' | 'message-claim' | 'self-belief' | 'legacy-record';
+  readonly canonicalSource?: CanonicalMemoryEntry;
+  readonly canonicalDocument?: CanonicalCognitiveDocument;
   readonly occurredAt?: number;
   readonly locationIds?: readonly string[];
 };
@@ -74,11 +137,44 @@ export type ResidentTurn = {
   readonly reason: string;
   readonly calls: number;
   readonly status: 'running' | 'completed' | 'waiting' | 'provider-error' | 'budget-exhausted';
+  readonly providerSummary?: string;
   readonly summary: string;
   readonly nextWakeAt: number;
   readonly sessionId?: string;
+  /** The provider failed before any call and the opportunity was handed back for a retry. */
+  readonly requeued?: true;
+};
+export type ResidentActionPlanStep = {
+  /** The resident's own command text, kept verbatim for their context. */
+  readonly command: string;
+  readonly capability: string;
+  /** Parsed arguments; may hold placeholders such as `current` resolved at execution time. */
+  readonly arguments: Readonly<Record<string, unknown>>;
+};
+export type ResidentActionPlan = {
+  readonly version: OpenAgentActionPlansPolicy['version'];
+  readonly id: string;
+  readonly note: string;
+  readonly createdAt: number;
+  /**
+   * Journal revision the plan was created on. Unique per plan, so a plan re-queued under the same
+   * ID at the same time gets its own step request IDs.
+   */
+  readonly createdRevision: number;
+  readonly steps: readonly ResidentActionPlanStep[];
+  /** Index of the next step to run. */
+  readonly next: number;
+  readonly status: 'active' | 'completed' | 'stopped' | 'cancelled';
+  readonly lastResult?: {
+    readonly step: number;
+    readonly capability: string;
+    readonly ok: boolean;
+    readonly error?: string;
+    readonly at: number;
+  };
 };
 export type ResidentRuntimeState = {
+  readonly plan?: ResidentActionPlan;
   readonly actorId: string;
   readonly lastTurnOrdinal: number;
   readonly nextWakeAt: number;
@@ -88,6 +184,13 @@ export type ResidentRuntimeState = {
   readonly activeTurnId?: string;
 };
 export type OpenSocietyState = {
+  /** Copied from the manifest policy so capability availability can be read from state. */
+  readonly actionPlans?: OpenAgentActionPlansPolicy;
+  readonly resourceControlPolicy?: ResourceControlPolicy;
+  readonly collectives?: CollectivesState;
+  readonly recordViews?: RecordViewsState;
+  readonly sharedRecords?: SharedRecordsState;
+  readonly coordination?: CoordinationState;
   readonly collaboration?: CollaborationState;
   readonly life?: ResidentLifeState;
   readonly services?: ServicesState;
@@ -105,6 +208,12 @@ export type OpenSocietyState = {
   readonly turns: Readonly<Record<string, ResidentTurn>>;
 };
 export type OpenSocietyEffects = ResidentLifeEvents & {
+  readonly effectOrder?: SocietyEffectOrder;
+  readonly resourceControlEnabled?: ResourceControlPolicy;
+  readonly collectiveEvents?: readonly CollectiveEvent[];
+  readonly recordViewEvents?: readonly RecordViewEvent[];
+  readonly sharedRecordsEvents?: readonly SharedRecordsEvent[];
+  readonly coordinationEvents?: readonly CoordinationEvent[];
   readonly collaborationEvents?: readonly CollaborationEvent[];
   readonly servicesEvents?: readonly ServicesEvent[];
   readonly communicationEvents?: readonly CommunicationEvent[];

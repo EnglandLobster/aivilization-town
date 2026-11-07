@@ -5,3 +5,7 @@ export * from './distributionModel';
 export * from './distributionAggregate';
 export * from './distributionRead';
 export * from './communication';
+export * from './sharedRecords';
+export * from './recordViewModel';
+export * from './recordViews';
+export * from './resourceControl';

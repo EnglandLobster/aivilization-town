@@ -1,0 +1,353 @@
+{
+  "version": "society-canonical-public-employment-evidence-v1",
+  "migration": {
+    "ok": true,
+    "version": "canonical-public-employment-activation-verification-v1",
+    "beforeRevision": 742,
+    "afterRevision": 743,
+    "inheritedPolicy": {
+      "cycleDurationMs": 86400000,
+      "policyVersion": "resident-public-employment-rules-v1",
+      "revisions": [
+        {
+          "effectiveCycle": 0,
+          "recordedAt": 3463000,
+          "revision": 1,
+          "source": {
+            "kind": "inherited-scenario",
+            "version": "recruitment-cycle-v1"
+          },
+          "terms": {
+            "defaultOccupationCapacity": 1,
+            "occupationCapacityOverrides": {},
+            "occupations": [
+              {
+                "educationFloor": 0,
+                "eligibilityShare": 1,
+                "minimumResidentialTier": 1,
+                "occupationName": "Cleaner",
+                "prerequisiteCommodity": null
+              },
+              {
+                "educationFloor": 13,
+                "eligibilityShare": 0.9,
+                "minimumResidentialTier": 1,
+                "occupationName": "Waiter",
+                "prerequisiteCommodity": null
+              },
+              {
+                "educationFloor": 20,
+                "eligibilityShare": 0.832,
+                "minimumResidentialTier": 2,
+                "occupationName": "Stock Clerk",
+                "prerequisiteCommodity": "Beef"
+              },
+              {
+                "educationFloor": 42,
+                "eligibilityShare": 0.728,
+                "minimumResidentialTier": 2,
+                "occupationName": "Security Guard",
+                "prerequisiteCommodity": "Beef"
+              },
+              {
+                "educationFloor": 62,
+                "eligibilityShare": 0.624,
+                "minimumResidentialTier": 2,
+                "occupationName": "Receptionist",
+                "prerequisiteCommodity": "Beef"
+              },
+              {
+                "educationFloor": 78,
+                "eligibilityShare": 0.56,
+                "minimumResidentialTier": 3,
+                "occupationName": "Cashier",
+                "prerequisiteCommodity": "Sushi"
+              },
+              {
+                "educationFloor": 104,
+                "eligibilityShare": 0.476,
+                "minimumResidentialTier": 3,
+                "occupationName": "Maintenance Worker",
+                "prerequisiteCommodity": "Sushi"
+              },
+              {
+                "educationFloor": 113,
+                "eligibilityShare": 0.448,
+                "minimumResidentialTier": 4,
+                "occupationName": "Chef",
+                "prerequisiteCommodity": "Pure Silicon"
+              },
+              {
+                "educationFloor": 141,
+                "eligibilityShare": 0.384,
+                "minimumResidentialTier": 4,
+                "occupationName": "Nurse",
+                "prerequisiteCommodity": "Pure Silicon"
+              },
+              {
+                "educationFloor": 176,
+                "eligibilityShare": 0.32,
+                "minimumResidentialTier": 4,
+                "occupationName": "Teacher",
+                "prerequisiteCommodity": "Pure Silicon"
+              },
+              {
+                "educationFloor": 207,
+                "eligibilityShare": 0.28,
+                "minimumResidentialTier": 5,
+                "occupationName": "Doctor",
+                "prerequisiteCommodity": "Transistor"
+              },
+              {
+                "educationFloor": 237,
+                "eligibilityShare": 0.245,
+                "minimumResidentialTier": 5,
+                "occupationName": "Office Clerk",
+                "prerequisiteCommodity": "Transistor"
+              },
+              {
+                "educationFloor": 273,
+                "eligibilityShare": 0.21,
+                "minimumResidentialTier": 5,
+                "occupationName": "Supermarket Manager",
+                "prerequisiteCommodity": "Transistor"
+              },
+              {
+                "educationFloor": 319,
+                "eligibilityShare": 0.175,
+                "minimumResidentialTier": 5,
+                "occupationName": "Restaurant Manager",
+                "prerequisiteCommodity": "Transistor"
+              },
+              {
+                "educationFloor": 357,
+                "eligibilityShare": 0.15,
+                "minimumResidentialTier": 6,
+                "occupationName": "Principal",
+                "prerequisiteCommodity": "Circuit Board"
+              },
+              {
+                "educationFloor": 421,
+                "eligibilityShare": 0.12,
+                "minimumResidentialTier": 6,
+                "occupationName": "Hospital Director",
+                "prerequisiteCommodity": "Circuit Board"
+              },
+              {
+                "educationFloor": 604,
+                "eligibilityShare": 0.065,
+                "minimumResidentialTier": 6,
+                "occupationName": "CEO",
+                "prerequisiteCommodity": "Circuit Board"
+              }
+            ],
+            "quotaByResidentialTier": [
+              1,
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "ranking": [
+              "knowledge",
+              "housing",
+              "submitted"
+            ]
+          }
+        }
+      ]
+    },
+    "publicGrantExtension": {
+      "version": "resident-public-employment-rules-v1",
+      "source": "explicit-scenario-extension",
+      "scope": "existing-public-recruitment",
+      "effect": "next-recruitment-cycle"
+    },
+    "source": "explicit-operator-activation-not-resident-vote",
+    "existingApplicationsAndAllOtherWorldFactsUnchanged": true,
+    "nonWorldStateUnchanged": true,
+    "manifestUnchanged": true,
+    "originalJournalPrefixPreserved": true,
+    "retryNoCommit": true,
+    "replayMatched": true,
+    "journalHash": "b0091c947108e33e982db20352c6bfc382488b339595f9a44ec702425165e0e2"
+  },
+  "rehearsal": {
+    "ok": true,
+    "version": "canonical-public-employment-activation-verification-v1",
+    "beforeRevision": 577,
+    "afterRevision": 578,
+    "inheritedPolicy": {
+      "cycleDurationMs": 86400000,
+      "policyVersion": "resident-public-employment-rules-v1",
+      "revisions": [
+        {
+          "effectiveCycle": 0,
+          "recordedAt": 3349000,
+          "revision": 1,
+          "source": {
+            "kind": "inherited-scenario",
+            "version": "recruitment-cycle-v1"
+          },
+          "terms": {
+            "defaultOccupationCapacity": 1,
+            "occupationCapacityOverrides": {},
+            "occupations": [
+              {
+                "educationFloor": 0,
+                "eligibilityShare": 1,
+                "minimumResidentialTier": 1,
+                "occupationName": "Cleaner",
+                "prerequisiteCommodity": null
+              },
+              {
+                "educationFloor": 13,
+                "eligibilityShare": 0.9,
+                "minimumResidentialTier": 1,
+                "occupationName": "Waiter",
+                "prerequisiteCommodity": null
+              },
+              {
+                "educationFloor": 20,
+                "eligibilityShare": 0.832,
+                "minimumResidentialTier": 2,
+                "occupationName": "Stock Clerk",
+                "prerequisiteCommodity": "Beef"
+              },
+              {
+                "educationFloor": 42,
+                "eligibilityShare": 0.728,
+                "minimumResidentialTier": 2,
+                "occupationName": "Security Guard",
+                "prerequisiteCommodity": "Beef"
+              },
+              {
+                "educationFloor": 62,
+                "eligibilityShare": 0.624,
+                "minimumResidentialTier": 2,
+                "occupationName": "Receptionist",
+                "prerequisiteCommodity": "Beef"
+              },
+              {
+                "educationFloor": 78,
+                "eligibilityShare": 0.56,
+                "minimumResidentialTier": 3,
+                "occupationName": "Cashier",
+                "prerequisiteCommodity": "Sushi"
+              },
+              {
+                "educationFloor": 104,
+                "eligibilityShare": 0.476,
+                "minimumResidentialTier": 3,
+                "occupationName": "Maintenance Worker",
+                "prerequisiteCommodity": "Sushi"
+              },
+              {
+                "educationFloor": 113,
+                "eligibilityShare": 0.448,
+                "minimumResidentialTier": 4,
+                "occupationName": "Chef",
+                "prerequisiteCommodity": "Pure Silicon"
+              },
+              {
+                "educationFloor": 141,
+                "eligibilityShare": 0.384,
+                "minimumResidentialTier": 4,
+                "occupationName": "Nurse",
+                "prerequisiteCommodity": "Pure Silicon"
+              },
+              {
+                "educationFloor": 176,
+                "eligibilityShare": 0.32,
+                "minimumResidentialTier": 4,
+                "occupationName": "Teacher",
+                "prerequisiteCommodity": "Pure Silicon"
+              },
+              {
+                "educationFloor": 207,
+                "eligibilityShare": 0.28,
+                "minimumResidentialTier": 5,
+                "occupationName": "Doctor",
+                "prerequisiteCommodity": "Transistor"
+              },
+              {
+                "educationFloor": 237,
+                "eligibilityShare": 0.245,
+                "minimumResidentialTier": 5,
+                "occupationName": "Office Clerk",
+                "prerequisiteCommodity": "Transistor"
+              },
+              {
+                "educationFloor": 273,
+                "eligibilityShare": 0.21,
+                "minimumResidentialTier": 5,
+                "occupationName": "Supermarket Manager",
+                "prerequisiteCommodity": "Transistor"
+              },
+              {
+                "educationFloor": 319,
+                "eligibilityShare": 0.175,
+                "minimumResidentialTier": 5,
+                "occupationName": "Restaurant Manager",
+                "prerequisiteCommodity": "Transistor"
+              },
+              {
+                "educationFloor": 357,
+                "eligibilityShare": 0.15,
+                "minimumResidentialTier": 6,
+                "occupationName": "Principal",
+                "prerequisiteCommodity": "Circuit Board"
+              },
+              {
+                "educationFloor": 421,
+                "eligibilityShare": 0.12,
+                "minimumResidentialTier": 6,
+                "occupationName": "Hospital Director",
+                "prerequisiteCommodity": "Circuit Board"
+              },
+              {
+                "educationFloor": 604,
+                "eligibilityShare": 0.065,
+                "minimumResidentialTier": 6,
+                "occupationName": "CEO",
+                "prerequisiteCommodity": "Circuit Board"
+              }
+            ],
+            "quotaByResidentialTier": [
+              1,
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "ranking": [
+              "knowledge",
+              "housing",
+              "submitted"
+            ]
+          }
+        }
+      ]
+    },
+    "publicGrantExtension": {
+      "version": "resident-public-employment-rules-v1",
+      "source": "explicit-scenario-extension",
+      "scope": "existing-public-recruitment",
+      "effect": "next-recruitment-cycle"
+    },
+    "source": "explicit-operator-activation-not-resident-vote",
+    "existingApplicationsAndAllOtherWorldFactsUnchanged": true,
+    "nonWorldStateUnchanged": true,
+    "manifestUnchanged": true,
+    "originalJournalPrefixPreserved": true,
+    "retryNoCommit": true,
+    "replayMatched": true,
+    "journalHash": "a37c38d7c390a7eda2077fdc244352a402441677df761836e9966da68c05ecea"
+  },
+  "scope": "Explicit operator jurisdiction extension and inherited rules; no resident proposal, vote, retry or admission fabricated.",
+  "newWorldCode": false,
+  "newResidentTools": false,
+  "notAllModesComplete": true
+}

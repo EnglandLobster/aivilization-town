@@ -1,0 +1,377 @@
+{
+  "schemaVersion": "society-free-checkpoint-evidence-v1",
+  "opportunities": 480,
+  "journalCommits": 3544,
+  "capabilityCalls": 1797,
+  "simulationTime": 467194000,
+  "journalSha256": "4b45faa795bfb5f5a76c5db30178fa8d495718849358633fbc8acfe1657ce31f",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFingerprints": 371,
+  "implementationVersions": {
+    "catalog": 47,
+    "skill": 46,
+    "rulebook": 36
+  },
+  "providerStatusCounts": {
+    "completed": 474,
+    "provider-error": 6
+  },
+  "newEmploymentDecision": {
+    "action": {
+      "expectedRevision": 2,
+      "kind": "set-employment",
+      "terms": {
+        "defaultOccupationCapacity": 1,
+        "occupationCapacityOverrides": {
+          "Chef": 2
+        },
+        "occupations": [
+          {
+            "educationFloor": 0,
+            "eligibilityShare": 1,
+            "minimumResidentialTier": 1,
+            "occupationName": "Cleaner",
+            "prerequisiteCommodity": null
+          },
+          {
+            "educationFloor": 13,
+            "eligibilityShare": 0.9,
+            "minimumResidentialTier": 1,
+            "occupationName": "Waiter",
+            "prerequisiteCommodity": null
+          },
+          {
+            "educationFloor": 20,
+            "eligibilityShare": 0.832,
+            "minimumResidentialTier": 2,
+            "occupationName": "Stock Clerk",
+            "prerequisiteCommodity": "Beef"
+          },
+          {
+            "educationFloor": 42,
+            "eligibilityShare": 0.728,
+            "minimumResidentialTier": 2,
+            "occupationName": "Security Guard",
+            "prerequisiteCommodity": "Beef"
+          },
+          {
+            "educationFloor": 62,
+            "eligibilityShare": 0.624,
+            "minimumResidentialTier": 2,
+            "occupationName": "Receptionist",
+            "prerequisiteCommodity": "Beef"
+          },
+          {
+            "educationFloor": 78,
+            "eligibilityShare": 0.56,
+            "minimumResidentialTier": 3,
+            "occupationName": "Cashier",
+            "prerequisiteCommodity": "Sushi"
+          },
+          {
+            "educationFloor": 104,
+            "eligibilityShare": 0.476,
+            "minimumResidentialTier": 3,
+            "occupationName": "Maintenance Worker",
+            "prerequisiteCommodity": "Sushi"
+          },
+          {
+            "educationFloor": 113,
+            "eligibilityShare": 0.448,
+            "minimumResidentialTier": 4,
+            "occupationName": "Chef",
+            "prerequisiteCommodity": "Pure Silicon"
+          },
+          {
+            "educationFloor": 141,
+            "eligibilityShare": 0.384,
+            "minimumResidentialTier": 4,
+            "occupationName": "Nurse",
+            "prerequisiteCommodity": "Pure Silicon"
+          },
+          {
+            "educationFloor": 176,
+            "eligibilityShare": 0.32,
+            "minimumResidentialTier": 4,
+            "occupationName": "Teacher",
+            "prerequisiteCommodity": "Pure Silicon"
+          },
+          {
+            "educationFloor": 207,
+            "eligibilityShare": 0.28,
+            "minimumResidentialTier": 5,
+            "occupationName": "Doctor",
+            "prerequisiteCommodity": "Transistor"
+          },
+          {
+            "educationFloor": 237,
+            "eligibilityShare": 0.245,
+            "minimumResidentialTier": 5,
+            "occupationName": "Office Clerk",
+            "prerequisiteCommodity": "Transistor"
+          },
+          {
+            "educationFloor": 273,
+            "eligibilityShare": 0.21,
+            "minimumResidentialTier": 5,
+            "occupationName": "Supermarket Manager",
+            "prerequisiteCommodity": "Transistor"
+          },
+          {
+            "educationFloor": 319,
+            "eligibilityShare": 0.175,
+            "minimumResidentialTier": 5,
+            "occupationName": "Restaurant Manager",
+            "prerequisiteCommodity": "Transistor"
+          },
+          {
+            "educationFloor": 357,
+            "eligibilityShare": 0.15,
+            "minimumResidentialTier": 6,
+            "occupationName": "Principal",
+            "prerequisiteCommodity": "Circuit Board"
+          },
+          {
+            "educationFloor": 421,
+            "eligibilityShare": 0.12,
+            "minimumResidentialTier": 6,
+            "occupationName": "Hospital Director",
+            "prerequisiteCommodity": "Circuit Board"
+          },
+          {
+            "educationFloor": 604,
+            "eligibilityShare": 0.065,
+            "minimumResidentialTier": 6,
+            "occupationName": "CEO",
+            "prerequisiteCommodity": "Circuit Board"
+          }
+        ],
+        "quotaByResidentialTier": [
+          2,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "ranking": [
+          "knowledge",
+          "housing",
+          "submitted"
+        ]
+      }
+    },
+    "authorId": "resident-004",
+    "closesAt": 454800000,
+    "createdAt": 434800000,
+    "expiresAt": 1059600000,
+    "id": "proposal-004-chef-capacity-2",
+    "procedure": {
+      "allowVoteChanges": true,
+      "electorate": [
+        "resident-001",
+        "resident-002",
+        "resident-003",
+        "resident-004"
+      ],
+      "executionWindowMs": 604800000,
+      "executors": "electorate",
+      "maximumVotingMs": 2592000000,
+      "minimumTurnout": 3,
+      "minimumVotingMs": 60000,
+      "minimumYes": 3
+    },
+    "procedureRevision": 1,
+    "revision": 7,
+    "status": "executed",
+    "text": "003已任Chef，而 Chef 默认容量仅1个，导致我也无法同时任主厨。建议把 occupations 的 Chef 容量 override 为2（defaultOccupationCapacity仍1，其余不变），让两位擅长烹饪的居民都能就业为Chef。请001/002/003审阅投票。",
+    "voteChanges": {
+      "resident-004": 1,
+      "resident-001": 1,
+      "resident-002": 1,
+      "resident-003": 1
+    },
+    "votes": {
+      "resident-004": {
+        "actorId": "resident-004",
+        "at": 434800000,
+        "choice": "yes"
+      },
+      "resident-001": {
+        "actorId": "resident-001",
+        "at": 434860000,
+        "choice": "yes"
+      },
+      "resident-002": {
+        "actorId": "resident-002",
+        "at": 434920000,
+        "choice": "yes"
+      },
+      "resident-003": {
+        "actorId": "resident-003",
+        "at": 434980000,
+        "choice": "yes"
+      }
+    },
+    "closedAt": 463960000,
+    "closedBy": "resident-004",
+    "result": {
+      "abstain": 0,
+      "no": 0,
+      "yes": 4
+    },
+    "executedAt": 463960000,
+    "executedBy": "resident-004",
+    "effectIds": [
+      "public-0771cf428a8729096252b830880cf0d1:public"
+    ]
+  },
+  "employmentEffectiveCycle": 6,
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 294.30000000000416,
+      "educationLevel": 3,
+      "residentialTier": 3,
+      "job": "Cashier",
+      "balance": 500,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 2,
+      "job": "Receptionist",
+      "balance": 532.8883700894324
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 331.6666666670056,
+      "educationLevel": 3,
+      "residentialTier": 4,
+      "job": "Chef",
+      "balance": 500
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 4,
+      "job": "Waiter",
+      "balance": 500
+    }
+  ],
+  "jobApplications": [
+    {
+      "agentId": "resident-001",
+      "occupationName": "Stock Clerk",
+      "cycleNumber": 2,
+      "status": "accepted",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 172863000
+    },
+    {
+      "agentId": "resident-001",
+      "occupationName": "Waiter",
+      "cycleNumber": 2,
+      "status": "rejected",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 172863000
+    },
+    {
+      "agentId": "resident-003",
+      "occupationName": "Receptionist",
+      "cycleNumber": 2,
+      "status": "accepted",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 180200000
+    },
+    {
+      "agentId": "resident-002",
+      "occupationName": "Receptionist",
+      "cycleNumber": 3,
+      "status": "accepted",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 309895000
+    },
+    {
+      "agentId": "resident-004",
+      "occupationName": "Chef",
+      "cycleNumber": 4,
+      "status": "rejected",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 364460000
+    },
+    {
+      "agentId": "resident-001",
+      "occupationName": "Cashier",
+      "cycleNumber": 4,
+      "status": "accepted",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 400760000
+    },
+    {
+      "agentId": "resident-003",
+      "occupationName": "Chef",
+      "cycleNumber": 4,
+      "status": "accepted",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 429930000
+    },
+    {
+      "agentId": "resident-004",
+      "occupationName": "Chef",
+      "cycleNumber": 5,
+      "status": "pending",
+      "publicEmploymentRevision": 2,
+      "submittedAt": 434680000
+    }
+  ],
+  "chefLabor": [
+    {
+      "actorId": "resident-003",
+      "earnedMicros": 471700000,
+      "elapsedMs": 28800000,
+      "endReason": "completed",
+      "id": "public-work-81516",
+      "locationId": "workshop",
+      "paidMicros": 471700000,
+      "refundedMicros": 0,
+      "revision": 508,
+      "settledAt": 463540000,
+      "startedAt": 434740000,
+      "status": "completed",
+      "terms": {
+        "energyCostPerHour": 5,
+        "grossMicros": 471700000,
+        "occupation": "Chef",
+        "quotedWage": 471.7,
+        "referenceSeconds": 28800,
+        "satietyCostPerHour": 3,
+        "sourceId": "initial-public-employment-v1",
+        "sourceKind": "initial-public-employment-regime",
+        "taxMicros": 13736000,
+        "taxPolicyVersion": "tax-regime-v2",
+        "withholdingVersion": "labor-reference-period-withholding-v1"
+      },
+      "until": 463540000,
+      "withheldMicros": 13736000
+    }
+  ],
+  "adoption": {
+    "enterprises": 0,
+    "collectives": 0,
+    "sharedRecords": 0,
+    "recordViews": 0
+  },
+  "limitations": [
+    "Latest engineering of stock and building principals is not in this frozen experiment.",
+    "Chef capacity amendment takes effect in cycle 6; resident-004 is not yet Chef.",
+    "Resident-003 Chef hiring and actual work occurred under employment revision 2, before revision 3.",
+    "One provider-error is explicit external interruption recovery, not a fabricated provider artifact.",
+    "No claim of full autonomous organization emergence or canonical/partition support."
+  ]
+}

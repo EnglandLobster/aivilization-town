@@ -529,6 +529,23 @@ export class FileEventStore<
     };
   }
 
+  /** Complete retained append receipts for a frozen-source migration. */
+  readIdempotentAppends(): readonly IdempotentEventStreamAppend<TEvent>[] {
+    return this.idempotencyFile.readAll().map((record) =>
+      structuredClone({
+        idempotencyKey: record.idempotencyKey,
+        streamName: record.streamName,
+        ...(record.expectedVersion === undefined
+          ? {}
+          : { expectedVersion: record.expectedVersion }),
+        appendedEvents: isCompactIdempotencyRecord(record)
+          ? this.resolveCompactIdempotencyEvents(record)
+          : record.appendedEvents,
+        streamVersion: record.streamVersion,
+      }),
+    );
+  }
+
   getRuntimeIndexDiagnostics(streamName: EventStreamName): FileEventStoreRuntimeIndexDiagnostics {
     assertNonEmpty(streamName, 'streamName');
     return {
@@ -1108,6 +1125,33 @@ class FileEventIdempotencyIndex<TEvent extends EventEnvelope> {
       compactToByte: this.committedCompactBytes,
       idempotencyKey,
     });
+  }
+
+  readAll(): readonly StoredIdempotencyRecord<TEvent>[] {
+    this.refresh();
+    if (
+      statSync(this.legacyPath).size !== this.committedLegacyBytes ||
+      statSync(this.compactPath).size !== this.committedCompactBytes
+    )
+      throw new Error('idempotency-history-incomplete-tail');
+    const records: StoredIdempotencyRecord<TEvent>[] = [];
+    scanJsonLines<StoredLegacyIdempotencyRecord<TEvent>>({
+      path: this.legacyPath,
+      fromByte: 0,
+      toByte: this.committedLegacyBytes,
+      onRecord: (record) => {
+        records.push(record);
+      },
+    });
+    scanCompactIdempotencyRecords({
+      path: this.compactPath,
+      fromByte: 0,
+      toByte: this.committedCompactBytes,
+      onRecord: (record) => {
+        records.push(record);
+      },
+    });
+    return records;
   }
 
   getDiagnostics(): FileEventIdempotencyDiagnostics {

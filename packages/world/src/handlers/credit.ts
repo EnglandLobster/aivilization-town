@@ -8,6 +8,7 @@ import {
   decideDeposit,
   decideIssueLoan,
   decideWithdraw,
+  estateCreditOutstandingLoanCount,
   type CreditPolicy,
 } from '@aivilization/credit';
 import type { WorldEvent } from '../events';
@@ -121,6 +122,14 @@ export function handleAgentRequestLoanCommand(input: {
   }
   const payload = payloadResult.payload;
   const bank = input.projection.bank;
+  if (
+    input.projection.estateCredit &&
+    bank &&
+    estateCreditOutstandingLoanCount(bank, agent.agentId) >=
+      input.projection.estateCredit.policy.maxLoansPerCustomer
+  ) {
+    return rejectCommand(input, 'AgentRequestLoan', 'estate-credit-loan-capacity-unreserved');
+  }
   // Deterministic loan id derived from the command so replay reproduces it.
   const loanId = asLoanId(`${input.command.id}:loan:0`);
   const decision = decideIssueLoan({

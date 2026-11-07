@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-05",
+  "scope": "G03 actual public service procurement; broader goal remains incomplete",
+  "fullGate": {
+    "command": "pnpm check",
+    "passed": true,
+    "testsPassed": 2614,
+    "testsSkipped": 1,
+    "filesPassed": 360,
+    "filesSkipped": 1,
+    "log": "/tmp/procurement-check-complete.log"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... build",
+    "passed": true,
+    "log": "/tmp/procurement-build.log"
+  },
+  "cli": {
+    "ok": true,
+    "calls": 25,
+    "expectedRefusals": 6,
+    "actualProgressMs": 600000,
+    "charge": 6,
+    "refund": 30,
+    "moneySupplyUnchanged": true,
+    "replayVerified": true,
+    "manifestPreserved": true,
+    "privateBodyRedacted": true,
+    "publicDecisionAtomic": true,
+    "evidenceKind": "directed-compiled-http-cli-acceptance-not-free-emergence"
+  },
+  "versions": {
+    "procurement": "resident-public-procurement-v1",
+    "serviceFunding": "resident-service-public-funding-v1",
+    "catalog": "open-capabilities-v30",
+    "skill": "town-resident-skill-v29",
+    "rulebook": "society-rulebook-v21"
+  },
+  "limitations": [
+    "No spontaneous adoption evidence for this procurement extension yet",
+    "Public material, facility and construction procurement remain incomplete",
+    "Legacy public payroll, preconfigured schools and other up-front long activities remain",
+    "Canonical and partition authority integration remains incomplete"
+  ]
+}

@@ -10,15 +10,22 @@ import { loadResidentCredentials, startResidentServer } from '../dist/index.js';
 const root = mkdtempSync(join(tmpdir(), 'resident-mobility-cli-'));
 const runtime = new OpenSocietyRuntime(
   root,
-  createOpenSocietyManifest({ count: 4, continuity: true, initialization: 'newcomers' }),
+  createOpenSocietyManifest({
+    count: 4,
+    continuity: true,
+    initialization: 'newcomers',
+    publicGovernance: true,
+  }),
 );
 const [a, b, c, d] = runtime.manifest.residents.map((r) => r.id);
 const credentials = loadResidentCredentials(root, [a, b, c, d]);
 const server = await startResidentServer(runtime, credentials);
 const executable = fileURLToPath(new URL('../dist/town.js', import.meta.url));
+let refusals = 0;
 let ordinal = 0,
   serverClosed = false;
 const call = async (actor, argv, expected = 0) => {
+  if (expected !== 0) refusals++;
   runtime.beginTurn(actor);
   const result = await new Promise((resolve, reject) => {
     const child = spawn(
@@ -41,6 +48,80 @@ const call = async (actor, argv, expected = 0) => {
   return JSON.parse(result.out);
 };
 try {
+  const manifestBytes = readFileSync(join(root, 'manifest.json'));
+  const oldVehicles = structuredClone(runtime.state.world.residentMobility.vehicles);
+  assert.equal(runtime.enableVehiclePrincipals().ok, true);
+  assert.deepEqual(runtime.state.world.residentMobility.vehicles, oldVehicles);
+  assert.deepEqual(readFileSync(join(root, 'manifest.json')), manifestBytes);
+  const vehicle = () => runtime.state.world.residentMobility.vehicles['seed-car-1'];
+  const req = (command) => ({
+    resourceKind: 'vehicle',
+    resourceId: vehicle().id,
+    resourceRevision: vehicle().revision,
+    controlVersion: vehicle().control?.version ?? 1,
+    command,
+  });
+  const op = (type, residentId) => ({
+    resourceKind: 'vehicle',
+    resourceId: vehicle().id,
+    resourceRevision: vehicle().revision,
+    controlVersion: vehicle().control.version,
+    operation: {
+      capability: type,
+      arguments: { type, id: vehicle().id, expectedRevision: vehicle().revision, residentId },
+    },
+  });
+  const control = async (actor, command, expected = 0) =>
+    call(actor, ['principals', 'control', '--request', JSON.stringify(req(command))], expected);
+  const operate = async (actor, type, residentId, expected = 0) =>
+    call(
+      actor,
+      ['principals', 'operate', '--request', JSON.stringify(op(type, residentId))],
+      expected,
+    );
+  await call(a, ['principals', 'read', '--kind', 'vehicle', '--id', vehicle().id]);
+  await call(d, ['principals', 'read', '--kind', 'vehicle', '--id', vehicle().id], 1);
+  await call(c, [
+    'business',
+    'found',
+    '--enterprise-id',
+    'fleet',
+    '--name',
+    '居民自拟车队',
+    '--occupation-name',
+    '角色',
+    '--initial-capital',
+    '100',
+    '--max-employees',
+    '3',
+  ]);
+  await control(a, {
+    type: 'offer',
+    target: { kind: 'enterprise', id: 'fleet' },
+    expiresAt: 1000000,
+    terms: '只交接控制，劳动另行同意',
+  });
+  await control(d, { type: 'accept' }, 1);
+  await control(c, { type: 'accept' });
+  assert.equal(vehicle().control.controller.kind, 'enterprise');
+  await call(c, ['drivers', 'register', '--vehicle-id', vehicle().id], 1);
+  await call(
+    a,
+    [
+      'vehicles',
+      'authorize',
+      '--id',
+      vehicle().id,
+      '--expected-revision',
+      String(vehicle().revision),
+      '--resident-id',
+      b,
+    ],
+    1,
+  );
+  await operate(c, 'vehicles.revoke', a);
+  await call(a, ['drivers', 'register', '--vehicle-id', vehicle().id], 1);
+  await operate(c, 'vehicles.authorize', a);
   const initial = {
     supply: runtime.state.world.moneySupply,
     a: runtime.state.world.agents[a].balance,
@@ -85,6 +166,17 @@ try {
     '1',
   ]);
   assert.equal(runtime.state.world.agents[b].balance, initial.b - 10);
+  await operate(c, 'vehicles.revoke', a, 1);
+  await control(
+    c,
+    {
+      type: 'offer',
+      target: { kind: 'resident', id: d },
+      expiresAt: 1000000,
+      terms: '禁止转移已预订车',
+    },
+    1,
+  );
   await call(b, ['deposits', 'settle', '--id', 'ride-deposit-trip', '--expected-revision', '1'], 1);
   await call(a, ['rides', 'pickup', '--id', 'trip', '--expected-revision', '2']);
   await call(b, ['rides', 'board', '--id', 'trip', '--expected-revision', '3']);
@@ -143,6 +235,57 @@ try {
     'returned',
   );
   assert.equal(runtime.state.world.moneySupply, initial.supply);
+  // Independently approved public acceptance and exact driver permission use the same physical vehicle.
+  const publicExecute = async (request, id) => {
+    const p = runtime.state.world.publicGovernance.authority;
+    await call(a, [
+      'governance',
+      'propose',
+      '--id',
+      id,
+      '--text',
+      '仅此车辆动作',
+      '--action',
+      JSON.stringify({
+        kind: 'operation' in request ? 'manage-resource' : 'control-resource',
+        expectedRevision: request.resourceRevision,
+        request,
+      }),
+      '--closes-at',
+      String(runtime.state.world.clock.now + 60000),
+      '--expected-procedure-revision',
+      String(p.procedureRevision),
+    ]);
+    const rev = () => String(runtime.state.world.publicGovernance.authority.proposals[id].revision);
+    for (const actor of [a, b, c])
+      await call(actor, [
+        'governance',
+        'vote',
+        '--id',
+        id,
+        '--expected-revision',
+        rev(),
+        '--choice',
+        'yes',
+      ]);
+    assert.equal(runtime.advanceTime(60000, `public-${id}`).ok, true);
+    await call(d, ['governance', 'close', '--id', id, '--expected-revision', rev()]);
+    await call(d, ['governance', 'execute', '--id', id, '--expected-revision', rev()]);
+  };
+  await control(c, {
+    type: 'offer',
+    target: { kind: 'public', id: runtime.state.world.publicGovernance.authority.grant.id },
+    expiresAt: runtime.state.world.clock.now + 1000000,
+    terms: '有限公用车，保留实际使用权',
+  });
+  await control(d, { type: 'accept' }, 1);
+  await publicExecute(req({ type: 'accept' }), 'public-take');
+  assert.equal(vehicle().control.controller.kind, 'public');
+  await operate(d, 'vehicles.authorize', d, 1);
+  await publicExecute(op('vehicles.authorize', d), 'public-driver');
+  await call(d, ['drivers', 'register', '--vehicle-id', vehicle().id]);
+  assert.equal(runtime.state.world.publicGovernance.authority.grant.resourceCustody, undefined);
+  assert.deepEqual(readFileSync(join(root, 'manifest.json')), manifestBytes);
   const before = structuredClone(runtime.state),
     journal = readFileSync(join(root, 'journal.jsonl'), 'utf8');
   await server.close();
@@ -159,9 +302,17 @@ try {
     JSON.stringify({
       passed: true,
       commands: ordinal,
+      expectedRefusals: refusals,
+      vehiclePrincipalsPolicy: 'resident-vehicle-principals-v2',
       policy: 'resident-mobility-v1',
       checks: [
         'compiled-cli',
+        'explicit-migration-no-new-vehicles',
+        'enterprise-current-management-and-named-driving',
+        'old-owner-backdoor-refused',
+        'actual-driver-fare-preserved',
+        'booked-vehicle-control-blocked',
+        'public-approval-and-vehicle-effect-atomic',
         'identity-bound-authorization',
         'voluntary-quotation',
         'escrow-bypass-rejected',

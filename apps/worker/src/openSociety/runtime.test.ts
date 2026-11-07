@@ -38,6 +38,40 @@ function setup(maxCallsPerTurn = 40) {
   return { root, runtime, a, b, invoke };
 }
 describe('open society complete capability chain', () => {
+  test('a reminder receipt ID is directly cancellable only by its owner, including long IDs and legacy local IDs', () => {
+    const { root, runtime, a, b, invoke } = setup();
+    runtime.beginTurn(b);
+    const local = 'x'.repeat(96);
+    const made = invoke('schedule.remind', {
+      id: local,
+      at: 10000,
+      text: 'A reminder I may cancel',
+    });
+    expect(made).toMatchObject({ ok: true, data: { id: `${a}:${local}` } });
+    expect(
+      invoke('schedule.remind', { id: local, at: 10000, text: 'Independent reminder' }, b).ok,
+    ).toBe(true);
+    expect(invoke('schedule.cancel', { id: `${a}:${local}` }, b).ok).toBe(false);
+    expect(runtime.state.reminders[`${a}:${local}`]?.done).toBe(false);
+    expect(invoke('schedule.cancel', { id: `${a}:${local}` }).ok).toBe(true);
+    expect(runtime.state.reminders[`${b}:${local}`]?.done).toBe(false);
+    expect(invoke('schedule.cancel', { id: `${a}:${a}:${local}` }).ok).toBe(false);
+    expect(invoke('schedule.cancel', { id: local }, b).ok).toBe(true);
+    expect(
+      invoke('schedule.remind', { id: 'legacy', at: 10000, text: 'Old local-ID API' }).ok,
+    ).toBe(true);
+    expect(invoke('schedule.cancel', { id: 'legacy' }).ok).toBe(true);
+    runtime.finishTurn(a, { summary: 'Cancelled by choice' });
+    runtime.finishTurn(b, { summary: 'Independent choice' });
+    expect(runtime.advanceTime(10000, 'cancelled-reminders-do-not-fire').ok).toBe(true);
+    expect(runtime.state.residents[a]!.wakeReason).not.toMatch(/^reminder:/);
+    expect(runtime.state.residents[b]!.wakeReason).not.toMatch(/^reminder:/);
+    const before = structuredClone(runtime.state);
+    runtime.close();
+    const replay = new OpenSocietyRuntime(root);
+    runtimes.push(replay);
+    expect(replay.state).toEqual(before);
+  });
   test('discovers all capabilities independently of candidates, exposes bounded own context', () => {
     const { runtime, a, b, invoke } = setup();
     expect(runtime.discover('world.move').tools).toHaveLength(1);
@@ -310,4 +344,39 @@ describe('open society complete capability chain', () => {
       recovered.journal.commits.filter((commit) => commit.capability === 'world.deposit'),
     ).toHaveLength(1);
   });
+});
+
+test('a provider failure preserves the resident already committed wait and records incomplete provider text separately', () => {
+  const { root, runtime, a, invoke } = setup();
+  const intended = '我选择等待到10000，然后再决定要不要赴约。';
+  expect(invoke('schedule.wait', { until: 10000, summary: intended }).ok).toBe(true);
+  const next = runtime.finishTurn(a, {
+    status: 'provider-error',
+    summary: '我准备等一下',
+    sessionId: 'provider-session',
+  });
+  expect(next).toMatchObject({
+    status: 'provider-error',
+    summary: intended,
+    providerSummary: '我准备等一下',
+    nextWakeAt: 10000,
+  });
+  expect(runtime.state.residents[a]!.nextWakeAt).toBe(10000);
+  expect(runtime.context(a).previousHandoff).toBe(intended);
+  expect(runtime.journal.commits.filter((c) => c.capability === 'schedule.wait')).toHaveLength(1);
+  const state = structuredClone(runtime.state);
+  const bytes = readFileSync(join(root, 'journal.jsonl'));
+  runtime.close();
+  const reopened = new OpenSocietyRuntime(root);
+  runtimes.push(reopened);
+  expect(reopened.state).toEqual(state);
+  expect(readFileSync(join(root, 'journal.jsonl'))).toEqual(bytes);
+});
+
+test('provider failure without committed handoff preserves public text and remains visibly failed', () => {
+  const { runtime, a } = setup();
+  const turn = runtime.finishTurn(a, { status: 'provider-error', summary: '尚未执行任何行动' });
+  expect(turn.status).toBe('provider-error');
+  expect(turn.summary).toBe('尚未执行任何行动');
+  expect(turn.providerSummary).toBeUndefined();
 });

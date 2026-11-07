@@ -62,6 +62,15 @@ export function executeMobilityTool(
     );
   let command: MobilityCommand;
   switch (name) {
+    case 'vehicles.drive':
+      if (!state.world.logistics) throw new ToolRefusal('logistics-not-enabled');
+      command = {
+        type: name,
+        id,
+        destinationId: stringArg(args, 'destinationId'),
+        expectedRevision,
+      };
+      break;
     case 'vehicles.authorize':
     case 'vehicles.revoke':
       command = { type: name, id, residentId: stringArg(args, 'residentId'), expectedRevision };

@@ -1,15 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { validateOpenToolArguments, type OpenToolDefinition } from '@aivilization/agent-runtime';
-import {
-  CLI_GROUPS,
-  RESIDENT_COMMANDS,
-  RESIDENT_CLI_VERSION,
-  commandHelp,
-  flagName,
-} from './cliCatalog';
+import { cliOverview, groupPlain } from './cliGuide';
+import type { OpenToolDefinition } from '@aivilization/agent-runtime';
+import { parseCapabilityFlags } from '@aivilization/worker';
+import { CLI_GROUPS, RESIDENT_COMMANDS, RESIDENT_CLI_VERSION, commandHelp } from './cliCatalog';
 import { residentCliContext } from './cliContext';
 import { residentSkillPages } from './residentSkill';
 import { residentCliResult } from './cliResult';
+import { DISCOVERY_HELP, findResidentCapabilities } from './capabilityDiscovery';
 import { townRequest, townConnectionFromEnvironment, type TownConnection } from './townConnection';
 
 export type CliOutput = { readonly exitCode: number; readonly output: string };
@@ -27,59 +24,36 @@ export async function parseCliFlags(
   flags: readonly string[],
   readStdin?: () => Promise<string>,
 ) {
-  const args: Record<string, unknown> = {};
   let requestId: string | undefined;
   let contentStdin = false;
+  const rest: string[] = [];
   for (let index = 0; index < flags.length; index++) {
     const flag = flags[index]!;
     if (flag === '--content-stdin') {
       if (
         contentStdin ||
-        args.content !== undefined ||
+        rest.includes('--content') ||
         definition.inputSchema.properties.content === undefined
       )
         throw new Error('invalid-content-stdin');
       contentStdin = true;
       continue;
     }
-    if (!flag.startsWith('--')) throw new Error(`expected-flag:${flag}`);
-    const value = flags[++index];
-    if (value === undefined) throw new Error(`missing-value:${flag}`);
     if (flag === '--request-id') {
+      const value = flags[++index];
+      if (value === undefined) throw new Error(`missing-value:${flag}`);
       if (requestId !== undefined || !/^[a-zA-Z0-9_-]{1,160}$/.test(value))
         throw new Error('invalid-request-id');
       requestId = value;
       continue;
     }
-    const entry = Object.entries(definition.inputSchema.properties).find(
-      ([name]) => `--${flagName(name)}` === flag,
-    );
-    if (entry === undefined) throw new Error(`unknown-flag:${flag}`);
-    const [name, property] = entry;
-    if (name === 'content' && contentStdin) throw new Error('duplicate-content');
-    if (args[name] !== undefined && property.type !== 'array')
-      throw new Error(`duplicate-flag:${flag}`);
-    if (property.type === 'array')
-      args[name] = [...((args[name] as string[] | undefined) ?? []), value];
-    else if (property.type === 'boolean') {
-      if (value !== 'true' && value !== 'false') throw new Error(`invalid-boolean:${flag}`);
-      args[name] = value === 'true';
-    } else if (property.type === 'number' || property.type === 'integer') {
-      if (!/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value))
-        throw new Error(`invalid-number:${flag}`);
-      args[name] = Number(value);
-    } else if (property.type === 'string') args[name] = value;
-    else throw new Error(`unsupported-cli-type:${property.type}`);
+    rest.push(flag);
+    if (flag.startsWith('--') && index + 1 < flags.length) rest.push(flags[++index]!);
   }
-  if (contentStdin) {
-    if (readStdin === undefined) throw new Error('stdin-not-available-use-content');
-    args.content = await readStdin();
-  }
-  for (const name of definition.inputSchema.required)
-    if (definition.inputSchema.properties[name]?.type === 'array' && args[name] === undefined)
-      args[name] = [];
-  const error = validateOpenToolArguments(definition, args);
-  if (error !== undefined) throw new Error(error);
+  if (contentStdin && readStdin === undefined) throw new Error('stdin-not-available-use-content');
+  const args = parseCapabilityFlags(definition, rest, {
+    ...(contentStdin ? { preset: { content: await readStdin!() } } : {}),
+  });
   return { args, requestId: requestId ?? randomUUID() };
 }
 
@@ -186,8 +160,17 @@ export async function runResidentCli(
   stdin?: () => Promise<string>,
 ): Promise<CliOutput> {
   const connected = () => connection ?? townConnectionFromEnvironment();
+  let errorHelp = 'town help';
   try {
     if (argv.length === 1 && argv[0] === '--version') return output(RESIDENT_CLI_VERSION);
+    if (argv[0] === 'find')
+      return output(
+        argv.length === 1 || (argv.length === 2 && argv[1] === '--help')
+          ? DISCOVERY_HELP
+          : findResidentCapabilities(argv.slice(1)),
+      );
+    if (argv.length === 2 && argv[0] === 'help' && argv[1] === 'find')
+      return output(DISCOVERY_HELP);
     if (argv[0] === 'wiki') {
       if (argv.length > 2) throw new Error('expected-one-wiki-page');
       const page = argv[1] ?? 'SKILL.md';
@@ -204,28 +187,33 @@ export async function runResidentCli(
     if (argv[0] === 'apps') return await appsCli(argv.slice(1), connected(), stdin);
     if (argv.length === 0 || (argv.length === 1 && ['--help', 'help'].includes(argv[0]!)))
       return output(
-        `town — resident CLI\nNavigation: town context | town wiki | town apps\nGroups: ${CLI_GROUPS.join(', ')}\nUse town help <group>, then town <group> <operation> --help.\nOne command per execution; no shell operators. Text is quoted; arrays repeat flags.\n${RESIDENT_COMMANDS.length} capabilities available; intentions are yours.`,
+        `town — resident CLI\nNavigation: town context | town wiki | town apps | town find '<keywords>'\n${cliOverview()}\nUse town find to search references, town help <group>, then town <group> <operation> --help.\nOne command per execution; no shell operators. Text is quoted; arrays repeat flags.\n${RESIDENT_COMMANDS.length} documented capabilities; current availability and permission depend on your world. Intentions are yours.`,
       );
     const parts = argv[0] === 'help' ? argv.slice(1) : argv;
     const group = parts[0]!;
+    if (CLI_GROUPS.includes(group)) errorHelp = `town help ${group}`;
     if (
       CLI_GROUPS.includes(group) &&
       (parts.length === 1 || (parts.length === 2 && parts[1] === '--help'))
     )
       return output(
-        RESIDENT_COMMANDS.filter((command) => command.route.startsWith(`${group} `))
-          .map((command) => `town ${command.route} — ${command.definition.description}`)
-          .join('\n'),
+        [
+          ...(groupPlain(group) === undefined ? [] : [`${group}: ${groupPlain(group)}`]),
+          ...RESIDENT_COMMANDS.filter((command) => command.route.startsWith(`${group} `)).map(
+            (command) => `town ${command.route} — ${command.definition.description}`,
+          ),
+        ].join('\n'),
       );
     const command = RESIDENT_COMMANDS.find((item) => item.route === `${parts[0]} ${parts[1]}`);
     if (command === undefined) throw new Error('unknown-command-use-town-help');
+    errorHelp = `town ${command.route} --help`;
     if ((parts.length === 3 && parts[2] === '--help') || (argv[0] === 'help' && parts.length === 2))
       return output(commandHelp(command));
     if (argv[0] === 'help') throw new Error('invalid-help-arguments');
     return await invoke(connected(), command.definition, parts.slice(2), stdin);
   } catch (error) {
     return output(
-      { ok: false, error: error instanceof Error ? error.message : 'cli-error', help: 'town help' },
+      { ok: false, error: error instanceof Error ? error.message : 'cli-error', help: errorHelp },
       2,
     );
   }

@@ -4,8 +4,7 @@ import type { SafetyNetSubsidyPolicy } from './welfare';
 
 export const TOWN_GOVERNANCE_POLICY_VERSION = 'town-governance-v1';
 export const TOWN_GOVERNANCE_TAX_POLICY_VERSION = 'town-governance-tax-v1';
-export const TOWN_GOVERNANCE_PUBLIC_BUDGET_POLICY_VERSION =
-  'town-governance-public-budget-v1';
+export const TOWN_GOVERNANCE_PUBLIC_BUDGET_POLICY_VERSION = 'town-governance-public-budget-v1';
 export const TOWN_GOVERNANCE_SUBSIDY_POLICY_VERSION = 'town-governance-subsidy-v1';
 export const TOWN_GOVERNANCE_ENACTED_POLICY_SOURCE = 'town-governance-command';
 
@@ -25,6 +24,13 @@ export type GovernedSubsidyPolicy = SafetyNetSubsidyPolicy & {
 };
 
 export type GovernanceChangeAuthority =
+  | {
+      readonly kind: 'public-procedure';
+      readonly jurisdictionId: string;
+      readonly proposalId: string;
+      readonly procedureRevision: number;
+      readonly agentId: string;
+    }
   | {
       readonly kind: 'operator';
       readonly subjectId: string;
@@ -265,7 +271,10 @@ function validateProposedPolicy(
       }
       return undefined;
     }
-    if (command.policy.policyVersion.trim().length === 0 || command.policy.source.trim().length === 0) {
+    if (
+      command.policy.policyVersion.trim().length === 0 ||
+      command.policy.source.trim().length === 0
+    ) {
       throw new Error('subsidy policyVersion and source must not be empty');
     }
     assertNonNegativeFinite(command.policy.minimumBalance, 'subsidy minimumBalance');
@@ -307,6 +316,15 @@ function assertValidChangeMetadata(command: GovernanceChangeCommand): void {
     if (command.authority.subjectId.trim().length === 0) {
       throw new Error('governance operator subjectId must not be empty');
     }
+  } else if (command.authority.kind === 'public-procedure') {
+    if (
+      !command.authority.agentId.trim() ||
+      !command.authority.jurisdictionId.trim() ||
+      !command.authority.proposalId.trim() ||
+      !Number.isSafeInteger(command.authority.procedureRevision) ||
+      command.authority.procedureRevision < 1
+    )
+      throw Error('invalid-public-procedure-authority');
   } else if (
     command.authority.agentId.trim().length === 0 ||
     command.authority.petitionId.trim().length === 0

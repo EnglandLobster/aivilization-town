@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T21:01:03.915494+00:00",
+  "spec": "specs/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md",
+  "status": "objective-construction-facts-foundation-only-not-usable-procurement",
+  "newDomainTests": 4,
+  "newResidentCapabilities": 0,
+  "fullTests": {
+    "passed": 3178,
+    "skipped": 1,
+    "filesPassed": 474,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/construction-facts-lint-final.log"
+    },
+    "sortedFullTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/construction-facts-typecheck.log"
+    },
+    "commerceBuild": {
+      "exitCode": 0,
+      "log": "/tmp/construction-facts-build.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-facts-full-tests.log"
+    },
+    "targetedTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-facts-tests.log"
+    }
+  },
+  "priorFailure": {
+    "log": "/tmp/construction-facts-lint.log",
+    "reason": "JSON fixture roundtrip required explicit known fixture types; corrected without weakening domain checks"
+  },
+  "sourceSha256": {
+    "packages/commerce/src/constructionTradeFacts.ts": "e7fdeb349d9537263b5c297a18371a6f7d80651f78824ba5e18f004a675f55c0",
+    "packages/commerce/src/constructionTradeFacts.test.ts": "e5faae74b5d068992ed8cfddf55b1e418fb92b84fe2420fef478b960c51605c5",
+    "packages/commerce/src/index.ts": "982c10fc24bdb8af1bcffbe10f51ed2b5d94fa64c9178598f2da6e9b8e408d9a"
+  },
+  "remaining": [
+    "order aggregate and independent acceptance",
+    "balanced escrow and all account obligations",
+    "premises authoritative source extraction and deterministic specification commitment",
+    "world atomic public authorization and physical start gate",
+    "manifest registry explicit activation and CLI/context delivery",
+    "compiled CLI and real-model composition, autonomous adoption separately",
+    "canonical/partition and full 25 capabilities"
+  ]
+}

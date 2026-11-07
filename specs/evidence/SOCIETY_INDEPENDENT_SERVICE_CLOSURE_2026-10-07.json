@@ -1,0 +1,55 @@
+{
+  "ok": true,
+  "scope": "explicit-service-directory-dependency-not-full-exit",
+  "quality": {
+    "lint": true,
+    "typecheck": true,
+    "dependencyBuild": true,
+    "testsPassed": 3316,
+    "testsSkipped": 1
+  },
+  "initialMigration": {
+    "beforeRevision": 801,
+    "afterRevision": 802,
+    "journalHash": "9079fbad030a38fe8aab64b0231476fde0d1e52a838f04943f15308b3e2c2625",
+    "allOtherWorldFieldsUnchanged": true,
+    "nonWorldStateUnchanged": true,
+    "publicGrantUnchanged": true,
+    "manifestUnchanged": true,
+    "originalJournalPrefixPreserved": true,
+    "replayMatched": true
+  },
+  "correctedReportAndIdempotentRepeat": {
+    "ok": true,
+    "version": "canonical-independent-service-closure-verification-v1",
+    "result": {
+      "data": {
+        "enabled": true,
+        "version": "independent-service-closure-v1"
+      },
+      "ok": true,
+      "revision": 802,
+      "simulationTime": 3583000
+    },
+    "beforeRevision": 802,
+    "afterRevision": 802,
+    "policy": {
+      "version": "independent-service-closure-v1"
+    },
+    "directoryCount": 0,
+    "allOtherWorldFieldsUnchanged": true,
+    "nonWorldStateUnchanged": true,
+    "publicGrantUnchanged": true,
+    "existingDirectoryUnchanged": true,
+    "originalJournalPrefixPreserved": true,
+    "manifestUnchanged": true,
+    "retryNoCommit": true,
+    "replayMatched": true,
+    "journalHash": "9079fbad030a38fe8aab64b0231476fde0d1e52a838f04943f15308b3e2c2625"
+  },
+  "reportCorrection": "First report retained copied periodic field labels; initial assertions checked serviceClosurePolicy. Labels corrected and live idempotent repeat read the actual policy. Initial raw report retained privately.",
+  "limitations": [
+    "Current migrated world has zero service directory entries; refusal behavior separately covered by domain/runtime tests",
+    "Does not activate natural exit or complete service/wage/freight cash continuity"
+  ]
+}

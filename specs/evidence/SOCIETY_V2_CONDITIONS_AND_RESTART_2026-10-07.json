@@ -1,0 +1,1262 @@
+{
+  "schemaVersion": "society-v2-conditions-and-restart-evidence-v1",
+  "root": "/home/dev/aivilization-town/.local/open-residents/integrated-v2-conditions-20261007",
+  "profile": "society-integrated-v2",
+  "model": "opencode-go/deepseek-v4.1-flash",
+  "seed": "integrated-v2-conditions-20261007",
+  "passed": true,
+  "verificationSha256": "05be3eb43602c6533d577af4cf8bdcb4a49e0bf8fd7bb71d7d1c3b6b8479c0e2",
+  "compiledUnchanged": true,
+  "compiledJsCount": 267,
+  "compiledHashes": {
+    "apps/api/dist/index.js": "daec8404de45c8734d1c1ff06b7402d873e3354d752f2056c5a54c31c018de9b",
+    "apps/residents/dist/chunk-7ZTYAJYK.js": "045a573e2e310509f045bd353c9fdd78505378df5c82f53284f41502c53c9661",
+    "apps/residents/dist/chunk-D54Y6PNO.js": "2e649b924b44cc44357a4138ccf5589f1a1bf21b1960f5159e1d6b97d82d0684",
+    "apps/residents/dist/chunk-T2SVXJX7.js": "971c303b544e0d9324005c2598f8d6b1a008edc5f0855f6ed4dda8c5dcdf82ed",
+    "apps/residents/dist/chunk-VBTQWLPB.js": "a261c92e1c7f2bb91a6572299b6019b6356f88fbb677e937e1409123c2ed5735",
+    "apps/residents/dist/chunk-VDUNA3BQ.js": "55f065cc3576d06a9b1cec68c59d1b83c3e67d8e16567a6c00ea21cec64276c9",
+    "apps/residents/dist/cli.js": "d58d3122c2f048cf6b636cbe61f505a0c5453b7c2183d82dd21b634fce1d46f7",
+    "apps/residents/dist/index.js": "a604718147de7363b13bc1696b571ad5de26e9d4e00fcfbd045fcc8dd7b1804a",
+    "apps/residents/dist/residentShell.js": "9253ad42e48d84b67c919e51d2ecb5c4894e11c4ad44e15b8e3b03269b7a9258",
+    "apps/residents/dist/town.js": "a11c6b565e6c74da946691b30e2ef45683be0ee8f6708f178b79df195babce09",
+    "apps/residents/dist/writeSkill.js": "8b880df137836af7e7c632ffad3199348ef01ed27938bd22eae3b3cf3a267722",
+    "apps/server/dist/chunk-23QXDW4S.js": "de01cde878888b53a79e6af859287b8d2bb9080bc5dbdbe1dd1bec3fd4ce9edf",
+    "apps/server/dist/chunk-264PCFMY.js": "654f6bf545f100edb1b6666cd961e4ccfb5d8f3b8cb397235bfa068d9aadf053",
+    "apps/server/dist/chunk-2HGSCO3B.js": "81bd48df18ad16645a10c6ed591514d065f5bed9a14e1e9b6e7fc6608a20cfe5",
+    "apps/server/dist/chunk-2OXPU2WG.js": "5521b8c4254621f764989f6e8d3b9bb25b064986f843c57b82282a84d63b09f4",
+    "apps/server/dist/chunk-2R63DIVS.js": "2488336a6ad1a3db5c6f49f0c0bb0f295979a3b1288f608cda519a5cd6531960",
+    "apps/server/dist/chunk-2U2PA34N.js": "a6bf223ff9e3b3a36f3a941d80937826dd6f6f54301ea22901395bd1353f071c",
+    "apps/server/dist/chunk-323W7QZD.js": "071b094fe184f09cade896baa62cae661b2cb35d266e565741e6e69bd34846e4",
+    "apps/server/dist/chunk-3CRHOSSK.js": "6ac8fd0ab11681cdc4dc057cd32c4187d90793012a2416499cea9a99f1f071a0",
+    "apps/server/dist/chunk-3FBS7NAG.js": "f14abb4d80465e4bc0443d784192d77dbbd7d009f89fcc651e81f33960ff6da8",
+    "apps/server/dist/chunk-3SFJJWVU.js": "631ac2dbbbdf3a1047d3199626b2cfcf8c59276457ffb91b74da09799540b1c3",
+    "apps/server/dist/chunk-3SGQU5CG.js": "bcc85a71c02a124206f564f7bf57a2950b9cc6b356860d71ad70f1c3a051d5f7",
+    "apps/server/dist/chunk-3V4YBG3V.js": "e64d5bf49b2cd00a98122fddf4a6e77103edb74c9ac4b6982f942461702b2155",
+    "apps/server/dist/chunk-43ABO2GJ.js": "e1108760ff4d47002b390c3293ccc98eecd4791f87f64febca7d6ee7e6a91020",
+    "apps/server/dist/chunk-43G2SDGE.js": "f720f49a16cd91cd3d79098d0990ad13cc1cd2eeca39cf5b47b2b83f4a83f523",
+    "apps/server/dist/chunk-47HNS4HT.js": "0b2c06ae321a1b3626dca81a72919b00d1eae874290649e44ba08dbe06cdcb31",
+    "apps/server/dist/chunk-4D5RFMBB.js": "347b95a6d38257bf92060bf08c2bf0d6bdedfb9a396ab052ba99f67c927561e1",
+    "apps/server/dist/chunk-4EHUIAIH.js": "1ece3ed2b554832fd4515cc8fac8eada1b0e9daec807e5e98a7c969e0df46311",
+    "apps/server/dist/chunk-4JKDL3LV.js": "15b6e2613c8f49bf3a9293e4d90601d8f39e671da28935fe1eb7cd131062c3b8",
+    "apps/server/dist/chunk-5IA5AEYJ.js": "dafb6b862826342df4bda147ee185289b515900b3c4c30a4a37792bc50d9eb24",
+    "apps/server/dist/chunk-5MUA4RKP.js": "893526c24bbb36fb85750db5064320aef9f746b127e842a4caaa94946677f58b",
+    "apps/server/dist/chunk-5PHJCSO5.js": "bca7e15eece0b5a4e99fd804d4d5ed253986cccbe83eee895a17b6465e9b5e30",
+    "apps/server/dist/chunk-5XKVGYI2.js": "242541253450d71ef6884aa4bc398538f2a6260ffee5e8e8429d707035bb0a63",
+    "apps/server/dist/chunk-6A4Z57KE.js": "9b3ee6b4bd68a5aa42d2f14914b53a815bce625b5c33805df0affb22c59f1f9c",
+    "apps/server/dist/chunk-6K26KSRL.js": "46577ea4fdbeed719973b4596ad2f4fee1a3ec3e26a92ad5ec8414926eddc335",
+    "apps/server/dist/chunk-6Y5NIGSY.js": "37181011fe3b7e8a5a4edf8e5f02fbddbf23c0149586b79c541c9fd64bea82b9",
+    "apps/server/dist/chunk-6YF3KZ7Q.js": "50ae065d0d57f579a4a74869f53218c736a1c007da23b912a436dcd5230baeac",
+    "apps/server/dist/chunk-7277YMLU.js": "17fd79e9c8a71271b4136e5f94dd0db193545e7275d47f217acc4f80e9f88d3a",
+    "apps/server/dist/chunk-74ECVE3L.js": "6392f924332e0b2de44df926d317ebadab660f7a88fdda946d3dfd7d2fd99f07",
+    "apps/server/dist/chunk-7ATMMEXB.js": "59333937471270a3f6cae07dc60224d6207d2a0c0648064ffe6bcf7cb30b03ae",
+    "apps/server/dist/chunk-7GPHQDUE.js": "4b2678ebb42c61134b26fdd55b34a0df578fff3265f8018fcd0e6ac321a231b8",
+    "apps/server/dist/chunk-7N62I7KJ.js": "412d01c5f6c15962d22d1fa90c4afcf623e59e2531732cf5f6da5ef64818815e",
+    "apps/server/dist/chunk-7Q4RSY7I.js": "8841c4c4290abede917d2979d8a46c4d0df1341fa8b5df624cd2a1c782581626",
+    "apps/server/dist/chunk-7ZEOWR2Q.js": "004b027f2a04f495abb5fea6003d277dab58da1a0991ff875d5affc0526dadc0",
+    "apps/server/dist/chunk-AC5FFJEH.js": "4700e330c3d98c35a6cfed73bf7ea867bafd11bd3edfb14400bed185305901e8",
+    "apps/server/dist/chunk-ADAUYH4W.js": "43c970324f4ae85e1ab89849c6c3dc9e1a36a9e39626d7ef54284805d5da47a2",
+    "apps/server/dist/chunk-AO5QHBCP.js": "81688909404d30f7fb0a656de26d56c08cc822268f7754253c77b2699a3e505c",
+    "apps/server/dist/chunk-AP2RXPKQ.js": "51a9d3bf47111d2e97e63d8274fda1e86e3a6186182a5d1caecef2e356f293bb",
+    "apps/server/dist/chunk-B7H6ENS5.js": "7a2e5c1e843042798bcdbec5603eb009ad635427e18471a0963cd577f7636014",
+    "apps/server/dist/chunk-BE7USFDI.js": "33c46aa51843848a5c5b82b2f43e8d44027dc7cfb06e743ff252d6a0f615269a",
+    "apps/server/dist/chunk-BJ2UXUCG.js": "cc3a1f3bef09e099e420593fb8c2e7a7b834b7832154e97d5cecb24054fac053",
+    "apps/server/dist/chunk-BSRTYIZ3.js": "41181ff84a86b4f02f16a537ef7c3c6d385589b309754826bceed42233e32c8f",
+    "apps/server/dist/chunk-BSV6IWZH.js": "19a2acd34cb42912c9b8e7b1ce8995684f3b493f00e891899d41b2e9c1b2b4d9",
+    "apps/server/dist/chunk-BT6NSQVA.js": "29eea7d149a4ecce5b809e61287e78d8ba8adca42cf747ba01b58a8b2b8999e6",
+    "apps/server/dist/chunk-BYOZ7KRZ.js": "1617aaf90c09df0ae680c80cb7b3b3f9d6d19d4befacac20e101d8d6f4ae8f78",
+    "apps/server/dist/chunk-C4EPFOPK.js": "d268367a1a03aa519892b7442669621f93f57383df1330faf762618edfecb1d4",
+    "apps/server/dist/chunk-CHAPCYZ3.js": "7c1d00e26ef5f0ec002939a3a9c7c8ae544644df5bcd60d1a7b4b65d2eddb045",
+    "apps/server/dist/chunk-CJA5YJEZ.js": "12e88937e9c5d1efe3f8f7697651cd6cad4cb503de5aee5d3cb1251b28c766b0",
+    "apps/server/dist/chunk-CXKIJYA5.js": "1ea05bfa17a31fc321b7f45a0898a73d724ddf7364dc19999369672bd06063ac",
+    "apps/server/dist/chunk-CYH4CM4C.js": "289de95443ca5b02f456b9e772e34b8b9387d5a9dd4ac914b22db74f58b4a3bc",
+    "apps/server/dist/chunk-CZCJ2VD3.js": "15bd73e7bee651783a69fe94cdbf255f1e5bde4010d087b1cad6d02a905dd47c",
+    "apps/server/dist/chunk-DAEPMBYN.js": "ab2ca313f37fba8c4b241b54e02a14587910263fabe425d017e0103d58a4c0a6",
+    "apps/server/dist/chunk-DDRPREZE.js": "2726cc07065efc7f24a360b0583c1466879bb9f1c3485011416c351f561c6505",
+    "apps/server/dist/chunk-DXUNFCMY.js": "66ab762321bfa6995f9c479cb73549f481ac6f4ae2028ba5775006668a6c6c24",
+    "apps/server/dist/chunk-DZGJRHIH.js": "484b5896837eeca3ad9c53bab404a740dad9640bb1bb1251a1dbaeedfc9c569c",
+    "apps/server/dist/chunk-EHCMWY4Q.js": "d0f40d45a55318e8a3b609a2f0e5a504a9491332101cf282a7b057146f711211",
+    "apps/server/dist/chunk-ENK2XX7A.js": "c1b93d7c9e51548a6ad3dbf87286cf8f9c1b95464a1fe94eba33e070b3f3ea70",
+    "apps/server/dist/chunk-EOPEMSSO.js": "affe206f98f04baefabceb7077ce43af47ac5d5c6ad158091fda589e05c3050a",
+    "apps/server/dist/chunk-EPFDHFLT.js": "6c909e41a064782ef103573a3d3d3fe8d2c5cd3e7901016bbcfe6efaa89fec83",
+    "apps/server/dist/chunk-EVS6DXMK.js": "a83951ed78dfa323ad8b0d49b3e1a27cf7867131c925ed741ca9e144afff474a",
+    "apps/server/dist/chunk-F5BGNY66.js": "e5cb6a5c4a8a098241f73906d48884a1bcee4fb8c00671110553a32a80137e9e",
+    "apps/server/dist/chunk-F6NPK5K3.js": "b46d904350eeaa418a794e55d7b1cac5ea2a77e25eb3d5515bfa52b2590acadf",
+    "apps/server/dist/chunk-FBAVU2UV.js": "9276f24280774698984bc9a668446e708984fb1a39175363cc39da4626775ff1",
+    "apps/server/dist/chunk-FC4FQTLV.js": "3ef7c7bb7e342b4986884d5918939ee8209580bb1e5dc5b84d20b47cf766971e",
+    "apps/server/dist/chunk-FJZLWZ5V.js": "a7d1b855de270c7c50d989129c91c73a18d33eb1cdb05adab4cb90ed65aa38df",
+    "apps/server/dist/chunk-FMNPIJ6P.js": "f533251f3a721d293ce4fc876f9f06388f8407634fcb07ac599f8cbd91e94371",
+    "apps/server/dist/chunk-FRA5TLCZ.js": "925b3a60ee014471583c860993a86af7f7822b7ec870e065868afa77359a7ec3",
+    "apps/server/dist/chunk-G4SKRITI.js": "bf6d57c94d57534cd103cb913b716607f05c42672d3fac886d2b7dbca790c191",
+    "apps/server/dist/chunk-GAJXM7LR.js": "a65edb1ae0b58e84c2fa72632143c8349fedff62d72a583b38d459f00417ec42",
+    "apps/server/dist/chunk-GK577TWX.js": "84e53862337ff03d8f1cb305a48052c3709bb451603b4e5fe1e07dfb8e6f5aba",
+    "apps/server/dist/chunk-GSDGROSF.js": "3ddf32e845bee05384352ec4c3a73af68828062fa09458a1c95d652fa86d7cbd",
+    "apps/server/dist/chunk-GZQB2VCQ.js": "bd3be82e1686fa212a4a212ad35cd9a2dfb33a9dde2848cb7a64b7289d22a0fe",
+    "apps/server/dist/chunk-H6AWYBY2.js": "063a3ba7955af14c4eade98b9c031540a3901a927a26885a49e9dc7eb3b0c770",
+    "apps/server/dist/chunk-HJGKRZ27.js": "da15b3b8761b1d7bdf918b632beddc1db5be7eb7e0f4e9c7a6ca26dc709a47eb",
+    "apps/server/dist/chunk-HMINRFW4.js": "e703a1ce45bb8283ea6e22631cbe67a66bf8fd46f7e7b83df373c193c189d8e0",
+    "apps/server/dist/chunk-HO4C4GVR.js": "2536461aea88be417560b19710ecd4461674298374c6430acb2ff6dbb1826722",
+    "apps/server/dist/chunk-HSKU3TDD.js": "967bca9b81941606c0d33f0490b701509facdfb56c6c21b7304e40c661259f09",
+    "apps/server/dist/chunk-HSVZHGX4.js": "61ec88ff3551fd18c427bfc70b5a627353dcafcd8ae2f550a94b76c385e3a964",
+    "apps/server/dist/chunk-HYTDHOOV.js": "1731c7b2bcf935cf445016fa2eac28092daf1fc95cd441cdf09940cfc42c23e3",
+    "apps/server/dist/chunk-IAJJAZBI.js": "76a67ef77a7820d63870c52d159259ba0013c9f34fe7ebf327f253c7410da0a9",
+    "apps/server/dist/chunk-ICJDCMG5.js": "c394c6571750c686295f1de83706d6ddead534fbe528993222c9c2c3662ce953",
+    "apps/server/dist/chunk-IFPJOF3L.js": "9a23ff37bf013941496f38511e73aabf1beaf3c945811c9f20893b03904d8c5e",
+    "apps/server/dist/chunk-IG5Y5KAR.js": "4a89ad08939b0c61ad3a2756ddae2cf924480708c0fde8a1fbdd78990f241435",
+    "apps/server/dist/chunk-IKJ2JQEQ.js": "0dbe101d1bbd1f772cd23a2d301c83ad0306217cb44f8f63a5c051ff14000f5f",
+    "apps/server/dist/chunk-ILIOC5DH.js": "6e2fd9159041476cd1c27bfbf99c58d1826e5971c7bba27101e550ac09ff2c6e",
+    "apps/server/dist/chunk-IN25Z46F.js": "045ae69f9dedb2ddbf3bc903b14c46d8506243d4083da37eb903d2fbde6712ef",
+    "apps/server/dist/chunk-IU2HY4DB.js": "ba9df06d4f448919b3e98d150368e60b447190d25e987ae3c68b8d218609bee7",
+    "apps/server/dist/chunk-J64YAJKA.js": "d91208213aeb0c38884ddf29dcfd3f7df51043f3d4287f627173e70f14b8d1a7",
+    "apps/server/dist/chunk-JBWNXBII.js": "0725e14f6cccdd6e8bc75be60eff171195befa575e7e00efc4ca9e1cf26faf3b",
+    "apps/server/dist/chunk-JL5EOXDL.js": "0600585e69a3ab5f1177f98f8fbcc96cbc4fc7d1eed4d90c9a3f2d901ff9d925",
+    "apps/server/dist/chunk-KNEBEXJV.js": "f6ba410353bd7a346248aa8fb37523c22a1153ce05cba2e9f28b29079e001fbf",
+    "apps/server/dist/chunk-KRNAMULA.js": "5ef4cdecd88fbd73bf77dea7723b69a4e4cb4e4c3154b5afb43b768f26e8b428",
+    "apps/server/dist/chunk-KXFRAXN5.js": "177ab532e1e06a96d0722c44c9e7c3f17cd3ede4f23ecfc959436aa49ed892ab",
+    "apps/server/dist/chunk-L7XTUOPT.js": "c4bb078675bac651246bd0157b9fe78666c7371eb29026cd8d521b8264609230",
+    "apps/server/dist/chunk-LNYX7A4T.js": "6e69a42816bf8bc160e1afb63db8e5df9441b0aecbc18619f0871a3b7c84217a",
+    "apps/server/dist/chunk-LUMIGNPY.js": "e1f40febe172b17f88cdf10205bedf7687cae53bf5da8c77513fb4f5fdd6090c",
+    "apps/server/dist/chunk-LVW2LCOE.js": "41a62cd59db3c3ff7b2c992a5820c81a70031b1355113cfb778be266d46b9098",
+    "apps/server/dist/chunk-LWVA5XFT.js": "e9becdaebfe65ce380dae932cb5d9b05fe130f79f868e61920669e95f044ffe8",
+    "apps/server/dist/chunk-M2LNWKE6.js": "bcf1b5a90224eeaa8d0896977d6f1cd35a7b5dfc041408d62dd7f6297df20dbd",
+    "apps/server/dist/chunk-M434MS7E.js": "732bee60bc346b53eb1b23cd0198cd7857d5ac9aabeaa1e37222b06dbd2f18f2",
+    "apps/server/dist/chunk-M6QBOEZC.js": "2d5213bbc05aa4463fff7afbd707d55c0fb98cf8dc656867d53231ffc7616a26",
+    "apps/server/dist/chunk-MFK2KTIZ.js": "e8d3c77e3763d1a4938848d1bd605b05ab36b5de92644cf78def35d247c09944",
+    "apps/server/dist/chunk-MX75CZYO.js": "c2dfb862bcf41134fecd482389269f82e91096f7aa718c937b604a932532d5fe",
+    "apps/server/dist/chunk-MYK7RA2X.js": "bf0f4cea6655c4b0a25f9bec26b0ee7722a7e60fab39a5b8fb153b23de5bd83a",
+    "apps/server/dist/chunk-MYMGLGP7.js": "d357626c4a4ffc8690ac6ffcdb5178b5c09ea5a5da03b52507dceab5add057e5",
+    "apps/server/dist/chunk-NBONTJ7B.js": "937072fa9c7c8dd6698356b453b88f0cea46a5e9844a90ad2977e3447b5fb1d1",
+    "apps/server/dist/chunk-NCBUKAS3.js": "82d0918d7c0956d19b3a8784a7fbb0c01f54ffac1624f1ccc0e03608c2db4f5b",
+    "apps/server/dist/chunk-NRJXGVIZ.js": "6d9c60ccc240acea398cc8d4efabc845959968d7f57c00369d9fe067d4e0f36b",
+    "apps/server/dist/chunk-NRLJEPKS.js": "181c8f9c9aae66c264c11e8b9fbd26badf79adc872423f0588e7785ee3f64c06",
+    "apps/server/dist/chunk-NVIPSOKB.js": "1e6de865abc134d9432cbe5b19fd9614145d36730029c7afdc9d3c093eaebd30",
+    "apps/server/dist/chunk-NVSK7B3F.js": "8814c6902ea9843509f05fdfaada8bca653689b52b66d470f4f2affe7315cf62",
+    "apps/server/dist/chunk-NZPVJ4FA.js": "220eb910cbec6b7cd1279287c352a00ba0581254cfe0255d6bd8a6f03879beea",
+    "apps/server/dist/chunk-NZXVKERA.js": "1309547ee900696b33db4100bc5331a25efddef1c115b187dccd421f00e9b43d",
+    "apps/server/dist/chunk-O6EFNMAS.js": "70ad2021f152b782477fb58942bded516ec0fd20feac11fb80caf851ec9d6abf",
+    "apps/server/dist/chunk-OACSV5MY.js": "08d97080f906d176733ea15f4c5984714bef2dd466bd144c15ba95c0d8adf946",
+    "apps/server/dist/chunk-OFASERXV.js": "aa9103c3db464959d17d11a030521307984caa3e59a7f2cb018964d06c69fc25",
+    "apps/server/dist/chunk-OGLQZGSM.js": "52d98cb07f88b7ed4d2e235e762caf8788d3401fcc4639f3d115900229271fe7",
+    "apps/server/dist/chunk-OPILIZK2.js": "30968cbfe7ce494473cc24df1b2485ee114d884f95cd2372dee9d118dda79777",
+    "apps/server/dist/chunk-OPOBCLKJ.js": "8483c9446fc21c50b54911cf929c107d95fc9ea39abd9355e2ebb51a91f0c6ff",
+    "apps/server/dist/chunk-OVSRCZSY.js": "fdbe113796e428716a8ee11c65d718b9ee3e14c9824ca89e41325f99d46ea9c2",
+    "apps/server/dist/chunk-P6U646TP.js": "728a5bd26d05c8f56b43c1decaa175d1dcee48e1b64437ef9e1b43c672403fe3",
+    "apps/server/dist/chunk-PMSRONBF.js": "dbd420668c1b9f640f42762b3a2174238618fc70e4b84ff73b7f3c28b320f01c",
+    "apps/server/dist/chunk-PNHLYYVP.js": "7332bfbb267fd73423226b7805e8d681fccd0eea289d378cc3749ed6634e2c47",
+    "apps/server/dist/chunk-PPDSK7HU.js": "5edb75d14990c1476250474ecc8a5eb1bddc117fb285b4dadfce9dadea0f7bb6",
+    "apps/server/dist/chunk-PSN5H5ID.js": "7ae2375e2f7eaf0cf5c45122eea08cc42883b85cc0064c42ff8c31de2181a20a",
+    "apps/server/dist/chunk-PU6JDFQJ.js": "d76c5b3c10de9a14c48628e43ed4d4046929cc5359559d51c3fa13aec114fc15",
+    "apps/server/dist/chunk-PWETU5GA.js": "a230953baa363c21efc3b36d740629bad534999ed5c60d8e5199fca7b985d024",
+    "apps/server/dist/chunk-PZWBPMNG.js": "42ada4923448d277f017db1bfd1dc5cf537ba3dd48cd48c3441169ea9570b060",
+    "apps/server/dist/chunk-Q76424GK.js": "735fba4235499fe9d42e75f0fdc05c51c9df43a0553ec8614273876487565e65",
+    "apps/server/dist/chunk-QKAL4HPS.js": "a4a20ac8f74f4f6ae11acdbe1f7ea43b94cc470fa71158ffaf219463a0160b57",
+    "apps/server/dist/chunk-QYANKW2Y.js": "399ac341c8998807ac9d1b6e812e93237ef5c820f8c0542e5926b941c8c1defe",
+    "apps/server/dist/chunk-R3U4PDNB.js": "3df533e28a086bebd2d4c9a79041df6d69aaf86b1b5fe95b0b587618c9f857d7",
+    "apps/server/dist/chunk-RJR2HAOL.js": "71f5901099dd929c7767e6a7fd6e12bbf334a61b9aba07ff690ff4edb377e0ea",
+    "apps/server/dist/chunk-RN2BIOJL.js": "4ee7de41ecb7c94c4497db7cd3547b2ff740937724489747344577bda9e1adb7",
+    "apps/server/dist/chunk-ROSEL3VW.js": "2a4b8812737f6cfdc6022b9877958514691e5160b33f36d4279342388809d1df",
+    "apps/server/dist/chunk-S452SOP5.js": "a15ccc8a61e2a7b1555769e121871ce9313dd3aa4aa1d034ee24335b6ca9c9f7",
+    "apps/server/dist/chunk-S7HSFNIB.js": "9b185b94e2ed1c955b2d18d6db5756f819b3290c3790e03ae252156fc5229a68",
+    "apps/server/dist/chunk-SMJFZEE6.js": "2a749f49aca876b30bfd9abd47e5f7cecd40b72d835162f66bcd85f090d5e7c0",
+    "apps/server/dist/chunk-SQKBZC5D.js": "32d95d50a4505d219a41b9e745132d673a1a806463772767ef52ff8017a03c62",
+    "apps/server/dist/chunk-T7KLZE4H.js": "9dc52fce81018880cda944329cabf5c6a9ae0c87aeec7f4cbd5994cea936cf07",
+    "apps/server/dist/chunk-TEJIPPKO.js": "341379df9f15636a73a95354854290e07e2ad792116edca64e7814c48a7ddc2e",
+    "apps/server/dist/chunk-TG46UV2U.js": "780057be32ad992536ed9048f3680eef95a7b433bbd198333162c13a3e59c115",
+    "apps/server/dist/chunk-TGABBRHP.js": "0611300cf6e516a69cf2e8f60e8ea2bb9fdef95267f71de7a69c8b554cea7f31",
+    "apps/server/dist/chunk-TK2E4Q3P.js": "83b73bae833a4edc49c9ee488b51d9762c29518b82c79c3d4f0922b7bbf5277d",
+    "apps/server/dist/chunk-TRAODSTN.js": "a6a6df656b9c6449357788bd3691320f17b45415152d04512de9015cde973807",
+    "apps/server/dist/chunk-TRRZP2WX.js": "cbedd88ca07524f7867217ad9cf120c2d51e3b82999cb1d9b0d7a20911ef739b",
+    "apps/server/dist/chunk-TWNC6OCZ.js": "db30aaaa1786a7fee163df0b8ca85ad0f8c9537467d8e38ad2022efbc2d82434",
+    "apps/server/dist/chunk-U32U2SP6.js": "edbe7542421d2066812b9607d379df60e540b3c043f24f9282462839c5398466",
+    "apps/server/dist/chunk-U3LIKKPW.js": "b9c73fbd0ac1c2f2e26616dc74fec7cfe5a7992d4f803bd9bab4b9b504f475da",
+    "apps/server/dist/chunk-UDAIXUNI.js": "fab97f430dcadefc23a0f093dac4edad10dab7d114621ade04a2e7a54338a52e",
+    "apps/server/dist/chunk-UDUFANXM.js": "957bfc2370f0ba54508f2087a0814175ffadaa041a8dff549afc9d438fef32a5",
+    "apps/server/dist/chunk-UGUHM2LC.js": "4ff1340212022c255ebed416b5135272c91230d13f853867cd56c14c91de73d3",
+    "apps/server/dist/chunk-UJMHPGR5.js": "82a4cda9f7bb82bd21fcb4a02b9a167703605e8e60c8333ec5b701efe7914b3a",
+    "apps/server/dist/chunk-V5DKKDCO.js": "0c627eb5e991e3d8a6f89e758cdbdd5cbc602d12e7c017912badd41488e06cd1",
+    "apps/server/dist/chunk-V6ASCTR3.js": "975d8cb76e7a3de4a412587a74c8e07fadfb5ea9b04a5be29d8f9b52986c764a",
+    "apps/server/dist/chunk-VBFQQLKG.js": "d5ccb5e07840f5149a1ed1c55e09f5e1be2f5aa6ad7f8a8b72ce658609644480",
+    "apps/server/dist/chunk-VFW55PME.js": "49a9803bf928640c9bd578554157324e84ac1823b87a62a530eb509abd1c639a",
+    "apps/server/dist/chunk-VHP57U2W.js": "42b5977c0773fa7ab3c08a4c8bc34f52be7a45fcdc4d1dac5abaff3b47d9e4b3",
+    "apps/server/dist/chunk-VM32D7Y6.js": "66f766e1b5c587398f79299371e956d6353a138e59bd077153e8daadfc6f9159",
+    "apps/server/dist/chunk-VTO4VYPJ.js": "8a7b53279c23ad58b9d4d0160c6aff081c6ac443538997e65d01d3f0b02dfb12",
+    "apps/server/dist/chunk-VXB2425M.js": "4279a1d055668eb72c65340741c3ba733d37784bc58222b27dbe15224f59167b",
+    "apps/server/dist/chunk-W2CR2ACB.js": "16fadb611f1b0f2c08c9de51a3e1585f797d25ceff371916ddef37f53d1032cb",
+    "apps/server/dist/chunk-WBKBMYHT.js": "a0ce53401b8b4641204d1aaa099c82cd967617eba0c3316c4c2c580a63f4c6f5",
+    "apps/server/dist/chunk-WCCKLDLU.js": "e1ea1e9c46aec211d25010d6df27a445ea94e73cf0944548ba04db1549696f0a",
+    "apps/server/dist/chunk-WCFKSARB.js": "2473d1354e63350438da3bcd776ea1b25a6f066a980a7edfe38be36c3a70fd3c",
+    "apps/server/dist/chunk-WDHFKQHM.js": "a379ec187199033a878730010387ebbd82ad739ea91a0ff239b7698113130d7d",
+    "apps/server/dist/chunk-WMHWCEJZ.js": "6bfcf01089f831f57bdaa1977f74aa6af401ae8c264d47d0c85c25c355ab33f7",
+    "apps/server/dist/chunk-WSCHNTSJ.js": "957329c8e5ac81bee381876d0dc84d2466872d75bedab518a9f94689612bb2ec",
+    "apps/server/dist/chunk-WSCWVASQ.js": "52b44477f694619d588f26ec50c8507ce54429223ce1902379e5635a1a2d5138",
+    "apps/server/dist/chunk-WSTO2KV5.js": "806a6606be99b7df5a08897b74aad3ffd31d3f7e5de3ac8f33a6db7ecef76b57",
+    "apps/server/dist/chunk-WWBYPEHN.js": "2d0c6b1b481a668ad8b5f11f6f99693374bd450f5ecabd79ead04ec80c95de6f",
+    "apps/server/dist/chunk-WWHO5R7I.js": "7c33af9c7f2813c1fa6d8eae9f552b3d8114ac2772e91dbf5c0e4df628308314",
+    "apps/server/dist/chunk-X2DH5SRX.js": "c27d0f51231d9baa2350a8546ae31dadd8789c0e757086319f5dec6302c59b81",
+    "apps/server/dist/chunk-X73HU5RO.js": "2efba4c625459eb7b53458994c6d3914b482d20508b78d3c4a4817ab169ad15e",
+    "apps/server/dist/chunk-XBGOGFV3.js": "1f38ba8a3a3275fdc8f10db4dba9097e960621eb845d3772af18d1d17fd79b74",
+    "apps/server/dist/chunk-XCTWEAPN.js": "2d196445de2326f4be796d7682f01a5ee2ba8a4b161c94c9e08fc9225644013c",
+    "apps/server/dist/chunk-XOGLILSG.js": "d9dd17dff61d607d42c1e20ed64b62de50501557e95897ecdd0a6c82533225d6",
+    "apps/server/dist/chunk-XPQE4TU2.js": "44781c7d33abca2bf6f3daf5e2c0b587258cce8eef7a50dfd5f61579bc66bf7f",
+    "apps/server/dist/chunk-XXHANMPK.js": "574abfe36070819d21cbefe749dc42425f1343bb6309530ad46961900e667047",
+    "apps/server/dist/chunk-XYGW3GT2.js": "892599d99512c733d2652ab441640d66cc571b6eb38994438ff700494bd200ad",
+    "apps/server/dist/chunk-YB3JIZHY.js": "6fa3af76e9f8660ed37fdb57a185bdb36873a1106c97dc8b825df315308fb358",
+    "apps/server/dist/chunk-YJBP3KJQ.js": "b3f043abe935844818902fe4f7ba83eed51e5338f35b59ae1c6aa592d961def9",
+    "apps/server/dist/chunk-YK7YNWXB.js": "7ca79fde8b378edd721af84e0463c9613848dc56dffbca284285e61f5f09c051",
+    "apps/server/dist/chunk-YOJRUVDZ.js": "652fb4dc2e6cbdffdbfe975d218c0f67d0d7ac4a64dd43218e31689fddf2d329",
+    "apps/server/dist/chunk-YRPBOEOZ.js": "20ea4e29b541af865193e442743ebf3a27cae8aa636331f39cdc745f99d56e11",
+    "apps/server/dist/chunk-YV3WDJBT.js": "59d1d70008f1b38c22677d3b35bfe7fa9c208842a1a30a022fbc796e756e224a",
+    "apps/server/dist/chunk-ZBCV5OJE.js": "6fe89904a210469ac16fed78e3b546647f61997ce41a3de508e929444f856a0d",
+    "apps/server/dist/chunk-ZEQ3EMXM.js": "f6a518456ab68ac83e7128fe35fa9d85eedf26453d54bd44e84222503ffb46f2",
+    "apps/server/dist/chunk-ZGZZABNU.js": "3388b66c60774259719b2739b4b65725c992c086b09160399cba0a7211dd915a",
+    "apps/server/dist/chunk-ZOQVJCXX.js": "dc445ab9f78dc9f9e8db9c2a69273b37cef0d26c0bbb353b001de1d6ebb514fe",
+    "apps/server/dist/chunk-ZPF6LQE2.js": "1b8607cbaf97d082fda4b103fdbd0cc9bce4426e0f66eff5c85d31f65bc7a6de",
+    "apps/server/dist/chunk-ZTB6KM4M.js": "32412b41feb1a3e8464c1faeda6034c46d3bd30332f6cb68ee7e49b339a214af",
+    "apps/server/dist/index.js": "a3aaa4c92f6f6445995f3df5288c5ff8a4bf140c7bb8716439f5e86f2085685b",
+    "apps/server/dist/localRuntimeTownCliMain.js": "036c20ff4aa75d14e0b65cb52107b4c83b8f558f7c8a16a9581b8b5b4945cf85",
+    "apps/server/dist/localRuntimeTownDataMigrationCliMain.js": "92116c4f721d0b2d86296e08ca32ac866312fa4632e41bca00bf5976d2b4dd29",
+    "apps/server/dist/localRuntimeTownPaperAblationCliMain.js": "5f8f8c0bf834cc75148457471f1c852353c607790a14c880a2724a6fc05a1ea7",
+    "apps/server/dist/localRuntimeTownPaperAblationCompareCliMain.js": "5dd8d36e82345174b1921b81677f46dfb297711b2d0ff6604c4780a81125a0d1",
+    "apps/server/dist/localRuntimeTownPaperMarketAnalysisCliMain.js": "5101f77eeb51f15a8ca3d65517e2ba3cc46203635194d3696372855eb3a343a7",
+    "apps/server/dist/localRuntimeTownPaperMarketCollectionCliMain.js": "2325cda369645c3aaa55687b06f5f95a3bd3c95001318df4f15015b282dd2665",
+    "apps/server/dist/localRuntimeTownPaperMarketCollectionDatasetCliMain.js": "4b801260e5031f1d22dfdd87d208ea702d8569ee328c1e428ba79f6ecd412899",
+    "apps/server/dist/localRuntimeTownPaperMarketCollectionShardCliMain.js": "915b82fb4ca6006600b3e65a0787f6ebe4eb7f8f718b4cb967205e2d5ff91420",
+    "apps/server/dist/localRuntimeTownPaperMarketDatasetCliMain.js": "c96017c72ed400d3d7e3c0cae55494e2954ba602781f9431ed385007b83b39e9",
+    "apps/server/dist/localRuntimeTownPaperStratificationCliMain.js": "3fcefef113b4aa55729abf5dedcfd07b800a0c6132f39d24e66c37062f402646",
+    "apps/server/dist/localRuntimeTownPaperTrajectoryCliMain.js": "5ba06fab5517853b798ad96c896619895a9528a6bc4670e3fa397f0768694120",
+    "apps/server/dist/localRuntimeTownParticipantDataDeletionCliMain.js": "a8e253c5e8cd8cbf63db950bc39bf9701bbf3d946fe2bb78a9e2a76ce6e6300b",
+    "apps/server/dist/localRuntimeTownParticipantDataLifecycleCliMain.js": "c2afb48a59679f8790c680a500e571a1b405f1e320f477e9516204811dc58d68",
+    "apps/server/dist/localRuntimeTownRecoveryDrillCliMain.js": "a27bc67abb57742357eb95da7ce1faaca530bfebcbaa28e3536ce5c4ffd81dbd",
+    "apps/server/dist/localRuntimeTownResourceEnvelopeCliMain.js": "5cfab4eeb4849decc0b17079c25b90550571c424a6307b2ea7053cc5bd0a56d0",
+    "apps/server/dist/localRuntimeTownSoakCliMain.js": "b8ff6a3b531475f001499a7132c1101c8a3931be3da5860e24e9999abde5c581",
+    "apps/web/dist/app.js": "1bd893381203c8d1c355e7c42d7098aa912027b14d3bf0767dc18d056215c701",
+    "apps/web/dist/client/assets/Cache-DHqMZE5g.js": "ffbd2639eb1929c1933fb912611f6d9794666d8fbe0cf2766d5b44a9f82e1f13",
+    "apps/web/dist/client/assets/CanvasPool-ofp-qdw6.js": "92f1237a95c8a66456c65b6d6a6edb18ab4e24c8dc9559442900dc663fea5c23",
+    "apps/web/dist/client/assets/Filter-D023rKqq.js": "e67da43c4c14e8bb3baa168b27f65f662a6240fb6bd57c21c0030559b5f55242",
+    "apps/web/dist/client/assets/GCManagedHash-UV_FvhK3.js": "0e583319cab1859404346570472f59822b49f296c30b295e4454a210fbf08663",
+    "apps/web/dist/client/assets/GpuStencilModesToPixi-BgDr3sJ2.js": "d998e21fb7fbb1f9a96372ec6afbd9b3a825d114e89c1f7a51062b916e5510c6",
+    "apps/web/dist/client/assets/GraphicsContext-ox7rGDwA.js": "4adc4afe6c70147e68ecdf1c50b2b994335a8b131f9a4620e64d70877b381b0e",
+    "apps/web/dist/client/assets/RenderTargetSystem-queDpFLd.js": "76886cf84cab8c95123c66bc76ba0a4c1b689dcde99e254835fc15b769b42d89",
+    "apps/web/dist/client/assets/browserAll-CdPDfwJF.js": "4e0f912caaa4ef0b747b81d3808bb75a31b253da6d1d53c0528fbec811364525",
+    "apps/web/dist/client/assets/canvasUtils-DjTenqjK.js": "1dd9cc65ff11508e418b51dedc57bd3a6d5b70c697691bcab4c984d0dce4a04e",
+    "apps/web/dist/client/assets/getTextureBatchBindGroup-C4ns3fLn.js": "1d449afa1496d0c83a2fdb5d32641664f90af119ad226e06ac8ade07f86245d1",
+    "apps/web/dist/client/assets/index-DuVXSE3z.js": "4fb28057c34bf5e9055bbcd9eeff15924cc219387175aa58641d54f98190a036",
+    "apps/web/dist/client/assets/init-DAmobVnO.js": "6fdb01986f3ceb0c4918c97f1c6c3bf0723102030641e67815d472fe8dcc88ad",
+    "apps/web/dist/client/assets/webworkerAll-Q8bMUgcz.js": "7a9ec98ab1a99bb6e9c5b23668902c262a2fbd6e7eb73f41440591ba548c2197",
+    "apps/web/dist/index.js": "b7cf16ce86c8550dd8361588e5a4aa51c82279ff9a11e6e7d022d60da3bc14ca",
+    "apps/web/dist/ui/map/ambient.js": "eb41ad71881f1fd6b27d2bff62c966eeadb28f52fde1ce567d1b0c06fcf05c1c",
+    "apps/web/dist/ui/map/dayNight.js": "185f5901f8f7736d32347fa808b22ee20a3a235fc7280e2fdd5955264406e7a4",
+    "apps/web/dist/ui/map/decor.js": "ade4c308734c6558aa764d0ea23a324d0407ce3633bf31f3b48c1e93f7d98642",
+    "apps/web/dist/ui/map/interpolation.js": "ecb2694d32f7df52d4438f9fc676516ef3b710636a8551669ff17815f3640427",
+    "apps/web/dist/ui/map/picking.js": "ce4f9b31a8559cfa0e05d4f733b199d5ce4b9e9a1701323db83279a97867f691",
+    "apps/web/dist/ui/map/renderer.js": "b059ce58698a37de2525fb33b9f985c8c70aca5d25ecd198331f351ea8819a34",
+    "apps/web/dist/ui/map/roads.js": "787d415c2243c54a3e0ac3255120ed228b9cdfef37f3a8a408b7c65bb07f9649",
+    "apps/web/dist/ui/map/tilesheet.js": "5862b19165e72a178b64e1d0d76f0dfd7763adfe31ccda946e81807bd379e01f",
+    "apps/web/dist/ui/map/weatherLayer.js": "80bd282ed3111dbc28adca7f56dec0ea9c50c961a2bbb2ff6460dbdc0637d23b",
+    "apps/web/dist/ui/panels/inspector.js": "d2fdaefc92520e08c1384efaffb1705e43963d3b44df5fb7d381b5d589869180",
+    "apps/web/dist/ui/panels/workspaces.js": "509021de528fc4b3b21572038f133388342bf4b1244bb9430b5a8a6b1b4acede",
+    "apps/worker/dist/index.js": "814f2d932f86f8d410c431a7d2626759327e57845ad0d2864335c53ffb724699",
+    "packages/agent-runtime/dist/index.js": "b4a9eb4b476f5f5eccd782b329c4a228b58e3a6078ba6ef66b8dac787e44cfa6",
+    "packages/authority/dist/index.js": "393d1e50d57aac93ea569a5e8354d36befa1bee3f839bc589464751bbc30dfdc",
+    "packages/collaboration/dist/index.js": "23f12d2f35a7200faa2ddf38d18744ac8b4b7b75e2887d1ae75fca5d435c9a7e",
+    "packages/commerce/dist/index.js": "42bb56dfdcf8dada7072a09469437ddd14a832291b2b62e1e4c73820387a3d33",
+    "packages/content/dist/index.js": "eb39c113b58c184b812327b2e135a675f085b0ec14e8a2d94d4699b3786fab58",
+    "packages/credit/dist/index.js": "122d456a831799b4395afa5be40fd80f328085643efaf6f5ea99a6706e2dd58e",
+    "packages/economy/dist/index.js": "3312bf421706895c432b254b534d64b23614a5b47701cb18f9430dc610f519a0",
+    "packages/enterprise/dist/index.js": "02319c952a5ad7b1ef950a66b1a6950a996880693c924c5d5b03d8375d7391e1",
+    "packages/governance/dist/index.js": "e96d6e1e7e73a5abc83a4a2a74d811c18a75f8b3713cee70ccf8a896c3f7dd33",
+    "packages/information/dist/index.js": "4b788d65d848513385d339e686484cbf349d932cf2a5d61877ccca5aecb00f39",
+    "packages/llm/dist/index.js": "65b8bdab5643cbb594c4fdc8037edd6b0e69768a4a5ad8c79ac2bda372739650",
+    "packages/logistics/dist/index.js": "a0dc3aedd37b9d32d2cfff854455f414312c5f1b01deaa2242b0b6ab739c8a57",
+    "packages/materials/dist/index.js": "d4102cf9bf836938f650ce73f20b2ff894c90a808837c1422dd144c409aa2f74",
+    "packages/memory/dist/index.js": "228cfeb3cf16b7ff3a8c051941afb3103903cd0988ab51c5dcc3d46f9c02fcbb",
+    "packages/mobility/dist/index.js": "0de529f023b4022cd9684e589d703a7198f9ef8aa5bfaabdce2ea70e3915a60b",
+    "packages/observability/dist/index.js": "9026ab484b1a9fdcef0d224a34745afd3c46fa6964b7a06f302dbca713149c40",
+    "packages/premises/dist/index.js": "8bf55b291f502bd513a8c974d65c6c9a290f1c17c71cbaa0fbbbeda6661642a5",
+    "packages/services/dist/index.js": "5af0d0df2fa291d7351fab11b9cbb080fd7865532ccea82ad6d6d94ac668f274",
+    "packages/sim-core/dist/index.js": "ec147ed0ce78f2a03c16f263d625cabed1f42fb274beb475ed2f3030fb1a9694",
+    "packages/society/dist/index.js": "0449102d8e1890396bc22fe449fe2abd3918473e1071c442acc2c0b3aec2b02d",
+    "packages/world/dist/index.js": "7c1e0d51fe5d45d0f80965b86b6900a79f5dfc07be691fda8ec147bf1a005f77"
+  },
+  "sourceSha256": {
+    "apps/residents/scripts/observe-integrated-v2-continuity.mjs": "f3b24ca4dd7dd08ec97142f3d2bfd498311061d1f52d19d1526ffd9eff04ee05",
+    "apps/residents/scripts/analyze-free-run.mjs": "b5cbb2411e1ca4aa5ab7e0385c93cc62a4d31c641f62f7184759d027ce495ba2",
+    "apps/worker/src/openSociety/runProfile.ts": "48155f4e52327c473ec294e72a6be0e8e6bf2f6d667c06e4edd9425984118f05",
+    "apps/residents/src/daemon.ts": "5f152f35042f4ebb1acc0acc06e281de50ae8fa9ee1de10b6a143aae097f6250"
+  },
+  "conditions": [
+    {
+      "initialization": "settled",
+      "simulationTime": 1703000,
+      "journalCommits": 158,
+      "capabilityCalls": 106,
+      "capabilityCounts": {
+        "world.observe/accepted": 50,
+        "business.services/accepted": 1,
+        "files.index/accepted": 5,
+        "world.move/accepted": 3,
+        "schedule.wait/accepted": 16,
+        "production.recipes/accepted": 2,
+        "sources.list/accepted": 2,
+        "production.list/accepted": 2,
+        "schedule.list/accepted": 1,
+        "world.trade/accepted": 1,
+        "world.study/refused": 1,
+        "cognition.update/accepted": 2,
+        "obligations.list/accepted": 1,
+        "programs.list/accepted": 1,
+        "world.study/accepted": 4,
+        "messages.send/accepted": 9,
+        "world.work/accepted": 1,
+        "messages.read/accepted": 3,
+        "world.stop_study/accepted": 1
+      },
+      "refusals": [
+        {
+          "sequence": 59,
+          "actorId": "resident-003",
+          "capability": "world.study",
+          "error": "agent is busy with trade until simulation time 420000 (now 120000)"
+        }
+      ],
+      "eventCounts": {
+        "informationEvents/SpaceCreated": 8,
+        "informationEvents/DocumentCreated": 15,
+        "worldEvents/AgentTravelStarted": 3,
+        "worldEvents/AgentActivityTimeCommitted": 4,
+        "worldEvents/ShortTermMemoryRecorded": 11,
+        "worldEvents/SimulationTimeAdvanced": 19,
+        "worldEvents/PhysiologyChanged": 140,
+        "worldEvents/TradeExecuted": 1,
+        "worldEvents/TradeTaxCharged": 1,
+        "worldEvents/ActionRejected": 1,
+        "cognitiveEvents/PersonalCognitionUpdated": 2,
+        "worldEvents/ResidentStudyCommitted": 79,
+        "worldEvents/AgentLocationChanged": 3,
+        "informationEvents/MessageSent": 9,
+        "worldEvents/PublicLaborCommitted": 25,
+        "informationEvents/MessageRead": 3
+      },
+      "commandOutcomes": {
+        "succeeded": 181,
+        "failed": 14,
+        "unknown": 0
+      },
+      "residentAuthored": {
+        "spaces": [],
+        "documents": [],
+        "messages": [
+          {
+            "id": "msg-573055d15026715c61d6dd82",
+            "senderId": "resident-001",
+            "recipientId": "resident-003",
+            "sentAt": 729000,
+            "readAt": null
+          },
+          {
+            "id": "msg-06a6bbe450fcd4d4c29f6bb1",
+            "senderId": "resident-003",
+            "recipientId": "resident-001",
+            "sentAt": 789000,
+            "readAt": 909000
+          },
+          {
+            "id": "msg-3e9b9d50eb785cd10060964a",
+            "senderId": "resident-001",
+            "recipientId": "resident-003",
+            "sentAt": 909000,
+            "readAt": null
+          },
+          {
+            "id": "msg-eaf4ffd99ae37f45f1d8b97d",
+            "senderId": "resident-004",
+            "recipientId": "resident-001",
+            "sentAt": 1343000,
+            "readAt": 1403000
+          },
+          {
+            "id": "msg-dd7b3a57a031c3c667135c33",
+            "senderId": "resident-004",
+            "recipientId": "resident-003",
+            "sentAt": 1343000,
+            "readAt": null
+          },
+          {
+            "id": "msg-3200a7df829925b64db657d0",
+            "senderId": "resident-001",
+            "recipientId": "resident-004",
+            "sentAt": 1403000,
+            "readAt": null
+          },
+          {
+            "id": "msg-d24fffd781ccdf0c0f6c0511",
+            "senderId": "resident-003",
+            "recipientId": "resident-004",
+            "sentAt": 1463000,
+            "readAt": null
+          },
+          {
+            "id": "msg-c228b7b614eae8840d9afbb8",
+            "senderId": "resident-004",
+            "recipientId": "resident-003",
+            "sentAt": 1523000,
+            "readAt": null
+          },
+          {
+            "id": "msg-65fe73105328c2e76150bafb",
+            "senderId": "resident-004",
+            "recipientId": "resident-001",
+            "sentAt": 1523000,
+            "readAt": 1583000
+          }
+        ],
+        "groups": [],
+        "collectives": [],
+        "registers": [],
+        "views": [],
+        "programs": [],
+        "services": []
+      },
+      "journalSha256": "9f5b797dac314b9b7c324bab76a6f1ca36473d0e3c0d4a40aadb76803514942e",
+      "manifestSha256": "79d168f4bbd91643b8d540b87431ed2b6672be45ef67d309e29a1ed970b4205a",
+      "opportunities": 16,
+      "providerStatuses": {
+        "completed": 16
+      },
+      "elapsedProviderMs": 497095,
+      "rawProviderUsage": {
+        "completedUniqueSteps": 112,
+        "costRaw": 0.061558116,
+        "tokens": {
+          "total": 2835569,
+          "input": 184186,
+          "output": 14524,
+          "reasoning": 28987
+        },
+        "cache": {
+          "read": 2607872,
+          "write": 0
+        }
+      },
+      "segments": [
+        {
+          "segment": 1,
+          "outcome": {
+            "status": "limit-reached",
+            "opportunities": 8
+          },
+          "replication": {
+            "status": "caught-up",
+            "cursor": {
+              "sequence": 108,
+              "hash": "6c15dd49552b72fbd478cdf9ddf0e8312fb7a31a3219b42b407c5e794cc7c722"
+            },
+            "pages": 5
+          },
+          "simulationTime": 909000,
+          "liveReportEqualsReplay": true,
+          "liveTransportReplicaEqualsReopenedAuthority": true,
+          "manifestUnchanged": true,
+          "journalUnchangedOnReplay": true,
+          "committedPrefixUnchanged": true,
+          "journalSha256": "757323e81312696fc68251a8e048d70dcabee78f61c2d6d6342839a08d8a7d5c",
+          "fullStateSha256": "401e822bbcd7102a086695de137731770da4c8765891c8df3917ff643d5a2468",
+          "resumedSessions": []
+        },
+        {
+          "segment": 2,
+          "outcome": {
+            "status": "limit-reached",
+            "opportunities": 8
+          },
+          "replication": {
+            "status": "caught-up",
+            "cursor": {
+              "sequence": 158,
+              "hash": "8e296393d9120b99e5f3bb7cd3c03450b0b060ca61ed92ba299e677dae9e6706"
+            },
+            "pages": 3
+          },
+          "simulationTime": 1703000,
+          "liveReportEqualsReplay": true,
+          "liveTransportReplicaEqualsReopenedAuthority": true,
+          "manifestUnchanged": true,
+          "journalUnchangedOnReplay": true,
+          "committedPrefixUnchanged": true,
+          "journalSha256": "9f5b797dac314b9b7c324bab76a6f1ca36473d0e3c0d4a40aadb76803514942e",
+          "fullStateSha256": "6745f57f8e12c10d46e5e59d33a170f3b66b4d7ce15b31f9012fa52b49efb581",
+          "resumedSessions": [
+            {
+              "actorId": "resident-001",
+              "turnId": "turn-109-resident-001",
+              "sessionId": "ses_eecb8e077ffesURd20Q3NnORQp"
+            },
+            {
+              "actorId": "resident-003",
+              "turnId": "turn-120-resident-003",
+              "sessionId": "ses_eecb722f7ffeYIMuMfEz39x2mq"
+            },
+            {
+              "actorId": "resident-004",
+              "turnId": "turn-125-resident-004",
+              "sessionId": "ses_eecb5fea4ffeim35z5slGty3q1"
+            },
+            {
+              "actorId": "resident-001",
+              "turnId": "turn-133-resident-001",
+              "sessionId": "ses_eecb8e077ffesURd20Q3NnORQp"
+            },
+            {
+              "actorId": "resident-003",
+              "turnId": "turn-139-resident-003",
+              "sessionId": "ses_eecb722f7ffeYIMuMfEz39x2mq"
+            },
+            {
+              "actorId": "resident-004",
+              "turnId": "turn-144-resident-004",
+              "sessionId": "ses_eecb5fea4ffeim35z5slGty3q1"
+            },
+            {
+              "actorId": "resident-001",
+              "turnId": "turn-150-resident-001",
+              "sessionId": "ses_eecb8e077ffesURd20Q3NnORQp"
+            },
+            {
+              "actorId": "resident-003",
+              "turnId": "turn-155-resident-003",
+              "sessionId": "ses_eecb722f7ffeYIMuMfEz39x2mq"
+            }
+          ]
+        }
+      ],
+      "cliFailures": [
+        {
+          "turnId": "turn-2-resident-001",
+          "tool": "bash",
+          "command": "town business list",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-2-resident-001",
+          "tool": "bash",
+          "command": "town files index app-community",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-20-resident-002",
+          "tool": "bash",
+          "command": "town business list",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-20-resident-002",
+          "tool": "bash",
+          "command": "town market list",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-20-resident-002",
+          "tool": "bash",
+          "command": "town city observe --view map",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-38-resident-003",
+          "tool": "bash",
+          "command": "town education exam --help",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-38-resident-003",
+          "tool": "bash",
+          "command": "town education study --duration-seconds 5400",
+          "status": "completed",
+          "exitCode": 1,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-64-resident-004",
+          "tool": "bash",
+          "command": "town population list",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-64-resident-004",
+          "tool": "bash",
+          "command": "town market list",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-64-resident-004",
+          "tool": "bash",
+          "command": "town city observe --view map",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-109-resident-001",
+          "tool": "bash",
+          "command": "town messages read msg-06a6bbe450fcd4d4c29f6bb1",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-109-resident-001",
+          "tool": "bash",
+          "command": "town help jobs",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-109-resident-001",
+          "tool": "bash",
+          "command": "town messages read --message-id msg-06a6bbe450fcd4d4c29f6bb1",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-109-resident-001",
+          "tool": "bash",
+          "command": "town city observe --view housing standard",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        }
+      ],
+      "providerArtifacts": [
+        {
+          "path": "opencode/resident-001/turn-2-resident-001.json",
+          "sha256": "9fa7a9d6b9c853115c960e7f8f21bcb406746cec6487fb2f72d9f8d63da9b5e3",
+          "sessionId": "ses_eecb8e077ffesURd20Q3NnORQp",
+          "turnId": "turn-2-resident-001"
+        },
+        {
+          "path": "opencode/resident-002/turn-20-resident-002.json",
+          "sha256": "768e30c461cb7ca13219550132e8b38946f139a94cdb87e1c70f8f930039c5b1",
+          "sessionId": "ses_eecb80e14ffepUaS3WaifTfjHD",
+          "turnId": "turn-20-resident-002"
+        },
+        {
+          "path": "opencode/resident-003/turn-38-resident-003.json",
+          "sha256": "bbbfd1279f8603d20866266063add1c236c3a685db9c4b6d0138785c60aa8249",
+          "sessionId": "ses_eecb722f7ffeYIMuMfEz39x2mq",
+          "turnId": "turn-38-resident-003"
+        },
+        {
+          "path": "opencode/resident-004/turn-64-resident-004.json",
+          "sha256": "2e68242c6bea8f26a5a9b208f21b03316df43ee7dfdf013a5b1df493077d9f08",
+          "sessionId": "ses_eecb5fea4ffeim35z5slGty3q1",
+          "turnId": "turn-64-resident-004"
+        },
+        {
+          "path": "opencode/resident-003/turn-85-resident-003.json",
+          "sha256": "32fef05ee3d1910292bb1cd1c2ad990e6f4be31dffade971e274c5f74c6224f5",
+          "sessionId": "ses_eecb722f7ffeYIMuMfEz39x2mq",
+          "turnId": "turn-85-resident-003"
+        },
+        {
+          "path": "opencode/resident-001/turn-91-resident-001.json",
+          "sha256": "bd895a8c5b38ce1d156c60a117da87daa1a26b46c8055fadc8a5a8310555b5b6",
+          "sessionId": "ses_eecb8e077ffesURd20Q3NnORQp",
+          "turnId": "turn-91-resident-001"
+        },
+        {
+          "path": "opencode/resident-003/turn-98-resident-003.json",
+          "sha256": "577b1db6ea3b2c90781d607bee086d85c7171e9d01532265dc6fd48aa06d7bf6",
+          "sessionId": "ses_eecb722f7ffeYIMuMfEz39x2mq",
+          "turnId": "turn-98-resident-003"
+        },
+        {
+          "path": "opencode/resident-002/turn-104-resident-002.json",
+          "sha256": "4a6c3fd68fcd5ff3448de096fd1e4ca9c62c4d4706b8fd474696024e4fd68941",
+          "sessionId": "ses_eecb80e14ffepUaS3WaifTfjHD",
+          "turnId": "turn-104-resident-002"
+        },
+        {
+          "path": "opencode/resident-001/turn-109-resident-001.json",
+          "sha256": "03465a9955ce6c47858688e5141fdd9c9f00a4c5578d6e5e0d81477d3c7ae0c1",
+          "sessionId": "ses_eecb8e077ffesURd20Q3NnORQp",
+          "turnId": "turn-109-resident-001"
+        },
+        {
+          "path": "opencode/resident-003/turn-120-resident-003.json",
+          "sha256": "38c26e4da0099079a73b19c3d474192fe3fe700f1a05107dee4864bf0e567315",
+          "sessionId": "ses_eecb722f7ffeYIMuMfEz39x2mq",
+          "turnId": "turn-120-resident-003"
+        },
+        {
+          "path": "opencode/resident-004/turn-125-resident-004.json",
+          "sha256": "ea42f26ffe8e3a69684a6562b72b795bb99c4c2cc8df3114bf0ce2e541288078",
+          "sessionId": "ses_eecb5fea4ffeim35z5slGty3q1",
+          "turnId": "turn-125-resident-004"
+        },
+        {
+          "path": "opencode/resident-001/turn-133-resident-001.json",
+          "sha256": "c36eb9e7243f33228d2a52560b5504d9b58d96c222faf36367a0ea0e156d316a",
+          "sessionId": "ses_eecb8e077ffesURd20Q3NnORQp",
+          "turnId": "turn-133-resident-001"
+        },
+        {
+          "path": "opencode/resident-003/turn-139-resident-003.json",
+          "sha256": "e8cb200054acab81fe81186a561f20a46c6a1749ddf0827be161c426f958a5a4",
+          "sessionId": "ses_eecb722f7ffeYIMuMfEz39x2mq",
+          "turnId": "turn-139-resident-003"
+        },
+        {
+          "path": "opencode/resident-004/turn-144-resident-004.json",
+          "sha256": "cd327ff56f102ac6cc21cea1c15864642d0c56a651272888c6f8b48103694867",
+          "sessionId": "ses_eecb5fea4ffeim35z5slGty3q1",
+          "turnId": "turn-144-resident-004"
+        },
+        {
+          "path": "opencode/resident-001/turn-150-resident-001.json",
+          "sha256": "1dfe33b1a9c8d8de463bcc3eee026c988e0b9a745a3fdf6d5dc3053828a65e11",
+          "sessionId": "ses_eecb8e077ffesURd20Q3NnORQp",
+          "turnId": "turn-150-resident-001"
+        },
+        {
+          "path": "opencode/resident-003/turn-155-resident-003.json",
+          "sha256": "f768fcf1266c348551d7079126115da336786f15d6b44b9587a5b40fd015334a",
+          "sessionId": "ses_eecb722f7ffeYIMuMfEz39x2mq",
+          "turnId": "turn-155-resident-003"
+        }
+      ],
+      "analysisSha256": "7248fff44272323f38584d882854fd0ed412d342d8c171954656465a3881774e"
+    },
+    {
+      "initialization": "newcomers",
+      "simulationTime": 960000,
+      "journalCommits": 153,
+      "capabilityCalls": 104,
+      "capabilityCounts": {
+        "world.observe/accepted": 30,
+        "world.move/accepted": 5,
+        "rules.capability/accepted": 1,
+        "schedule.wait/accepted": 16,
+        "files.index/accepted": 12,
+        "production.list/accepted": 2,
+        "sources.list/accepted": 3,
+        "production.recipes/accepted": 2,
+        "obligations.list/accepted": 1,
+        "messages.send/accepted": 15,
+        "messages.read/accepted": 6,
+        "files.read/accepted": 5,
+        "world.apply_job/refused": 1,
+        "world.apply_job/accepted": 1,
+        "business.services/accepted": 1,
+        "governance.employment/accepted": 1,
+        "files.create/accepted": 1,
+        "world.study/accepted": 1
+      },
+      "refusals": [
+        {
+          "sequence": 47,
+          "actorId": "resident-003",
+          "capability": "world.apply_job",
+          "error": "residential-tier-too-low: residentialTier requires 3, available 1 [public employment revision 1, cycle 0; town governance employment --revision 1]"
+        }
+      ],
+      "eventCounts": {
+        "informationEvents/SpaceCreated": 8,
+        "informationEvents/DocumentCreated": 16,
+        "worldEvents/AgentTravelStarted": 5,
+        "worldEvents/AgentActivityTimeCommitted": 5,
+        "worldEvents/ShortTermMemoryRecorded": 8,
+        "worldEvents/SimulationTimeAdvanced": 16,
+        "worldEvents/PhysiologyChanged": 64,
+        "informationEvents/MessageSent": 15,
+        "informationEvents/MessageRead": 6,
+        "worldEvents/ActionRejected": 1,
+        "worldEvents/JobApplicationSubmitted": 1,
+        "worldEvents/AgentLocationChanged": 3,
+        "distributionEvents/PublicationRecorded": 1,
+        "worldEvents/ResidentStudyCommitted": 5
+      },
+      "commandOutcomes": {
+        "succeeded": 164,
+        "failed": 12,
+        "unknown": 0
+      },
+      "residentAuthored": {
+        "spaces": [],
+        "documents": [
+          {
+            "authorId": "resident-002",
+            "createdAt": 600000,
+            "deleted": false,
+            "id": "app-community/posts/resident-002-explore-notes-001.md",
+            "path": "posts/resident-002-explore-notes-001.md",
+            "revision": 1,
+            "spaceId": "app-community",
+            "tags": [
+              "探索",
+              "物价",
+              "作坊"
+            ],
+            "title": "市民002的开图笔记：地点、物价与作坊数据（截至simTime 600000）",
+            "updatedAt": 600000
+          }
+        ],
+        "messages": [
+          {
+            "id": "msg-55c303cec7de4ec29875c57b",
+            "senderId": "resident-002",
+            "recipientId": "resident-003",
+            "sentAt": 60000,
+            "readAt": 120000
+          },
+          {
+            "id": "msg-0221569939151f99887bd16d",
+            "senderId": "resident-002",
+            "recipientId": "resident-004",
+            "sentAt": 60000,
+            "readAt": 180000
+          },
+          {
+            "id": "msg-b6e0ca3e8f265f3d1c633c23",
+            "senderId": "resident-003",
+            "recipientId": "resident-002",
+            "sentAt": 120000,
+            "readAt": null
+          },
+          {
+            "id": "msg-084c019e6d81d07ed926e4e9",
+            "senderId": "resident-004",
+            "recipientId": "resident-002",
+            "sentAt": 180000,
+            "readAt": null
+          },
+          {
+            "id": "msg-92e49405ac6fa1aff6e83d72",
+            "senderId": "resident-002",
+            "recipientId": "resident-004",
+            "sentAt": 240000,
+            "readAt": 360000
+          },
+          {
+            "id": "msg-28d748ea73defc99c9305d24",
+            "senderId": "resident-002",
+            "recipientId": "resident-003",
+            "sentAt": 240000,
+            "readAt": 300000
+          },
+          {
+            "id": "msg-a1c6186bb2df519d3c98785b",
+            "senderId": "resident-003",
+            "recipientId": "resident-002",
+            "sentAt": 300000,
+            "readAt": null
+          },
+          {
+            "id": "msg-2768a078d94685b47cca0380",
+            "senderId": "resident-004",
+            "recipientId": "resident-002",
+            "sentAt": 360000,
+            "readAt": null
+          },
+          {
+            "id": "msg-6454a7351931eac9ddf195ac",
+            "senderId": "resident-002",
+            "recipientId": "resident-004",
+            "sentAt": 420000,
+            "readAt": null
+          },
+          {
+            "id": "msg-c2c1652276c3772c9c2374b9",
+            "senderId": "resident-002",
+            "recipientId": "resident-003",
+            "sentAt": 420000,
+            "readAt": 480000
+          },
+          {
+            "id": "msg-812db3f461b52abb2fa399e7",
+            "senderId": "resident-003",
+            "recipientId": "resident-002",
+            "sentAt": 480000,
+            "readAt": null
+          },
+          {
+            "id": "msg-a53547a54ef7adf35767e42e",
+            "senderId": "resident-002",
+            "recipientId": "resident-004",
+            "sentAt": 600000,
+            "readAt": null
+          },
+          {
+            "id": "msg-db57d8f37ed80aa933c00638",
+            "senderId": "resident-002",
+            "recipientId": "resident-003",
+            "sentAt": 600000,
+            "readAt": 660000
+          },
+          {
+            "id": "msg-49bbe79ddc3baa5a7ea71a1b",
+            "senderId": "resident-002",
+            "recipientId": "resident-004",
+            "sentAt": 840000,
+            "readAt": null
+          },
+          {
+            "id": "msg-d8d36edf64ac31ba9aa32df6",
+            "senderId": "resident-004",
+            "recipientId": "resident-002",
+            "sentAt": 900000,
+            "readAt": null
+          }
+        ],
+        "groups": [],
+        "collectives": [],
+        "registers": [],
+        "views": [],
+        "programs": [],
+        "services": []
+      },
+      "journalSha256": "aae316fb2f059ae1d03f5d387f7e8eb41728d1867df3d6f1d33520ded199629e",
+      "manifestSha256": "fa09c4b4e3e4aa397534d41a10fa9c71eac5db373518fe94c5e0c84fa9b41d41",
+      "opportunities": 16,
+      "providerStatuses": {
+        "completed": 16
+      },
+      "elapsedProviderMs": 446826,
+      "rawProviderUsage": {
+        "completedUniqueSteps": 134,
+        "costRaw": 0.054435966,
+        "tokens": {
+          "total": 2936310,
+          "input": 177257,
+          "output": 14103,
+          "reasoning": 18678
+        },
+        "cache": {
+          "read": 2726272,
+          "write": 0
+        }
+      },
+      "segments": [
+        {
+          "segment": 1,
+          "outcome": {
+            "status": "limit-reached",
+            "opportunities": 8
+          },
+          "replication": {
+            "status": "caught-up",
+            "cursor": {
+              "sequence": 100,
+              "hash": "8638ae7ee33488bff1895ddac3851ebf7ba42182467ecfbde415df649c529881"
+            },
+            "pages": 5
+          },
+          "simulationTime": 480000,
+          "liveReportEqualsReplay": true,
+          "liveTransportReplicaEqualsReopenedAuthority": true,
+          "manifestUnchanged": true,
+          "journalUnchangedOnReplay": true,
+          "committedPrefixUnchanged": true,
+          "journalSha256": "4f3c49d1331d79f4c7bd4faa70f4ce2da2ee45b4b87b07d19520eb9b8786e9bc",
+          "fullStateSha256": "fe9f1ffbce8ba54bbea19d343016af6af6521c9f9e198016b52f2b068c42e81c",
+          "resumedSessions": []
+        },
+        {
+          "segment": 2,
+          "outcome": {
+            "status": "limit-reached",
+            "opportunities": 8
+          },
+          "replication": {
+            "status": "caught-up",
+            "cursor": {
+              "sequence": 153,
+              "hash": "3a09570b6d906c6a72d83fe36bd61a8dca7bccc2c4ffcd604522094e93a4a002"
+            },
+            "pages": 3
+          },
+          "simulationTime": 960000,
+          "liveReportEqualsReplay": true,
+          "liveTransportReplicaEqualsReopenedAuthority": true,
+          "manifestUnchanged": true,
+          "journalUnchangedOnReplay": true,
+          "committedPrefixUnchanged": true,
+          "journalSha256": "aae316fb2f059ae1d03f5d387f7e8eb41728d1867df3d6f1d33520ded199629e",
+          "fullStateSha256": "262a9e028df725903cee98ba7e93a52d6f3d07ba594517fb463c6854eaab3440",
+          "resumedSessions": [
+            {
+              "actorId": "resident-003",
+              "turnId": "turn-101-resident-003",
+              "sessionId": "ses_eecaf6430ffec6JeqzbBP7c5Th"
+            },
+            {
+              "actorId": "resident-004",
+              "turnId": "turn-107-resident-004",
+              "sessionId": "ses_eecae271effeHZaeXD0sC5Y52p"
+            },
+            {
+              "actorId": "resident-002",
+              "turnId": "turn-111-resident-002",
+              "sessionId": "ses_eecb07642ffeAlOEVPbg4wZR80"
+            },
+            {
+              "actorId": "resident-003",
+              "turnId": "turn-123-resident-003",
+              "sessionId": "ses_eecaf6430ffec6JeqzbBP7c5Th"
+            },
+            {
+              "actorId": "resident-001",
+              "turnId": "turn-129-resident-001",
+              "sessionId": "ses_eecb12650ffePU4WM6EBMBtZsE"
+            },
+            {
+              "actorId": "resident-004",
+              "turnId": "turn-136-resident-004",
+              "sessionId": "ses_eecae271effeHZaeXD0sC5Y52p"
+            },
+            {
+              "actorId": "resident-002",
+              "turnId": "turn-141-resident-002",
+              "sessionId": "ses_eecb07642ffeAlOEVPbg4wZR80"
+            },
+            {
+              "actorId": "resident-004",
+              "turnId": "turn-147-resident-004",
+              "sessionId": "ses_eecae271effeHZaeXD0sC5Y52p"
+            }
+          ]
+        }
+      ],
+      "cliFailures": [
+        {
+          "turnId": "turn-2-resident-001",
+          "tool": "bash",
+          "command": "town city observe --view maps",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-12-resident-002",
+          "tool": "bash",
+          "command": "town files index --space app-community",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-12-resident-002",
+          "tool": "bash",
+          "command": "town files index --space app-life",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-12-resident-002",
+          "tool": "bash",
+          "command": "town business list",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-12-resident-002",
+          "tool": "bash",
+          "command": "town city observe --view map",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-12-resident-002",
+          "tool": "bash",
+          "command": "town travel go --location-id market",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-33-resident-003",
+          "tool": "bash",
+          "command": "town messages read msg-55c303cec7de4ec29875c57b",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-33-resident-003",
+          "tool": "bash",
+          "command": "town messages send --to resident-002 --content \"你好，市民002！我刚到广场，正好在四处看看。这座城市挺新的，我也还在摸索——听说广场连着住宅区、诊所和餐厅。你那边有什么发现吗？\"",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-33-resident-003",
+          "tool": "bash",
+          "command": "town business list",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-33-resident-003",
+          "tool": "bash",
+          "command": "town business apply-job --occupation-name \"Maintenance Worker\"",
+          "status": "completed",
+          "exitCode": 1,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-58-resident-004",
+          "tool": "bash",
+          "command": "town files index --space app-shops",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        },
+        {
+          "turnId": "turn-58-resident-004",
+          "tool": "bash",
+          "command": "town travel go --destination-id market",
+          "status": "completed",
+          "exitCode": 2,
+          "outputTruncated": false
+        }
+      ],
+      "providerArtifacts": [
+        {
+          "path": "opencode/resident-001/turn-2-resident-001.json",
+          "sha256": "4f6dd705eb78d857cae88baf46b954b8ca15564209059926a28327593c885df6",
+          "sessionId": "ses_eecb12650ffePU4WM6EBMBtZsE",
+          "turnId": "turn-2-resident-001"
+        },
+        {
+          "path": "opencode/resident-002/turn-12-resident-002.json",
+          "sha256": "bc87c13d70a0ca90cf7e0c8c7e1a4db5e370caa15596c3fa660fcdd2c23b640c",
+          "sessionId": "ses_eecb07642ffeAlOEVPbg4wZR80",
+          "turnId": "turn-12-resident-002"
+        },
+        {
+          "path": "opencode/resident-003/turn-33-resident-003.json",
+          "sha256": "7762f2f87366d23ca058135bcbe078bc152479d7e6a5722ce803997b9c844965",
+          "sessionId": "ses_eecaf6430ffec6JeqzbBP7c5Th",
+          "turnId": "turn-33-resident-003"
+        },
+        {
+          "path": "opencode/resident-004/turn-58-resident-004.json",
+          "sha256": "aae204e689920374caea3027f0cb12f598b6766ac015bea9f1a9a0ea4936c31b",
+          "sessionId": "ses_eecae271effeHZaeXD0sC5Y52p",
+          "turnId": "turn-58-resident-004"
+        },
+        {
+          "path": "opencode/resident-002/turn-75-resident-002.json",
+          "sha256": "212f446961f8fa9e5bf778a97da573f6e29560df6d566a0d2e13747d2d4e509f",
+          "sessionId": "ses_eecb07642ffeAlOEVPbg4wZR80",
+          "turnId": "turn-75-resident-002"
+        },
+        {
+          "path": "opencode/resident-003/turn-81-resident-003.json",
+          "sha256": "5a3dc78faefbd3cf4da9d208f7f02c2c8d408a8ba5718b0b0cc1515fcc9ed14f",
+          "sessionId": "ses_eecaf6430ffec6JeqzbBP7c5Th",
+          "turnId": "turn-81-resident-003"
+        },
+        {
+          "path": "opencode/resident-004/turn-88-resident-004.json",
+          "sha256": "4eb4d4d259a04d7567da1a323b4dbd288ba4ef94b45e12c21bd4820c8fa417c4",
+          "sessionId": "ses_eecae271effeHZaeXD0sC5Y52p",
+          "turnId": "turn-88-resident-004"
+        },
+        {
+          "path": "opencode/resident-002/turn-95-resident-002.json",
+          "sha256": "cd94463edda3516c7c7a07b03bf6551b1481a4531b4ff8c2be816107484d6151",
+          "sessionId": "ses_eecb07642ffeAlOEVPbg4wZR80",
+          "turnId": "turn-95-resident-002"
+        },
+        {
+          "path": "opencode/resident-003/turn-101-resident-003.json",
+          "sha256": "92c35729add2d8bfed47cb669ef79a222d5e543b083738916cfc6ee44a85b5be",
+          "sessionId": "ses_eecaf6430ffec6JeqzbBP7c5Th",
+          "turnId": "turn-101-resident-003"
+        },
+        {
+          "path": "opencode/resident-004/turn-107-resident-004.json",
+          "sha256": "d12ba5fed54b4b946fc39c397a47d390c7ea12115f860bb0a8c27694778c09cd",
+          "sessionId": "ses_eecae271effeHZaeXD0sC5Y52p",
+          "turnId": "turn-107-resident-004"
+        },
+        {
+          "path": "opencode/resident-002/turn-111-resident-002.json",
+          "sha256": "819086f60f5756dc76299cafc403e95cd3c2c3e66a6c7275e5ad515a21a11c8a",
+          "sessionId": "ses_eecb07642ffeAlOEVPbg4wZR80",
+          "turnId": "turn-111-resident-002"
+        },
+        {
+          "path": "opencode/resident-003/turn-123-resident-003.json",
+          "sha256": "d1b2d4acfc80daef1e08c252c090e3a7ae882582106e165b1a9b21946dd2aea7",
+          "sessionId": "ses_eecaf6430ffec6JeqzbBP7c5Th",
+          "turnId": "turn-123-resident-003"
+        },
+        {
+          "path": "opencode/resident-001/turn-129-resident-001.json",
+          "sha256": "4b7db3f3a8d503c451443b5929b9330a7f7b69c3358b446b62c7c77cab6dd78e",
+          "sessionId": "ses_eecb12650ffePU4WM6EBMBtZsE",
+          "turnId": "turn-129-resident-001"
+        },
+        {
+          "path": "opencode/resident-004/turn-136-resident-004.json",
+          "sha256": "7950472017e16a66ea5c6bb6ee738c6d5a4b41a2aa3a9487cd6edfaebd909c83",
+          "sessionId": "ses_eecae271effeHZaeXD0sC5Y52p",
+          "turnId": "turn-136-resident-004"
+        },
+        {
+          "path": "opencode/resident-002/turn-141-resident-002.json",
+          "sha256": "afe0c919fc9fa4f727a998dd90f23aa5f9774854a1c07f9d1da1694fb35d5a6d",
+          "sessionId": "ses_eecb07642ffeAlOEVPbg4wZR80",
+          "turnId": "turn-141-resident-002"
+        },
+        {
+          "path": "opencode/resident-004/turn-147-resident-004.json",
+          "sha256": "04d5c4fc78a57f25b634fdc33091ff8ea63aa7769942489c212cead796cec949",
+          "sessionId": "ses_eecae271effeHZaeXD0sC5Y52p",
+          "turnId": "turn-147-resident-004"
+        }
+      ],
+      "analysisSha256": "52027276646484b6e5ae48cbbfc9a1388cbb2bffd38690d00600c0ca6b075ca5"
+    }
+  ],
+  "limitations": [
+    "bundled existing initialization differences, not a single-variable causal experiment",
+    "finite observation does not establish stable emergence",
+    "initial backgrounds, public institutions and assets are external seeds",
+    "clean stop between opportunities, not crash recovery",
+    "no tasks, desired organizations or injected collaboration messages",
+    "provider failure retained and stops this experiment without retry",
+    "Replica full state compared against reopened authority; online report compared separately, no full live-memory capture.",
+    "Provider cost and overlapping token categories are raw telemetry, not independently verified billing.",
+    "No production source was changed during observation; prior full baseline is 3207 passed and 1 skipped, not a new full-suite execution.",
+    "No canonical migration, forced-crash takeover, full liquidation or all-25 capability acceptance claimed."
+  ],
+  "validationLogs": [
+    "/tmp/integrated-v2-observation-run.log",
+    "/tmp/integrated-v2-observation-lint.log",
+    "/tmp/integrated-v2-settled-analysis.log",
+    "/tmp/integrated-v2-newcomers-analysis.log"
+  ]
+}

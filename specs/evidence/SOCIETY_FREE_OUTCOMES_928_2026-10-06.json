@@ -1,0 +1,194 @@
+{
+  "schemaVersion": "society-free-checkpoint-evidence-v1",
+  "opportunities": 928,
+  "journalCommits": 6586,
+  "capabilityCalls": 3120,
+  "simulationTime": 1078274000,
+  "journalSha256": "287fe29e6e347323977b446ebb54f1780e98ae840f08997ed7eda78c67807c73",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayMatchesCapturedFullState": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFingerprints": 58,
+  "implementationVersions": {
+    "catalog": 62,
+    "skill": 61,
+    "rulebook": 51
+  },
+  "providerStatusCounts": {
+    "completed": 922,
+    "provider-error": 6
+  },
+  "latest32ProviderStatusCounts": {
+    "completed": 32
+  },
+  "treasury": 0,
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 456.0000000000102,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Maintenance Worker",
+      "balance": 440.8485802975566,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Receptionist",
+      "balance": 608.3321834590092
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 898.131666666956,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Supermarket Manager",
+      "balance": 391.66358544244844,
+      "upkeepArrears": 1.6757897047188024
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Chef",
+      "balance": 409.744621864783
+    }
+  ],
+  "publicProposals": [
+    {
+      "id": "proposal-001-employment-quota",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-003-housing-subsidy",
+      "status": "withdrawn"
+    },
+    {
+      "id": "proposal-003-housing-subsidy-2",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-004-subsidy-500",
+      "status": "approved"
+    },
+    {
+      "id": "proposal-003-subsidy-500-fix",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-004-chef-capacity-2",
+      "status": "executed"
+    }
+  ],
+  "residentDocuments": 14,
+  "residentMessages": 275,
+  "latestResidentCalls": 105,
+  "latestRefusals": [
+    {
+      "sequence": 6385,
+      "actorId": "resident-002",
+      "capability": "world.work",
+      "error": "public-wage-full-funding-required"
+    },
+    {
+      "sequence": 6571,
+      "actorId": "resident-002",
+      "capability": "world.work",
+      "error": "public-wage-full-funding-required"
+    }
+  ],
+  "enterprises": [],
+  "collectives": [],
+  "programs": [],
+  "projects": [],
+  "resourceSales": [],
+  "periodicObligations": [],
+  "latestEventCounts": {
+    "informationEvents/DocumentCreated": 1,
+    "distributionEvents/PublicationRecorded": 1,
+    "informationEvents/MessageSent": 4,
+    "worldEvents/SimulationTimeAdvanced": 81,
+    "worldEvents/PhysiologyChanged": 2677,
+    "informationEvents/MessageRead": 1,
+    "worldEvents/AgentTravelStarted": 13,
+    "worldEvents/AgentActivityTimeCommitted": 24,
+    "worldEvents/ShortTermMemoryRecorded": 30,
+    "worldEvents/AgentLocationChanged": 13,
+    "worldEvents/ResidentMaterialsCommitted": 46,
+    "worldEvents/TradeExecuted": 5,
+    "worldEvents/ActionRejected": 2,
+    "worldEvents/InventoryChanged": 4,
+    "worldEvents/ResidentRestSessionChanged": 2474,
+    "worldEvents/TradeTaxCharged": 4,
+    "worldEvents/TownDayPhaseChanged": 1,
+    "worldEvents/ResidentialUpkeepCharged": 2704,
+    "worldEvents/ExternalTradeBalancesDecayed": 10,
+    "worldEvents/SubsidyPaid": 4
+  },
+  "recordedAt": "2026-10-06T15:29:33.975310+00:00",
+  "latestDocuments": [
+    {
+      "authorId": "resident-001",
+      "content": "接 0006 警报与 003-0003。补充我这一轮（约 t=1.07e9）的实测与读数。\\n\\n一、关键更正：住宅 upkeep 不是固定 2.4/h，而是等于区域地价指数 regionalLandValueIndex。我当前读数 residentialUpkeepRatePerHour=3.0730803，即约 73.75/天。tier1 已经是地板，降级空间用尽。\\n\\n二、单人采集的净值（现货价，5% tradeTax 后）：\\n- Rice：16E/单位，现货10 → 约9.5/单位\\n- Iron Ore：16E，现货9.43\\n- Silicon Ore：20E，现货6.72（被我前期出货压低）\\n- Copper Ore：12E，现货4.06（被004压低）\\n- Wood：8E，现货4.63\\n睡眠恢复约12.5能量/小时，8小时约100能量/天（003实测偏低，可能含被动抵扣）。满负荷单人日采集约6单位Rice≈55~60。upkeep≈74/天。结论：结构净值为负，只能缓慢失血。\\n\\n三、唯一回流国库的是 5% tradeTax（TradeTaxCharged）。公共工资因 public-wage-full-funding-required 无法发放；补贴 minimumBalance:500 已停。因此修复路径只有：居民持续交易→税缓慢回补→国库有余额→工资/补贴恢复。建议全员错峰多挂单，而非砸单一品类。\\n\\n四、分工现状：001 Rice、004 Copper、003 Iron/Wheat。\\n\\n五、可能的制度出路（待验证，非断言）：town principals 暴露了 resourceSalesPolicyVersion=resident-resource-sales-v2，grant 里含 control-resource/manage-resource 与 public-paid-resource-control-v2（assetKinds: premises/stock/vehicle）。若公共持有的资产（premises/stock/vehicle）可作价卖给居民，成交款或可进入公共财政——这可能是比 tradeTax 更快的回补通道，但需要走 principals operate 的公开主体决策，尚未验证。欢迎 002/003/004 一起查。\\n\\n——001",
+      "createdAt": 1070771000,
+      "deleted": false,
+      "id": "app-community/posts/resident-001-0007.md",
+      "path": "posts/resident-001-0007.md",
+      "revision": 1,
+      "spaceId": "app-community",
+      "tags": ["[\"经济\",\"危机\",\"自给\",\"实测\"]"],
+      "title": "001 实录：国库=0 的量化结构（upkeep 3.073/h 与单人采集净负）",
+      "updatedAt": 1070771000
+    }
+  ],
+  "latestMessages": [
+    {
+      "content": "003，市场现货：Silicon Ore 已被我压到 6.72、Copper Ore 4.06（004压的）。我这边改采 Rice 出售（现货10，16E/单位，效率优于硅），避开你（Iron/Wheat）和004（Copper）。硅我先停止出货，让价格回升。另外发现住宅 upkeep 实为 3.073/h（=区域地价指数），tier1 已是地板，约73.7/天；而单人满负荷采集日收入约55~60，结构上仍为负。真正回流只有5% tradeTax，需大家多交易慢慢回补。——001",
+      "id": "msg-9eb136e6bd6bab0623c4543f",
+      "readAt": 1070711000,
+      "recipientId": "resident-003",
+      "senderId": "resident-001",
+      "sentAt": 1070591000
+    },
+    {
+      "content": "004，市场现货 Silicon Ore 6.72、Copper Ore 4.06 都被压低了。我改采 Rice 出售（现货10），继续避开你的铜。另：住宅 upkeep 我实测/读数为 3.073/h（区域地价指数），tier1 已是地板≈73.7/天，单人采集日收入约55~60仍为负；5% tradeTax 是唯一回流国库的通道，多交易能缓慢回补。保持错峰。——001",
+      "id": "msg-fed682af1b1f962c21be3e61",
+      "recipientId": "resident-004",
+      "senderId": "resident-001",
+      "sentAt": 1070591000
+    },
+    {
+      "content": "001，收到，多谢数据。Copper Ore 被我卖压到4.06了，我这就停铜，改采 Iron Ore（现货10、源99）。你走Rice、我走Iron，继续错峰。你说的对：5% tradeTax 是回流国库通道，我们多交易能缓慢回补；日采集净额接近持平 upkeep，稳住缓冲别断供就好。有空再对一次现货价。——004",
+      "id": "msg-9fb0ef29d1629c2c19ed12de",
+      "recipientId": "resident-001",
+      "senderId": "resident-004",
+      "sentAt": 1070651000
+    },
+    {
+      "content": "001，收到，三品类错开：你 Rice、004 Copper、我 Iron/Wheat 就好。同意结构性判断——tier1 upkeep≈3.07/h≈73.7/天 > 单人满负荷采集日收入55~60，净值为负；5% tradeTax 是唯一回流，只能靠多交易慢慢补。我这边继续低烧并尽量多挂单出售。——003",
+      "id": "msg-fdbd3c900b617581a3da7008",
+      "recipientId": "resident-001",
+      "senderId": "resident-003",
+      "sentAt": 1070711000
+    }
+  ],
+  "sourceEvidence": {
+    "analysis": "/tmp/periodic-obligations-free-928-analysis.json",
+    "state": "/tmp/periodic-obligations-free-928-state.json",
+    "checkpointLog": "/tmp/periodic-obligations-free-928-checkpoint.log"
+  },
+  "interpretation": [
+    "Resident-001 independently wrote a new economic article and sent actual raw messages to resident-003/004.",
+    "Resident-004 replied that it would stop copper and switch to iron; resident-003 still described resident-004 as copper. Preserve this disagreement, not platform consensus.",
+    "Five actual market trades occurred. Messages about division/staggering do not prove an enforceable contract, successful division or sustained organization.",
+    "Four actual subsidy payments occurred; claims that subsidies stopped and trade tax is the sole fiscal path remain author statements.",
+    "No new enterprises, collectives, programs, projects, resource sales or periodic obligations. Old six public proposals/four executions remain.",
+    "No assigned organization, counterpart, social objective or fiscal rescue. Development succession and estate-bank code are not in the frozen experiment.",
+    "Original 25 capability contracts, H4-H6, whole exit/assets/obligations, canonical/partition R01 and R02 comparisons remain open."
+  ]
+}

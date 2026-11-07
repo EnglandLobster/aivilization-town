@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "society-public-housing-verification-v1",
+  "scope": "H2 initial service tariff and upgrade eligibility; H3-H6 and all 25 capabilities remain in scope",
+  "versions": {
+    "catalog": 47,
+    "skill": 46,
+    "rulebook": 36,
+    "routes": 375
+  },
+  "domainWorldWorkerTests": 10,
+  "validation": {
+    "command": "pnpm check",
+    "testsPassed": 2808,
+    "testsSkipped": 1,
+    "filesPassed": 404,
+    "filesSkipped": 1
+  },
+  "build": "pnpm --filter @aivilization/residents... build",
+  "compiledCLI": {
+    "calls": 19,
+    "refusals": 5,
+    "replayEqual": true,
+    "manifestUnchanged": true
+  },
+  "frozenEngine": {
+    "root": "/tmp/aivilization-housing-20261006",
+    "fingerprints": 371,
+    "hardlinksRemaining": 0,
+    "rootAliasIsolated": true
+  },
+  "migration": {
+    "checkpoint": "free-384",
+    "priorStateReplayEqual": true,
+    "sequences": [
+      2891,
+      2892
+    ],
+    "originalManifestAndImplementationUnchanged": true,
+    "existingWorldAndSchedulesUnchanged": true,
+    "seededChoicesOrProposals": false
+  },
+  "limits": [
+    "Explicit open experiment only; no canonical/partition/amortized settlement integration.",
+    "Initial external provider model remains; no resident housing provider cash is invented.",
+    "Existing debt is retained; debt settlement/enforcement belongs to the remaining long responsibility capability.",
+    "Directed engineering tests are not autonomous adoption."
+  ]
+}

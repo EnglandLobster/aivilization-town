@@ -1,8 +1,70 @@
+import type { ResidentDepartureActivitySource } from './residentDepartureActivitySource';
+import type { ServiceClosurePolicy } from './serviceClosurePolicy';
+import type { LeaseContinuity } from './leaseEstateContinuity';
+import type { PeriodicAccessPolicy } from './periodicAccess';
+import type { ResourceAdapterPolicy } from './resourceAdapters';
+import type { ServiceFacilitiesRegisteredPayload } from './serviceFacilityRegistration';
+import type { ResidentLaborTermsPayload } from './residentLaborTerms';
+import type { ResidentConstructionTradePayload } from './residentConstructionTrade';
+import type { ResidentAdmissionEnabledPayload } from './residentAdmission';
+import type { ResidentEstateCreditPayload } from './residentEstateCredit';
+import type { ResidentSuccessionPayload } from './residentSuccession';
+import type { ResidentExitCapture } from './residentExitCapture';
+import type { ResidentResourceSalesPayload } from './resourceSales';
+import type { ResidentPeriodicObligationsPayload } from './periodicObligations';
+import type { PhysicalHousingRestPolicy, PhysicalHousingRestEvidence } from '@aivilization/society';
+import type { ResidentServiceSupplyRelationsPayload } from './serviceSupplyRelations';
+import type { ResidentServiceAffiliationPayload } from './serviceAffiliation';
+import type { ResidentServicePrincipalsPayload } from './servicePrincipals';
+import type { ResidentServiceSupplyPayload } from './serviceSupply';
+import type { ResidentVehiclePrincipalsPayload } from './vehiclePrincipals';
+import type { ResidentPrincipalEvidenceTradePayload } from './principalEvidenceTrade';
+import type { ResidentPrincipalPremisesRightsPayload } from './principalPremisesRights';
+import type { ResourcePrincipalPolicy, PrincipalControlChanged } from '@aivilization/authority';
+import type { HousingOccupancyState, HousingVacated } from '@aivilization/society';
+import type { PublicHousingState, PublicHousingChanged } from '@aivilization/society';
+import type { HousingChoiceState, HousingStandardChoice } from '@aivilization/society';
+import type {
+  CapitalWorldState,
+  CapitalCommittedPayload,
+  CapitalDeferredDistribution,
+} from './capitalModel';
+import type {
+  EnterpriseControlEvent,
+  EnterpriseManagementAuthority,
+  EnterpriseCapitalDistribution,
+} from '@aivilization/enterprise';
+import type { PublicEmploymentState, PublicEmploymentChanged } from '@aivilization/society';
+import type { PublicLaborConfiguration, PublicLaborCommittedPayload } from './publicLaborModel';
+import type {
+  ServiceEmploymentState,
+  ServiceBusinessAuthorizationPayload,
+  ServiceWagePaidPayload,
+} from './serviceEmploymentModel';
+import type { ServiceTimeState } from './serviceTime';
+import type { EducationAuthorityEnabledPayload } from './educationAuthority';
+import type { QualificationOrigin } from '@aivilization/society';
+import type { ResidentExtractionPayload } from './residentExtraction';
+import type { ResidentStudyConfiguration, ResidentStudyPayload } from './residentStudyModel';
+import type { ResidentLaborEnabledPayload, ResidentLaborPayload } from './residentLaborModel';
+import type {
+  ProductiveEmploymentState,
+  ProductiveWagePaidPayload,
+} from './productiveEmploymentModel';
+import type { ResidentEvidenceTradePayload } from './residentEvidenceTrade';
+import type { ResidentPremisesRightsPayload } from './residentPremisesRights';
+import type { ResidentPremisesProvisionPayload } from './residentPremisesProvision';
+import type { ResidentServiceEngagementsPayload } from './residentServiceEngagements';
+import type { ResidentRestEvent, ResidentRestPolicy } from '@aivilization/society';
+import type { ResidentLogisticsPayload } from './residentLogistics';
+import type { ResidentPremisesPayload } from './residentPremises';
+import type { ResidentMaterialsPayload } from './residentMaterials';
+import type { ResidentCommonAccountsPayload } from './residentCommonAccounts';
 import type { ResidentMobilityPayload } from './residentMobility';
 import type { LaborPayPolicy } from '@aivilization/society';
 import type { ResidentLease } from '@aivilization/society';
 import type { ResidentCommercePayload } from './residentCommerce';
-import type { AmmPool, Inventory } from '@aivilization/economy';
+import type { AmmPool, Inventory, InventoryQuantityResolution } from '@aivilization/economy';
 import type { BankState } from '@aivilization/credit';
 import type { ShortTermMemoryRecord } from '@aivilization/memory';
 import type {
@@ -108,6 +170,8 @@ export type AgentRegisteredPayload = {
     readonly residenceLocationId?: LocationId | null;
     readonly physiology: PhysiologicalState;
     readonly educationScore: number;
+    readonly educationLevel?: EducationLevel;
+    readonly qualificationOrigin?: QualificationOrigin;
     readonly balance: number;
     readonly residentialTier: number;
     readonly job: null;
@@ -145,6 +209,8 @@ export type AgentRegistrationRejectedPayload = {
   readonly reason:
     | 'agent-id-already-exists'
     | 'population-capacity-reached'
+    | 'agent-id-permanently-reserved'
+    | 'resident-exit-capacity-unreserved'
     | 'creator-agent-quota-reached'
     | 'invalid-registration-payload';
   readonly detail?: string;
@@ -152,6 +218,7 @@ export type AgentRegistrationRejectedPayload = {
 };
 
 export type InventoryChangedPayload = {
+  readonly quantityResolution?: InventoryQuantityResolution;
   readonly agentId: AgentId;
   readonly itemName: string;
   readonly delta: number;
@@ -159,6 +226,7 @@ export type InventoryChangedPayload = {
 };
 
 export type CommodityConsumedPayload = {
+  readonly quantityResolution?: InventoryQuantityResolution;
   readonly agentId: AgentId;
   readonly commodityName: string;
   readonly quantity: number;
@@ -182,6 +250,15 @@ export type PhysiologyChangedPayload = {
   readonly previous: PhysiologicalState;
   readonly next: PhysiologicalState;
   readonly reason: string;
+  readonly elapsed?: {
+    readonly policyVersion: 'resident-elapsed-physiology-v1';
+    readonly from: number;
+    readonly until: number;
+    readonly lowEnergyMs: number;
+    readonly physicalHousing?: PhysicalHousingRestEvidence;
+    readonly restSessionId?: string;
+    readonly laborSessionId?: string;
+  };
 };
 
 export type PhysiologicalDistressChangedPayload =
@@ -337,6 +414,7 @@ export type EducationExamCycleCompletedPayload = {
 export const LEGACY_EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION =
   'exclusive-agent-activity-time-v1';
 export const EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION = 'exclusive-agent-activity-time-v2';
+export const RESIDENT_ACTIVITY_PROGRESS_VERSION = 'resident-activity-progress-v1';
 
 export type AgentActivityKind =
   | 'participation'
@@ -354,8 +432,12 @@ export type AgentActivityTimeCommittedPayload = {
   readonly commandType: CoreCommandType;
   readonly policyVersion:
     | typeof LEGACY_EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION
-    | typeof EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION;
-  readonly settlementTiming: 'effects-at-commit' | 'effects-at-completion';
+    | typeof EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION
+    | typeof RESIDENT_ACTIVITY_PROGRESS_VERSION;
+  readonly settlementTiming:
+    | 'effects-at-commit'
+    | 'effects-at-completion'
+    | 'effects-during-activity';
   readonly startedAt: number;
   readonly durationSeconds: number;
   readonly availableAt: number;
@@ -411,6 +493,7 @@ export type EnterpriseMemberJoinedPayload = {
 };
 
 export type EnterpriseJobPostingUpdatedPayload = {
+  readonly managementAuthority?: EnterpriseManagementAuthority;
   readonly enterpriseId: string;
   readonly ownerAgentId: AgentId;
   readonly wageOffer: number;
@@ -425,6 +508,7 @@ export type EnterpriseEmployeeLeftPayload = {
 };
 
 export type EnterpriseEmployeeLaidOffPayload = {
+  readonly managementAuthority?: EnterpriseManagementAuthority;
   readonly enterpriseId: string;
   readonly agentId: AgentId;
   readonly occupationName: string;
@@ -494,6 +578,8 @@ export type EnterpriseDividendPaidPayload = {
 };
 
 export type EnterpriseClosedPayload = {
+  readonly capitalDistributions?: readonly EnterpriseCapitalDistribution[];
+  readonly managementAuthority?: EnterpriseManagementAuthority;
   readonly enterpriseId: string;
   readonly ownerAgentId: AgentId;
   readonly returnedBalance: number;
@@ -619,6 +705,7 @@ export type LoanIssuedPayload = {
  * and increments the borrower's repaid credit history.
  */
 export type LoanRepaidPayload = {
+  readonly collectionPolicyVersion?: 'credit-shared-borrower-cash-budget-v1';
   readonly loanId: LoanId;
   readonly borrowerAgentId: AgentId;
   readonly settledAt: number;
@@ -642,6 +729,7 @@ export type LoanRepaidPayload = {
  * bank's recorded loss and the borrower's defaulted credit history grows.
  */
 export type LoanDefaultedPayload = {
+  readonly collectionPolicyVersion?: 'credit-shared-borrower-cash-budget-v1';
   readonly loanId: LoanId;
   readonly borrowerAgentId: AgentId;
   readonly defaultedAt: number;
@@ -664,6 +752,7 @@ export type LoanDefaultedPayload = {
  * depositors), batched per accrual cadence. Deposit principal is unchanged.
  */
 export type DepositInterestPaidPayload = {
+  readonly collectionPolicyVersion?: 'credit-shared-borrower-cash-budget-v1';
   readonly paidAt: number;
   readonly payments: readonly {
     readonly agentId: AgentId;
@@ -699,6 +788,7 @@ export type TownBankSnapshotRecordedPayload = {
 };
 
 export type CommodityProducedPayload = {
+  readonly managementAuthority?: EnterpriseManagementAuthority;
   readonly agentId: AgentId;
   readonly produced: Inventory;
   readonly consumedInputs: Inventory;
@@ -736,6 +826,8 @@ export type RenewableResourceExtractedPayload = {
 };
 
 export type TradeExecutedPayload = {
+  readonly managementAuthority?: EnterpriseManagementAuthority;
+  readonly quantityResolution?: InventoryQuantityResolution;
   readonly agentId: AgentId;
   readonly side: 'buy' | 'sell';
   readonly commodityName: string;
@@ -759,6 +851,7 @@ export type TradeExecutedPayload = {
 };
 
 export type ResourceTransferredPayload = {
+  readonly quantityResolution?: InventoryQuantityResolution;
   readonly sourceAgentId: AgentId;
   readonly targetAgentId: AgentId;
   readonly commodityName: string;
@@ -812,6 +905,9 @@ export type EconomicCompositionRecordedPayload = {
      * observations that omitted this circulating sector.
      */
     readonly publicServices?: number;
+    readonly collectives?: number;
+    /** Actual preserved personal cash; absent on legacy observations. */
+    readonly estates?: number;
     readonly ammPoolCurrency: number;
     readonly ammPoolCommodityValue: number;
     readonly externalNetInflow: number;
@@ -874,6 +970,8 @@ export type ExternalTradeActor = { readonly agentId: AgentId } | { readonly ente
  * per-commodity net-export balance (positive = net exports) around the trade.
  */
 export type ExternalTradeExecutedPayload = {
+  readonly managementAuthority?: EnterpriseManagementAuthority;
+  readonly quantityResolution?: InventoryQuantityResolution;
   readonly trader: ExternalTradeActor;
   readonly direction: 'export' | 'import';
   readonly commodityName: string;
@@ -899,6 +997,7 @@ export type ExternalTradeBalancesDecayedPayload = {
 };
 
 export type JobApplicationSubmittedPayload = {
+  readonly publicEmploymentRevision?: number;
   readonly applicationId: string;
   readonly cycleNumber: number;
   readonly agentId: AgentId;
@@ -915,6 +1014,7 @@ export type JobApplicationSubmittedPayload = {
 };
 
 export type JobApplicationResolvedPayload = {
+  readonly publicEmploymentRevision?: number;
   readonly applicationId: string;
   readonly cycleNumber: number;
   readonly agentId: AgentId;
@@ -932,6 +1032,7 @@ export type JobAssignedPayload = {
 };
 
 export type RecruitmentCycleCompletedPayload = {
+  readonly publicEmploymentRevision?: number;
   readonly cycleNumber: number;
   readonly cycleStartedAt: number;
   readonly cycleEndedAt: number;
@@ -942,6 +1043,7 @@ export type RecruitmentCycleCompletedPayload = {
 };
 
 export type ResidentialTierUpgradedPayload = {
+  readonly publicHousingRevision?: number;
   readonly agentId: AgentId;
   readonly previousResidentialTier: number;
   readonly nextResidentialTier: number;
@@ -963,6 +1065,7 @@ export type HousingCapacityExpandedPayload = {
 };
 
 export type ResidentialUpkeepChargedPayload = {
+  readonly publicHousingRevision?: number;
   readonly agentId: AgentId;
   readonly residentialTier: number;
   readonly amount: number;
@@ -973,6 +1076,7 @@ export type ResidentialUpkeepChargedPayload = {
 };
 
 export type ResidentialUpkeepArrearsUpdatedPayload = {
+  readonly publicHousingRevision?: number;
   readonly agentId: AgentId;
   readonly previousArrears: number;
   readonly nextArrears: number;
@@ -1244,6 +1348,8 @@ export type AgentDiedPayload = {
   readonly lifespanDays?: number;
   readonly retired: boolean;
   readonly policyVersion: string;
+  /** Explicit preservation facts; absent on all legacy population events. */
+  readonly exitPreservation?: ResidentExitCapture;
   readonly estate: {
     /** Circulating currency burned with the estate; reduces moneySupply. */
     readonly burnedCurrency: number;
@@ -1274,6 +1380,8 @@ export type AgentEmigratedPayload = {
   /** Age at departure in simulation days; present only with a lifecycle policy. */
   readonly ageDays?: number;
   readonly policyVersion: string;
+  /** Explicit preservation facts; absent on all legacy population events. */
+  readonly exitPreservation?: ResidentExitCapture;
   readonly estate: {
     readonly burnedCurrency: number;
     readonly inventoryByCommodity: Readonly<Record<string, number>>;
@@ -1604,8 +1712,118 @@ export type AgentResidenceChangedPayload = {
 };
 
 export type WorldEventPayloadByType = {
-  readonly ResidentLeaseChanged: { lease: ResidentLease; policyVersion: string };
+  readonly ResidentHousingChoiceEnabled: HousingChoiceState;
+  readonly ResidentHousingStandardChosen: HousingStandardChoice;
+  readonly ResidentCapitalEnabled: CapitalWorldState;
+  readonly ResidentCapitalCommitted: CapitalCommittedPayload;
+  readonly ResidentCapitalDistributionDeferred: CapitalDeferredDistribution;
+  readonly ResidentPublicGoodsProcurementEnabled: {
+    readonly policyVersion: 'resident-public-goods-procurement-v1';
+    readonly tradeFunding: Extract<EvidenceTradeEvent, { type: 'TradePublicFundingEnabled' }>;
+  };
+  readonly ResidentPublicProcurementEnabled: {
+    readonly policyVersion: 'resident-public-procurement-v1';
+    readonly serviceFunding: Extract<
+      ServiceEngagementEvent,
+      { type: 'ServicePublicFundingEnabled' }
+    >;
+    readonly policyChange: GovernancePolicyChangedPayload;
+  };
+  readonly ResidentLeaseChanged: {
+    lease: ResidentLease;
+    policyVersion: string;
+    continuity?: LeaseContinuity;
+  };
   readonly ResidentMobilityCommitted: ResidentMobilityPayload;
+  readonly ResidentPhysicalHousingRestEnabled: { readonly policy: PhysicalHousingRestPolicy };
+  readonly ResidentRestEnabled: { readonly policy: ResidentRestPolicy };
+  readonly ResidentHousingOccupancyEnabled: HousingOccupancyState;
+  readonly ResidentHousingVacated: HousingVacated;
+  readonly ResidentPublicHousingEnabled: { readonly state: PublicHousingState };
+  readonly ResidentPublicEmploymentEnabled: { readonly state: PublicEmploymentState };
+  readonly ResidentPublicGovernanceEnabled: {
+    readonly policy: typeof PUBLIC_GOVERNANCE_POLICY;
+    readonly grant: PublicJurisdictionGrant;
+    readonly procedure: PublicProcedure;
+    readonly institutionPolicy: TownGovernancePolicy;
+  };
+  readonly ResidentPremisesResourcePrincipalsEnabled: {
+    readonly policy: { readonly version: 'premises-resource-principals-v2' };
+  };
+  readonly ResidentResourcePrincipalsEnabled: { readonly policy: ResourcePrincipalPolicy };
+  readonly ResidentResourcePrincipalControlCommitted: {
+    readonly actorId: string;
+    readonly change: PrincipalControlChanged;
+  };
+  readonly ResidentPublicGovernanceCommitted: {
+    readonly principalChange?: PrincipalControlChanged;
+    readonly materialCommit?: ResidentMaterialsPayload;
+    readonly serviceDirectoryCommit?: ResidentServicePrincipalsPayload;
+    readonly serviceSupplyCommit?: ResidentServiceSupplyPayload;
+    readonly serviceAffiliationCommit?: ResidentServiceAffiliationPayload;
+    readonly serviceSupplyRelationsCommit?: ResidentServiceSupplyRelationsPayload;
+    readonly vehicleCommit?: ResidentVehiclePrincipalsPayload;
+    readonly resourceSalesCommit?: ResidentResourceSalesPayload;
+    readonly periodicObligationsCommit?: ResidentPeriodicObligationsPayload;
+    readonly constructionTradeCommit?: ResidentConstructionTradePayload;
+    readonly principalTradeCommit?: ResidentPrincipalEvidenceTradePayload;
+    readonly principalPermitsCommit?: ResidentPrincipalPremisesRightsPayload;
+    readonly premisesCommit?: ResidentPremisesPayload;
+    readonly policyVersion: typeof PUBLIC_GOVERNANCE_POLICY.version;
+    readonly events: readonly PublicGovernanceEvent[];
+    readonly policyChange?: GovernancePolicyChangedPayload;
+    readonly serviceCommit?: ResidentServiceEngagementsPayload;
+    readonly goodsCommit?: ResidentEvidenceTradePayload;
+    readonly housingChange?: PublicHousingChanged;
+    readonly employmentChange?: PublicEmploymentChanged;
+  };
+  readonly ResidentRestSessionChanged: Omit<ResidentRestEvent, 'type'> & {
+    readonly departure?: ResidentDepartureActivitySource;
+  };
+  readonly ResidentStudyEnabled: ResidentStudyConfiguration;
+  readonly ResidentStudyCommitted: ResidentStudyPayload;
+  readonly ResidentEnterpriseControlCommitted: {
+    readonly actorId: string;
+    readonly event: EnterpriseControlEvent;
+  };
+  readonly PublicLaborEnabled: PublicLaborConfiguration;
+  readonly PublicLaborCommitted: PublicLaborCommittedPayload;
+  readonly ResidentServiceFacilitiesRegistered: ServiceFacilitiesRegisteredPayload;
+  readonly ResidentLaborTermsCommitted: ResidentLaborTermsPayload;
+  readonly ResidentLaborEnabled: ResidentLaborEnabledPayload;
+  readonly ResidentServiceWagePaid: ServiceWagePaidPayload;
+  readonly ResidentServiceEmploymentEnabled: ServiceEmploymentState;
+  readonly ResidentServiceBusinessAuthorized: ServiceBusinessAuthorizationPayload;
+  readonly ResidentServiceTimeEnabled: ServiceTimeState;
+  readonly ResidentEducationAuthorityEnabled: EducationAuthorityEnabledPayload;
+  readonly ResidentProductiveEmploymentEnabled: ProductiveEmploymentState;
+  readonly ResidentProductiveWagePaid: ProductiveWagePaidPayload;
+  readonly ResidentLaborCommitted: ResidentLaborPayload;
+  readonly ResidentExtractionEnabled: ResidentExtractionPayload;
+  readonly ResidentMaterialsCommitted: ResidentMaterialsPayload;
+  readonly ResidentPremisesCommitted: ResidentPremisesPayload;
+  readonly ResidentServiceEngagementsCommitted: ResidentServiceEngagementsPayload;
+  readonly ResidentLogisticsCommitted: ResidentLogisticsPayload;
+  readonly ResidentEvidenceTradeCommitted: ResidentEvidenceTradePayload;
+  readonly ResidentResourceSalesCommitted: ResidentResourceSalesPayload;
+  readonly ResidentResourceAdaptersEnabled: ResourceAdapterPolicy;
+  readonly ResidentServiceClosureEnabled: ServiceClosurePolicy;
+  readonly ResidentPeriodicAccessEnabled: PeriodicAccessPolicy;
+  readonly ResidentPeriodicObligationsCommitted: ResidentPeriodicObligationsPayload;
+  readonly ResidentEstateCreditCommitted: ResidentEstateCreditPayload;
+  readonly ResidentSuccessionCommitted: ResidentSuccessionPayload;
+  readonly ResidentAdmissionEnabled: ResidentAdmissionEnabledPayload;
+  readonly ResidentConstructionTradeCommitted: ResidentConstructionTradePayload;
+  readonly ResidentPrincipalEvidenceTradeCommitted: ResidentPrincipalEvidenceTradePayload;
+  readonly ResidentServicePrincipalsCommitted: ResidentServicePrincipalsPayload;
+  readonly ResidentServiceSupplyCommitted: ResidentServiceSupplyPayload;
+  readonly ResidentServiceAffiliationCommitted: ResidentServiceAffiliationPayload;
+  readonly ResidentServiceSupplyRelationsCommitted: ResidentServiceSupplyRelationsPayload;
+  readonly ResidentVehiclePrincipalsCommitted: ResidentVehiclePrincipalsPayload;
+  readonly ResidentPrincipalPremisesRightsCommitted: ResidentPrincipalPremisesRightsPayload;
+  readonly ResidentPremisesRightsCommitted: ResidentPremisesRightsPayload;
+  readonly ResidentPremisesProvisionCommitted: ResidentPremisesProvisionPayload;
+  readonly ResidentCommonAccountsCommitted: ResidentCommonAccountsPayload;
   readonly ResidentCommerceCommitted: ResidentCommercePayload;
   readonly AgentRegistered: AgentRegisteredPayload;
   readonly AgentRegistrationRejected: AgentRegistrationRejectedPayload;
@@ -1724,3 +1942,12 @@ export type WorldEvent = {
 }[WorldEventType];
 
 export type AgentInventorySnapshot = Inventory;
+import type {
+  PUBLIC_GOVERNANCE_POLICY,
+  PublicJurisdictionGrant,
+  PublicProcedure,
+  PublicGovernanceEvent,
+} from '@aivilization/governance';
+import type { TownGovernancePolicy } from '@aivilization/society';
+import type { ServiceEngagementEvent } from '@aivilization/services';
+import type { EvidenceTradeEvent } from '@aivilization/commerce';

@@ -1,0 +1,22 @@
+{
+  "kind": "explicit-resource-and-construction-principals-activation",
+  "afterOpportunities": 480,
+  "simulationTime": 467194000,
+  "commitsBefore": 3544,
+  "commitsAfter": 3546,
+  "implementation": {
+    "root": "/tmp/aivilization-principals-20261006",
+    "versions": {
+      "catalog": 51,
+      "skill": 50,
+      "rulebook": 40
+    },
+    "fingerprints": 81
+  },
+  "source": "operator-capability-migration",
+  "retainsOriginalManifest": true,
+  "prescribedSocialGoal": false,
+  "addsAssets": false,
+  "replayMatches480FullState": true,
+  "schemaVersion": "society-resource-principal-capability-migration-v1"
+}

@@ -1,0 +1,238 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T12:08:10.614381+00:00",
+  "spec": "specs/SOCIETY_PAID_MATERIAL_VEHICLE_V2.md",
+  "status": "engineering-slice-verified-not-full-society",
+  "policies": {
+    "commerce": "resident-resource-sales-v2",
+    "public": "public-paid-resource-control-v2",
+    "enterpriseAccounting": "enterprise-resource-sales-cash-accounting-v2"
+  },
+  "catalog": 61,
+  "skill": 60,
+  "rulebook": 50,
+  "routes": 381,
+  "testsPassed": 2978,
+  "testsSkipped": 1,
+  "testFilesPassed": 441,
+  "compiledCLI": {
+    "ok": true,
+    "validation": "compiled-authenticated-HTTP-CLI-not-emergence",
+    "policy": "resident-resource-sales-v2",
+    "calls": 26,
+    "refusals": 9,
+    "checks": [
+      "stock-inventory-remains-physical",
+      "vehicle-location-and-drivers-preserved",
+      "public-fresh-v2-independent-ballot",
+      "no-free-price-bypass",
+      "actual-party-account",
+      "no-body-or-cargo-assignment",
+      "identity-binding",
+      "full-journal-replay"
+    ],
+    "results": [
+      {
+        "route": "stocks.create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks.deposit",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 1,
+        "ok": false,
+        "error": "paid-resource-sale-acceptance-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-sale-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-sale-not-offered"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 2,
+        "ok": false,
+        "error": "unknown-flag:--actor-id"
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 1,
+        "ok": false,
+        "error": "paid-resource-sale-acceptance-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-sale-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 1,
+        "ok": false,
+        "error": "public-proposal-revision-conflict"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-sale-not-offered"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 2,
+        "ok": false,
+        "error": "unknown-flag:--actor-id"
+      }
+    ]
+  },
+  "logs": {
+    "lint": {
+      "path": "/tmp/material-vehicle-lint-final.log",
+      "sha256": "5916ffad0518ced5d03a10f2db745faa61fd5dcdef8fb1a738e3a423b5e12e76"
+    },
+    "sortedTypecheck": {
+      "path": "/tmp/material-vehicle-full-typecheck.log",
+      "sha256": "9a4e29e83717bd015bd3d4461ec8e5538c032993b5c6ce511aa9df264975030f"
+    },
+    "fullTests": {
+      "path": "/tmp/material-vehicle-full-tests.log",
+      "sha256": "170e6cf8f6d2b60e6fdc58548c005e87a24373a0c5f5a418b575fee94433e056"
+    },
+    "build": {
+      "path": "/tmp/material-vehicle-build.log",
+      "sha256": "3057689482f9007e78879496205aff1504f0bd14ad432f62f59deeaf60f2d533"
+    },
+    "compiledAuthenticatedCLI": {
+      "path": "/tmp/material-vehicle-cli.log",
+      "sha256": "d4dd46147158515ec4ba7dd505794f7d69f6f8bd9d32d314abeadd12e6dea97e"
+    },
+    "prettier": {
+      "path": "/tmp/material-vehicle-prettier-final.log",
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    "diffCheck": {
+      "path": "/tmp/material-vehicle-diff-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "frozenImplementation": {
+    "root": "/tmp/aivilization-paid-material-vehicle-20261006",
+    "metadata": "/tmp/paid-material-vehicle-implementation.json",
+    "verifiedFingerprints": 82,
+    "hardlinksRemaining": 0
+  },
+  "boundaries": [
+    "Owning stock/vehicle source and current original bilateral offer, not resident claimed source",
+    "Independent exact-price subject authorization, public captured fiscal scope, one collective decision consumption",
+    "Two balanced clearing transfers and actual owning control in one commit; zero synchronous clearing balance",
+    "Enterprise own versioned cash receipts and collective own v2 settlement source, not manager funds or fixed-asset ledger",
+    "Preserve actual items, places, authors, permissions, workers, held materials, cargo, original fares and return obligations",
+    "No free control price bypass; declined price remains bound; owner withdrawal cancels original handover",
+    "Legacy quotes/events/manifest unchanged; explicit enabling and scope extension only",
+    "Bounded on-demand side-authorized source/price expansion, no new default context payload"
+  ],
+  "limitations": [
+    "H4/W05 entire delivery remains open",
+    "No fixed-asset capitalization/depreciation or enterprise physical liquidation authority",
+    "Public construction in progress and long liabilities/estate still require their own implementation",
+    "Canonical planner and partition authority R01 still pending",
+    "Engineering scripted scenario is not autonomous resident adoption; free journal analyzed separately"
+  ],
+  "testFixtureRepairs": [
+    "New test helper received a full actual journal replay helper; tests do not substitute snapshots",
+    "Historic malformed v1 activation test uses the exact v1 constant after policy union extension; rejection assertion unchanged",
+    "Use ES2022-compatible reversed lookup, no project target change"
+  ],
+  "verificationFailuresRetained": [
+    "Initial lint found forbidden inline import and implicit resource-kind stringification, corrected with explicit type import and closed string guard",
+    "First 768 analyzer was an obsolete copied reader lacking historic interruption recovery handling; corrected read-only reader separately, runtime fingerprints untouched"
+  ]
+}

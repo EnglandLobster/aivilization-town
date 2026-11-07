@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "society-service-affiliation-evidence-v1",
+  "date": "2026-10-06",
+  "policy": "resident-service-affiliation-v4",
+  "entrypoints": [
+    "principals.read --kind service --id ID",
+    "principals.operate services.approve-control/services.revoke-control",
+    "principals.control",
+    "enable-service-affiliations"
+  ],
+  "catalog": 57,
+  "skill": 56,
+  "rulebook": 46,
+  "fullGate": {
+    "command": "pnpm check",
+    "testsPassed": 2916,
+    "testsSkipped": 1,
+    "lintPassed": true,
+    "sortedRepositoryTypecheckPassed": true,
+    "logSha256": "24fc4af71cccd0036d33cdb297137e7e20294b4fdfc59c24e119de6c931b8563"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... --sort build",
+    "passed": true
+  },
+  "compiledCli": {
+    "passed": true,
+    "commands": 36,
+    "expectedRefusals": 9,
+    "policy": "resident-service-affiliation-v4",
+    "checks": [
+      "compiled-authenticated-cli",
+      "explicit-migration-no-consent-or-manifest-rewrite",
+      "independent-manager-and-controller",
+      "approval-does-not-stale-directory",
+      "exact-full-terms",
+      "revocation-and-expiry",
+      "manager-succession-preserves-grant",
+      "public-exact-execution",
+      "no-implied-provider-body-or-payment",
+      "exact-journal-replay"
+    ]
+  },
+  "invariants": [
+    "Directory control, immutable author/original employer and bodily provider remain distinct",
+    "Exact actual firm approval is independently recorded; it does not stale the directory revision",
+    "Actual current manager or independently approved collective management source validated and consumed at approval",
+    "Other party executes exact control request; approval usage and control are one atomic commit; no repeat consumption of old collective decision",
+    "Expiry boundary, revocation, wrong/stale full terms, actual unavailable firm and used approval cannot authorize handover",
+    "Durable firm consent survives institutional manager change; former manager cannot issue new grants",
+    "New versioned world envelope validates real directory and current source; raw domain effects and forged actor refuse",
+    "Public receiving control needs separate real firm approval and exact public execution",
+    "No new providers, bodily time, money, account roles or employment generated; old v2 source semantics retained"
+  ],
+  "remainingInFullGoal": [
+    "Current supply affiliation establishment/termination and estate continuity",
+    "Organizational service income/wages/contracts and full estate",
+    "Public physical procurement/construction and housing H3-H6",
+    "Long obligations, bilateral remedy and exit",
+    "Canonical/partition wiring",
+    "All 25 contracts and multi-condition long unprompted society experiments"
+  ]
+}

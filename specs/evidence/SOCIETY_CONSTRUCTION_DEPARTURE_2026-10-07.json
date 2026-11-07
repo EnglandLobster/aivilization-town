@@ -1,0 +1,38 @@
+{
+  "ok": true,
+  "scope": "construction-session-stopped-before-population-capture",
+  "sourceVersion": "resident-departure-activity-v1",
+  "quality": {
+    "lint": true,
+    "typecheck": true,
+    "testsPassed": 3347,
+    "testsSkipped": 1,
+    "targetedTestsPassed": 13,
+    "newTestCases": 3,
+    "dependencyBuild": "worker-and-dependencies-passed"
+  },
+  "assertions": [
+    "zero and partial construction stop at settled boundary",
+    "system source bound to actual worker and population event",
+    "project remains open with unchanged plan control progress reservations and site",
+    "no new material effort or building effects",
+    "exact original time reservation released",
+    "wrong source altered progress missing release and unsettled boundary rejected",
+    "final cash captured after stop and input unchanged",
+    "deterministic replay and other residents unchanged"
+  ],
+  "limitations": [
+    "Death fixtures tested; emigration combination pending",
+    "Candidate events only; runtime atomic journal integration pending",
+    "Movement cargo other activity and full obligations remain pending",
+    "No canonical population activation or OpenCode experiment",
+    "Canonical world revision 802 unchanged"
+  ],
+  "logs": {
+    "target": "/tmp/construction-departure-target.log",
+    "lint": "/tmp/construction-departure-final-lint.log",
+    "typecheck": "/tmp/construction-departure-final-typecheck.log",
+    "tests": "/tmp/construction-departure-final-tests.log",
+    "build": "/tmp/construction-departure-build.log"
+  }
+}

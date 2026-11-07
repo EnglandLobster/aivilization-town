@@ -1,3 +1,7 @@
+import { freightCustodian } from '@aivilization/logistics';
+import type { ResidentTransportInterruption } from './residentTransportInterruption';
+import { mayEnterWorldPremises } from './premisesAccess';
+import { vehicleTravelLoadFailure, vehicleFreightCargo } from './logisticsPorts';
 import {
   advanceMobility,
   decideMobility,
@@ -17,6 +21,7 @@ import { applyWorldEvent, type WorldProjection } from './projection';
 import { resolveSpatialRoute, TOWN_SPATIAL_GRAPH_POLICY_VERSION } from './spatial';
 import { residentCommerceEvent } from './residentCommerce';
 export type ResidentMobilityPayload = {
+  readonly transportInterruption?: ResidentTransportInterruption;
   readonly policyVersion: 'resident-mobility-v1';
   readonly events: readonly MobilityEvent[];
 };
@@ -30,6 +35,7 @@ function route(w: WorldProjection, people: readonly string[], from: string, to: 
   const target = w.locations[to];
   if (
     !target ||
+    people.some((id) => !mayEnterWorldPremises(w, id, to)) ||
     people.some(
       (id) =>
         !w.agents[id] ||
@@ -54,6 +60,11 @@ function route(w: WorldProjection, people: readonly string[], from: string, to: 
 }
 function ports(w: WorldProjection): MobilityPorts {
   return {
+    travelCapacity: (id, people, driver) => vehicleTravelLoadFailure(w, id, people, driver),
+    mayRevokeDriver: (id, residentId) =>
+      !vehicleFreightCargo(w, id).some(
+        (f) => freightCustodian(w.logistics?.custody, f).carrierId === residentId,
+      ),
     exists: (id) => Object.hasOwn(w.agents, id),
     location: (id) => w.agents[id]?.locationId ?? null,
     idle: (id) =>
@@ -93,7 +104,10 @@ function journeyEvents(input: Input, j: Journey): WorldEvent[] {
           travelDurationSeconds: r.travelDurationSeconds,
           departedAt: j.departedAt,
           arrivesAt: j.arrivesAt,
-          reason: 'resident-ride',
+          reason:
+            j.people.length === 1 && input.projection.logistics
+              ? 'resident-vehicle-drive'
+              : 'resident-ride',
         },
       }),
     );

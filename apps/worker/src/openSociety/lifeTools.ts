@@ -1,3 +1,4 @@
+import { premisesAtLocation, mayResideWorldPremises } from '@aivilization/world';
 import { personalProviderOverlap } from '@aivilization/services';
 import {
   decideHousehold,
@@ -271,6 +272,14 @@ export function executeLifeTool(
             name: l.name,
             capacity: l.capacity,
             occupied: resolveResidentialOccupancy(state.world, l.locationId),
+            ...(premisesAtLocation(state.world, l.locationId)
+              ? {
+                  premisesStatus: premisesAtLocation(state.world, l.locationId)!.status,
+                  condition: premisesAtLocation(state.world, l.locationId)!.condition,
+                  mayChooseResidence: mayResideWorldPremises(state.world, actorId, l.locationId),
+                  details: `town premises read --id ${premisesAtLocation(state.world, l.locationId)!.id}`,
+                }
+              : {}),
           })),
         args,
       ),

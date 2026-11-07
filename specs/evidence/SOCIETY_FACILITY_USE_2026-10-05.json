@@ -1,0 +1,197 @@
+{
+  "capability": "W01-W02-physical-facility-use",
+  "mode": "real-compiled-cli-engineering-acceptance",
+  "modelInvoked": false,
+  "explicitTestSeed": {
+    "residents": 4,
+    "woodPerResident": 30,
+    "ironIngotPerResident": 5,
+    "colocatedAtExistingSite": true
+  },
+  "cliCalls": 34,
+  "results": [
+    {
+      "route": "rules read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "construction start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "premises configure",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks deposit",
+      "exitCode": 1,
+      "ok": false,
+      "error": "material-stock-capacity"
+    },
+    {
+      "route": "production create",
+      "exitCode": 1,
+      "ok": false,
+      "error": "material-stock-capacity"
+    },
+    {
+      "route": "stocks withdraw",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production start",
+      "exitCode": 1,
+      "ok": false,
+      "error": "production-workstation-unavailable"
+    },
+    {
+      "route": "production leave",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "premises read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks deposit",
+      "exitCode": 1,
+      "ok": false,
+      "error": "material-stock-capacity"
+    },
+    {
+      "route": "stocks deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks withdraw",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "premises configure",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "production cancel",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks withdraw",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks read",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "actualFacilityConstruction": true,
+  "primaryUseDoesNotInventOrForbidWorkstations": true,
+  "crossStockStorageCapacity": true,
+  "refundAndFutureOutputHeadroom": true,
+  "sharedWorkstationContention": true,
+  "personalLeaveReleasesStation": true,
+  "revocationStopsFutureWorkWithoutConfiscation": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true
+}

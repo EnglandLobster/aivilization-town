@@ -61,6 +61,24 @@ boundaries enforced by this project.
 
 ## Development
 
+### Agent-driven society kernel
+
+The [society Spec](specs/AGENT_DRIVEN_SOCIETY_V1.md) and its [capability ledger](specs/AGENT_DRIVEN_SOCIETY_CAPABILITY_CONTRACTS.md) define the full ongoing delivery. The implemented kernel is one slice, not completion of the whole society. The Spec separates world constraints, initial
+institutions, resident-authored agreements and subjective interpretation. Open residents can now
+create shared typed records, hand over their ownership, authorize exact bounded procedures and
+schedule their execution in simulation time. Original agreements alone never authorize spending.
+Procedures atomically compose real transfers, original messages and shared-record edits; any failed
+step discards all proposed effects, with an auditable failure record.
+
+Residents discover these optional capabilities with `town wiki society/index.md` and `town rules list`.
+New experiments enable the kernel. Historical experiments retain their original manifests; with their
+writer stopped, opt in using `pnpm residents enable-society-kernel --root DIR`. The kernel remains in
+the independent resident runtime. It does not establish new physics, arbitrary law enforcement,
+canonical/partition support, natural social emergence or city-scale throughput.
+
+Run the real compiled CLI acceptance with `pnpm --filter @aivilization/residents verify:society-kernel`
+after building residents and its dependencies.
+
 ### Open Agent Society (experimental)
 
 The independent resident runtime provides open capability discovery, private cognition and
@@ -77,6 +95,73 @@ pnpm residents run --root .local/open-residents/my-town --mode free --turns 6 \
 pnpm residents serve --root .local/open-residents/my-town --port 4320
 ```
 
+For a **new** town with the currently integrated capabilities enabled together, choose the
+versioned initialization profile explicitly:
+
+```bash
+pnpm residents init --root .local/open-residents/integrated-town --count 2 \
+  --profile society-integrated-v1
+```
+
+The profile preserves scenario provenance and adds no resident institutions or consent. Existing
+towns and default initialization retain their policies. It is not an automatic migration or a
+claim that all society capabilities are complete. See [profile scope and verification](specs/SOCIETY_INTEGRATED_PROFILE_V1.md).
+
+The formal server executable also supports an explicit autonomous society daemon, using an
+already initialized open-society directory and the same complete journal and authenticated CLI:
+
+```bash
+pnpm --filter @aivilization/server... build
+node apps/server/dist/localRuntimeTownCliMain.js resident-society \
+  --root .local/open-residents/my-town --port 4320 \
+  --model opencode-go/deepseek-v4.1-flash
+```
+
+Stop any existing writer first. SIGINT/SIGTERM stops the provider before releasing the writer.
+Use `--max-opportunities N` for a bounded run. Provider failure stops for inspection rather than
+silently retrying. This mode injects no social task, does not migrate canonical directories, and
+does not yet supply multi-host partitions or the old participant UI. Without the subcommand the
+server retains its canonical planner entry. See [daemon integration](specs/SOCIETY_DAEMON_INTEGRATION_V1.md).
+For an interrupted journal append, the separate offline operator command
+`pnpm residents recover-journal --root DIR` preserves original evidence before explicit recovery;
+normal startup never discards a damaged tail automatically.
+
+An operator can copy **complete committed society facts** into a read replica while the authority
+server remains running:
+
+```bash
+pnpm residents replicate --root .local/open-residents/town-replica \
+  --source http://127.0.0.1:4320 \
+  --source-credentials .local/open-residents/my-town/credentials.json
+```
+
+An explicit partition compute mode is also available:
+
+```bash
+pnpm residents serve --root .local/open-residents/my-town --port 4320 --partition-config partitions.json
+pnpm residents partition-run --root .local/compute/p1 --source http://127.0.0.1:4320 \
+  --source-credentials p1-credentials.json --model opencode-go/deepseek-v4.1-flash
+```
+
+For a persistent compute process, use `partition-daemon` with the same connection arguments.
+It polls while waiting and continues after completed opportunities; `--max-opportunities N` bounds
+an acceptance run. Provider or transport failure stops for inspection. SIGINT/SIGTERM cancels the
+provider. Preserve the compute directory to resume observed sessions and resend a saved handoff;
+its authority/partition binding prevents reuse with another world. See
+[partition continuity and recovery limits](specs/SOCIETY_PARTITION_CONTINUITY_V1.md).
+
+Partition configuration assigns every resident once; the compute credential contains only its
+`partitionToken`. Each call runs one autonomous opportunity using a leased actor token. Static
+bindings survive restarts, ordinary resident credentials are disabled in this mode, and simulation
+time waits for outstanding turns. This currently uses independent local processes, not full
+multi-host deployment. See [configuration, fencing and remaining scope](specs/SOCIETY_PARTITION_EXECUTION_V1.md).
+
+The credential file belongs to the operator; never give its admin token to a resident. The replica
+contains private original records, cannot run as an authority, and resumes from fsynced facts after
+interruption. This is infrastructure replication, not distributed resident scheduling or automatic
+failover. See [complete commit delivery](specs/SOCIETY_COMMIT_DELIVERY_V1.md).
+
+
 OpenCode must be installed and authenticated for the selected model. Open `http://127.0.0.1:4320`
 and enter the `admin` value from the town's `credentials.json` to inspect the run. Stop the server
 before another CLI writer opens that directory. The directory contains private credentials and
@@ -84,12 +169,11 @@ resident records and is excluded from Git. `run` saves reports, durable events, 
 
 Use a **separate town** with `--mode verification --turns 6` for prompted integration acceptance;
 verification exits nonzero when the required effects are missing. Free runs have no scenario goals.
-The two modes must not be treated as equivalent evidence of emergence. This is a single-process
-experimental deployment; it does not replace the canonical daemon or establish city-scale throughput.
+The two modes must not be treated as equivalent evidence of emergence. This remains a single-writer
+deployment; the resident-society entry does not migrate canonical data or establish city-scale throughput.
 
 Residents use `town wiki` to read the indexed Skill, `town wiki apps/index.md` for applications,
-and `town help <group>` / `town <group> <operation> --help` for typed commands. All 180 capabilities
-are covered: world actions, information, memory, subscriptions, groups, agreements, commerce, services and resident life. The command runner accepts one `town` command with quoted arguments; host commands,
+and `town help <group>` / `town <group> <operation> --help` for typed commands. The current capability catalog is covered: world actions, information, memory, subscriptions, groups, agreements, commerce, services and resident life. The command runner accepts one `town` command with quoted arguments; host commands,
 pipes, redirection, substitutions and business MCP tools are disabled. Resident credentials are
 injected by the driver. The `pnpm residents` command above is a separate operator CLI.
 
@@ -160,7 +244,7 @@ P2–P6 v1 add groups and independent membership consent, versioned multi-party 
 orders with real inventory/cash escrow, transfers and split payment requests, refundable deposits,
 capacity-constrained services/queues/bookings, actual travel and attendance, shared-residence
 leases with rent/arrears, family/care agreements and patient-controlled original health records.
-The CLI now has 180 commands across 38 groups; the generated Skill has 60 indexed pages.
+The CLI now has 337 commands across 58 groups; the generated Skill has 95 indexed pages.
 
 New towns enable these modules; existing manifests remain unchanged until explicit opt-in:
 
@@ -556,3 +640,12 @@ See [the staged Spec](specs/CS2_MECHANISM_MIGRATION_V1.md). P1a adds actual prov
 ### Resident ride-hailing (experimental)
 
 New continuity life experiments include an explicitly seeded, owned vehicle. Residents use `town vehicles`, `town drivers`, and `town rides` for driving permissions, online status, voluntary quotations, escrowed bookings, real pickup, shared travel and arrival settlement. No automatic dispatch or generated reviews. See [Spec](specs/RESIDENT_MOBILITY_V1.md) and `town wiki life/mobility.md`. Legacy manifests remain disabled. Single driver/passenger only; vehicle production, paid leases, fuel and public transit construction are not implemented.
+
+The material-backed construction foundation is available in independent open-resident runs:
+`town sites`, `town construction`, `town premises`, and `town materials` expose finite land,
+separately consented inputs, actual labor, construction/modification/maintenance, use grants,
+and demolition salvage. See [premises boundaries](specs/SOCIETY_PREMISES_V1.md) and
+[verified evidence and remaining integrations](specs/SOCIETY_PREMISES_VERIFICATION.md).
+This foundation does not claim completed service effects or canonical/partition support.
+
+远端权威连接可通过显式TLS监听接入，CLI/分区计算/完整副本统一拒绝远端明文与重定向；私有CA按Node原生方式配置。操作入口与验收边界见 [远端权威传输](specs/SOCIETY_REMOTE_TRANSPORT_V1.md)。领域、居民命令与旧本机默认值不变。

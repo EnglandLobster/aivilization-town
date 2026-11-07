@@ -1,0 +1,87 @@
+{
+  "ok": false,
+  "version": "canonical-partition-handoff-verification-v1",
+  "evidenceClass": "same-host-two-partition-unprompted-handoff-not-concurrent-or-multihost",
+  "beforeRevision": 763,
+  "afterRevision": 783,
+  "beforeClock": 3530000,
+  "afterClock": 3573000,
+  "bootStateUnchanged": true,
+  "historicalPrefixPreserved": true,
+  "manifestUnchanged": true,
+  "fullReplayEqual": true,
+  "attempts": [
+    {
+      "claim": 0,
+      "partitionId": "p1",
+      "code": 1,
+      "status": "provider-error",
+      "actorId": "smoke-25-world-main-agent-007",
+      "turnId": "turn-765-smoke-25-world-main-agent-007"
+    }
+  ],
+  "providers": [
+    {
+      "partitionId": "p1",
+      "actorId": "smoke-25-world-main-agent-007",
+      "turnId": "turn-765-smoke-25-world-main-agent-007",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "skillVersion": "town-resident-skill-v69",
+      "status": "provider-error",
+      "sessionId": "ses_eebddfc9affeDUxFN0yUQQqvsB",
+      "previousSessionId": "ses_eebddfc9affeDUxFN0yUQQqvsB",
+      "sessionPreserved": true,
+      "workspacePreserved": true,
+      "termination": {
+        "exitSignal": "SIGTERM",
+        "aborted": true,
+        "abortReason": "TimeoutError",
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 299521,
+      "sha256": "f076af06a9fcddaed157f8133ee646402a222a50cfbececd9c033c84d852637f"
+    }
+  ],
+  "quality": {
+    "lint": true,
+    "typecheck": true,
+    "residentsBuild": true,
+    "testsPassed": 3306,
+    "testsSkipped": 1
+  },
+  "providerEvents": {
+    "total": 73,
+    "tools": 32,
+    "stepFinishes": [
+      "tool-calls",
+      "tool-calls",
+      "tool-calls",
+      "tool-calls",
+      "tool-calls",
+      "tool-calls",
+      "tool-calls",
+      "tool-calls",
+      "tool-calls",
+      "tool-calls",
+      "tool-calls",
+      "tool-calls",
+      "tool-calls",
+      "tool-calls"
+    ],
+    "termination": {
+      "exitSignal": "SIGTERM",
+      "aborted": true,
+      "abortReason": "TimeoutError",
+      "providerErrorEvent": false
+    }
+  },
+  "conclusion": "Session/workspace identity and structured event delivery preserved; opportunity timed out after continued tool calls including real travel and schedule.wait. No completed partition handoff claim; no automatic model retry.",
+  "independentProviderExport": {
+    "sha256": "c0fb51dbbce5b756c2859193daaef818cb028b7cb7cf7306cd112ff299ecd30a",
+    "messages": 40,
+    "lastRole": "assistant",
+    "lastFinish": null,
+    "lastCompleted": null,
+    "lastPartCount": 0
+  }
+}

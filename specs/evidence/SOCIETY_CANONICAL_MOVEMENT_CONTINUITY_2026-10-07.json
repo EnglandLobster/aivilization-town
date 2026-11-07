@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "canonical-movement-continuity-evidence-v1",
+  "sourceSha256": {
+    "apps/worker/src/canonicalMovementContinuity.ts": "404d9d5d7b57e11e63d5e5435a685aaeaca1c72c37ecbfe7f4da38c0874c0a5d",
+    "apps/worker/src/canonicalSocietyBarrier.ts": "636168a5341c83708f51ab108ea092af168afeab86b93c38d2b05f25f6f65f64",
+    "apps/worker/src/canonicalWorldComposition.ts": "00e0ad7c8e96bdb96264833e528259132843a90de4e4dc7631b3a2f9a5d5dbd1",
+    "apps/worker/src/canonicalWorldComposition.test.ts": "6086c5bc71b05089e10872a45d810e311e7733d44ba6559274d7dd663648c9ec",
+    "apps/residents/scripts/verify-canonical-world-composition.mjs": "96981579b22b12e297da9175987e73153ad4c3a452c801c93caefd503b12c2e8"
+  },
+  "validation": {
+    "targeted": {
+      "passed": 14,
+      "log": "/tmp/canonical-movement-tests2.log"
+    },
+    "lint": {
+      "passed": true,
+      "log": "/tmp/canonical-movement-lint.log"
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/canonical-movement-typecheck2.log"
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/canonical-movement-build.log"
+    },
+    "fullTests": {
+      "passed": 3239,
+      "skipped": 1,
+      "filesPassed": 487,
+      "log": "/tmp/canonical-movement-full-tests.log"
+    }
+  },
+  "realArchive": {
+    "passed": true,
+    "archive": "/home/dev/aivilization-town/.local/canonical-ownership-20261007/archive",
+    "status": "composed",
+    "agentCount": 25,
+    "sourceBoundary": [
+      {
+        "partitionKey": "world-main",
+        "streamVersion": 73,
+        "checkpointSequence": 73,
+        "decodedEvents": 73
+      }
+    ],
+    "retainedMoves": 22,
+    "retainedMovesSha256": "4d7e84fb9477f4fb9ba5a6770c9a1ebea7e37d355006bc60e13753c5c940b2b0",
+    "jobApplicationsPreserved": 3,
+    "authorityJobApplications": 0,
+    "moneySupply": 257500,
+    "candidateSha256": "1de40f1cc563f524231e69c3ee8e985ab352597ae3ea0b0064765143ba7e5469",
+    "archiveUnchanged": true,
+    "reportSha256": "ac8e69d19bc520fd4ada133ee27bbac9c836fbbd0b86f3410d8a7feabc51829b",
+    "log": "/tmp/canonical-movement-archive.log"
+  },
+  "defaultCompatibility": {
+    "status": "blocked",
+    "issues": 22,
+    "candidateProduced": false,
+    "archiveUnchanged": true,
+    "log": "/tmp/canonical-movement-default-rejection.log"
+  },
+  "corrections": [
+    "Prior prose counted 1 pending application; both prior machine report and current source show 3. Prose corrected without changing source.",
+    "First new fixture omitted materializer acknowledgment and used unbranded AgentId. Fixed fixture, preserving actual inbox barrier and type checks. Logs retained."
+  ],
+  "limitations": [
+    "Candidate only: target activation, policy and full cognition continuity, source retirement and complete historical deduplication remain.",
+    "Same-owner continuation only; cross-partition handoff remains blocked until ownership/cognition responsibility is mapped.",
+    "Arrival timing tested through existing world command/event path; no integrated migrated daemon or new OpenCode/free-emergence run.",
+    "All 25 capabilities remain in the active goal."
+  ]
+}

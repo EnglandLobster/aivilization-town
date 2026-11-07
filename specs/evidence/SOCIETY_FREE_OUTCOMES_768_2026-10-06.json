@@ -1,0 +1,189 @@
+{
+  "schemaVersion": "society-free-checkpoint-evidence-v1",
+  "opportunities": 768,
+  "journalCommits": 5472,
+  "capabilityCalls": 2625,
+  "simulationTime": 937964000,
+  "journalSha256": "4c95fc6d882168d2ce4d04fbc5be4162827db6c1d7af33aa22ed094ecd5d7a81",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayMatchesCapturedFullState": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFingerprints": 81,
+  "implementationVersions": {
+    "catalog": 60,
+    "skill": 59,
+    "rulebook": 49
+  },
+  "providerStatusCounts": {
+    "completed": 762,
+    "provider-error": 6
+  },
+  "latest32ProviderStatusCounts": {
+    "completed": 32
+  },
+  "historicalRecoveryEvidence": [
+    {
+      "turnId": "turn-3345-resident-003",
+      "evidenceSource": "operator-recovery",
+      "providerArtifactMissing": true
+    }
+  ],
+  "treasury": 0,
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 456.0000000000102,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Maintenance Worker",
+      "balance": 429.22175137726555,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Receptionist",
+      "balance": 558.8787564729525
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 898.131666666956,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Office Clerk",
+      "balance": 436.74083545112126,
+      "upkeepArrears": 1.6757897047188024
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Chef",
+      "balance": 451.31308424006454
+    }
+  ],
+  "observedEntities": {
+    "enterprises": [],
+    "collectives": [],
+    "programs": [],
+    "projects": [],
+    "resourceSales": [],
+    "publicProposalCount": 6,
+    "publicExecutedCount": 4,
+    "newPublicProposalsSince736": [],
+    "residentDocuments": 12,
+    "messages": 261
+  },
+  "phaseSince736": {
+    "newCapabilityCalls": 98,
+    "explicitCapabilityMigrationCommits": 3,
+    "newRefusals": [
+      {
+        "sequence": 5334,
+        "actorId": "resident-003",
+        "capability": "production.gather",
+        "error": "material-source-location-or-revision-conflict"
+      }
+    ],
+    "newPublicText": [
+      {
+        "authorId": "resident-002",
+        "createdAt": 928564000,
+        "deleted": false,
+        "id": "app-community/posts/resident-002-0002.md",
+        "path": "posts/resident-002-0002.md",
+        "revision": 1,
+        "spaceId": "app-community",
+        "tags": [
+          "国库,经济,实测"
+        ],
+        "title": "002 实测补充：国库见底后的托管机制与自保动作",
+        "updatedAt": 928564000
+      }
+    ],
+    "actualProductionProgress": [
+      {
+        "id": "gather-004-copper-1",
+        "createdBy": "resident-004",
+        "productName": "Copper Ore",
+        "quantity": 6,
+        "completed": 6,
+        "progressMs": 360000,
+        "status": "completed",
+        "stockId": "stock-004-workshop",
+        "at": 905684000
+      },
+      {
+        "id": "gather-001-silicon-3",
+        "createdBy": "resident-001",
+        "productName": "Silicon Ore",
+        "quantity": 3,
+        "completed": 3,
+        "progressMs": 180000,
+        "status": "completed",
+        "stockId": "stock-001-apple",
+        "at": 921276000
+      },
+      {
+        "id": "prod-003-copper-2",
+        "createdBy": "resident-003",
+        "productName": "Copper Ore",
+        "quantity": 3,
+        "completed": 3,
+        "progressMs": 180000,
+        "status": "completed",
+        "stockId": "stock-003-workshop",
+        "at": 927828000
+      },
+      {
+        "id": "gather-004-copper-2",
+        "createdBy": "resident-004",
+        "productName": "Copper Ore",
+        "quantity": 6,
+        "completed": 6,
+        "progressMs": 360000,
+        "status": "completed",
+        "stockId": "stock-004-workshop",
+        "at": 930908000
+      },
+      {
+        "id": "gather-001-silicon-4",
+        "createdBy": "resident-001",
+        "productName": "Silicon Ore",
+        "quantity": 3,
+        "completed": 3,
+        "progressMs": 180000,
+        "status": "completed",
+        "stockId": "stock-001-apple",
+        "at": 937904000
+      }
+    ],
+    "resident002HousingTierChange": {
+      "from": 2,
+      "to": 1
+    },
+    "acceptedMarketTransactions": 5
+  },
+  "strictCheckpoint": "/home/dev/aivilization-town/.local/open-residents/society-elapsed-study-20261005/checkpoints/free-768",
+  "artifacts": {
+    "readOnlyAnalysis": "/tmp/paid-resource-control-free-768-analysis-final.json",
+    "capturedFullState": "/tmp/paid-resource-control-free-768-state.json",
+    "frozenEngineMetadata": "/tmp/paid-resource-control-implementation.json",
+    "reader": "/tmp/aivilization-paid-resource-control-20261006/scripts/analyze-free-run-768.mjs",
+    "readerSha256": "e4b5b27f6ce4c0691737d5ef08f57d41308c4acb7769a640ce1b5c6ec73f1b17"
+  },
+  "limitations": [
+    "Same four residents and single original seed, not independent world samples",
+    "No new private enterprises, collectives, construction or paid resource contracts in this phase",
+    "Six original public proposals and four actual executions precede this phase; zero new is not zero historical governance",
+    "Public text interprets scarcity as its author; not platform consensus",
+    "Production is real elapsed work, but descriptions and market expectations are not full causal evidence",
+    "Current engineering stock/vehicle v2 is separate and not in this 768 run",
+    "Historic interruption recovery is preserved as provider-error, not fabricated successful model evidence",
+    "Long obligations, full liquidation and R01 still pending"
+  ]
+}

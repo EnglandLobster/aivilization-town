@@ -1,0 +1,105 @@
+{
+  "version": "society-canonical-housing-choice-evidence-v1",
+  "existingCapabilityOnly": true,
+  "newResidentTools": 0,
+  "cli": {
+    "ok": true,
+    "validation": "compiled-authenticated-HTTP-CLI-not-emergence",
+    "calls": 10,
+    "refusals": 5,
+    "results": [
+      {
+        "route": "housing.standard",
+        "exitCode": 1,
+        "ok": false,
+        "error": "housing-choice-not-enabled"
+      },
+      {
+        "route": "housing.standard",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "life.sleep",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "housing.lower",
+        "exitCode": 1,
+        "ok": false,
+        "error": "housing-choice-requires-no-active-physical-commitment"
+      },
+      {
+        "route": "life.wake",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "housing.lower",
+        "exitCode": 2,
+        "ok": false,
+        "error": "unknown-flag:--actor-id"
+      },
+      {
+        "route": "housing.lower",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "housing.lower",
+        "exitCode": 1,
+        "ok": false,
+        "error": "housing-choice-revision-conflict"
+      },
+      {
+        "route": "housing.lower",
+        "exitCode": 1,
+        "ok": false,
+        "error": "housing-choice-requires-lower-standard"
+      },
+      {
+        "route": "housing.standard",
+        "exitCode": 0,
+        "ok": true
+      }
+    ]
+  },
+  "migration": {
+    "ok": true,
+    "version": "canonical-housing-choice-activation-verification-v1",
+    "beforeRevision": 743,
+    "afterRevision": 744,
+    "policy": {
+      "availableTiers": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "policy": {
+        "maximumTier": 32,
+        "version": "resident-housing-choice-v1"
+      },
+      "revisions": {}
+    },
+    "allOtherWorldFieldsUnchanged": true,
+    "nonWorldStateUnchanged": true,
+    "existingResidenceTierArrearsAndBodyUnchanged": true,
+    "publicGrantUnchanged": true,
+    "noResidentChoiceInvented": true,
+    "availableTiersHaveExistingPolicySources": true,
+    "originalJournalPrefixPreserved": true,
+    "manifestUnchanged": true,
+    "retryNoCommit": true,
+    "replayMatched": true,
+    "journalHash": "64c8c58e4d7fba721353c1a4a202404c376dbabb6c22709b56b884def1cf3248"
+  },
+  "limits": [
+    "Activation grants no ownership and changes no chosen tier or debt.",
+    "No resident decision or spontaneous adoption invented.",
+    "Complete H3-H6 and all modes remain unfinished."
+  ]
+}

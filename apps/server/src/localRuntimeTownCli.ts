@@ -1,3 +1,4 @@
+import { acquireCanonicalRuntimeOwnership } from './canonicalRuntimeOwnership';
 import type { AddressInfo } from 'node:net';
 import { resolve } from 'node:path';
 import {
@@ -24,7 +25,10 @@ import {
   type AivilizationExperimentalFeatureKey,
 } from '@aivilization/worker';
 import type { LocalRuntimeTownLlmConfig } from './localRuntimeTownLlm';
-import { stopLocalRuntimeTownOrchestration } from './localRuntimeTownOrchestration';
+import {
+  shutdownLocalRuntimeTownOrchestration,
+  stopLocalRuntimeTownOrchestration,
+} from './localRuntimeTownOrchestration';
 import { createCanonicalLocalRuntimeTownResolvedRunManifest } from './localRuntimeTownResolvedRunManifest';
 import {
   inspectLocalRuntimeTownDataCompatibility,
@@ -446,6 +450,8 @@ export async function startLocalRuntimeTownCli(
   if (resolvedRunManifest === undefined) {
     throw new Error('canonical server input must include a resolved run manifest');
   }
+  const ownership = acquireCanonicalRuntimeOwnership(config.rootDir, 'writer');
+  // Bootstrap failure may leave other Promise.all branches writing: retain ownership until explicit recovery.
   const runtime = await createLocalRuntimeTownNodeHttpServer(serverInput);
   try {
     registerLocalRuntimeTownDataCompatibility({
@@ -455,14 +461,24 @@ export async function startLocalRuntimeTownCli(
       hadUnversionedData: dataCompatibility.hadUnversionedData,
     });
   } catch (error) {
-    stopLocalRuntimeTownOrchestration(runtime.runtimeOrchestration);
+    try {
+      await shutdownLocalRuntimeTownOrchestration(runtime.runtimeOrchestration);
+    } catch (shutdownError) {
+      throw new AggregateError([error, shutdownError], 'runtime-startup-cleanup-failed');
+    }
+    ownership.release();
     throw error;
   }
   let address: AddressInfo;
   try {
     address = await listen(runtime, config.host, config.port);
   } catch (error) {
-    stopLocalRuntimeTownOrchestration(runtime.runtimeOrchestration);
+    try {
+      await shutdownLocalRuntimeTownOrchestration(runtime.runtimeOrchestration);
+    } catch (shutdownError) {
+      throw new AggregateError([error, shutdownError], 'runtime-startup-cleanup-failed');
+    }
+    ownership.release();
     throw error;
   }
   let closePromise: Promise<void> | undefined;
@@ -474,7 +490,9 @@ export async function startLocalRuntimeTownCli(
     address,
     baseUrl: createBaseUrl(config.host, address.port),
     close: () => {
-      closePromise ??= close(runtime);
+      closePromise ??= close(runtime).then(() => {
+        ownership.release();
+      });
       return closePromise;
     },
   };
@@ -1004,16 +1022,22 @@ function listen(
   });
 }
 
-function close(runtime: LocalRuntimeTownNodeHttpServer): Promise<void> {
-  return new Promise((resolveClose, reject) => {
-    runtime.server.close((error) => {
-      if (error === undefined) {
-        resolveClose();
-      } else {
-        reject(error);
-      }
-    });
-  });
+async function close(runtime: LocalRuntimeTownNodeHttpServer): Promise<void> {
+  stopLocalRuntimeTownOrchestration(runtime.runtimeOrchestration);
+  // Closing HTTP admission also waits for accepted HTTP requests to finish.
+  // Then drain background producers and their queue consumer, even if HTTP close fails.
+  const http = await Promise.allSettled([
+    new Promise<void>((resolveClose, reject) => {
+      runtime.server.close((error) => (error === undefined ? resolveClose() : reject(error)));
+    }),
+  ]);
+  const background = await Promise.allSettled([
+    shutdownLocalRuntimeTownOrchestration(runtime.runtimeOrchestration),
+  ]);
+  const failures = [...http, ...background]
+    .filter((r) => r.status === 'rejected')
+    .map((r) => r.reason as unknown);
+  if (failures.length) throw new AggregateError(failures, 'runtime-town-close-failed');
 }
 
 function createBaseUrl(host: string, port: number): string {

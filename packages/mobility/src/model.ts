@@ -1,3 +1,5 @@
+import type { PrincipalControl } from '@aivilization/authority';
+import type { VehiclePrincipalsPolicy } from './vehiclePrincipals';
 export const MOBILITY_POLICY = {
   version: 'resident-mobility-v1',
   maxFare: 10000,
@@ -10,7 +12,18 @@ export type MobilityPolicy = {
   readonly maxHorizonMs: number;
   readonly maxQuotesPerRide: number;
 };
+export type JourneyInterruption = {
+  readonly version: 'vehicle-journey-interruption-v1';
+  readonly executor: 'system';
+  readonly participantId: string;
+  readonly populationEventId: string;
+  readonly populationPolicyVersion: string;
+  readonly populationType: 'AgentDied' | 'AgentEmigrated';
+  readonly stoppedAt: number;
+  readonly elapsedMs: number;
+};
 export type Journey = {
+  readonly interruption?: JourneyInterruption;
   readonly from: string;
   readonly to: string;
   readonly departedAt: number;
@@ -18,8 +31,16 @@ export type Journey = {
   readonly people: readonly string[];
 };
 export type Vehicle = {
+  readonly cargoCapacity?: {
+    readonly version: 'vehicle-cargo-capacity-v1';
+    readonly units: number;
+    readonly source: 'scenario-seed' | 'authorized-extension';
+    readonly sourceId: string;
+  };
   readonly id: string;
   readonly ownerId: string;
+  readonly control?: PrincipalControl;
+  readonly principalAt?: number;
   readonly authorized: readonly string[];
   readonly locationId: string;
   readonly seats: number;
@@ -67,17 +88,27 @@ export type Quote = {
 };
 export type MobilityState = {
   readonly policy: MobilityPolicy;
+  readonly principalPolicy?: VehiclePrincipalsPolicy;
   readonly vehicles: Readonly<Record<string, Vehicle>>;
   readonly drivers: Readonly<Record<string, Driver>>;
   readonly rides: Readonly<Record<string, Ride>>;
   readonly quotes: Readonly<Record<string, Quote>>;
 };
 export type MobilityEvent =
+  | {
+      readonly type: 'VehicleJourneyInterrupted';
+      readonly value: {
+        readonly id: string;
+        readonly revision: number;
+        readonly interruption: JourneyInterruption;
+      };
+    }
   | { readonly type: 'VehicleChanged'; readonly value: Vehicle }
   | { readonly type: 'DriverChanged'; readonly value: Driver }
   | { readonly type: 'RideChanged'; readonly value: Ride }
   | { readonly type: 'RideQuoteChanged'; readonly value: Quote };
 export type MobilityCommand =
+  | { type: 'vehicles.drive'; id: string; destinationId: string; expectedRevision: number }
   | {
       type: 'vehicles.authorize' | 'vehicles.revoke';
       id: string;
@@ -92,6 +123,12 @@ export type MobilityCommand =
   | { type: 'rides.book'; id: string; quoteId: string; expectedRevision: number }
   | { type: 'rides.pickup' | 'rides.board' | 'rides.cancel'; id: string; expectedRevision: number };
 export type MobilityPorts = {
+  readonly travelCapacity?: (
+    vehicleId: string,
+    people: readonly string[],
+    driverId: string,
+  ) => string | undefined;
+  readonly mayRevokeDriver?: (vehicleId: string, residentId: string) => boolean;
   readonly exists: (id: string) => boolean;
   readonly location: (id: string) => string | null;
   readonly idle: (id: string) => boolean;
@@ -127,6 +164,9 @@ export function emptyMobilityState(
         !v.locationId ||
         v.revision !== 1 ||
         v.journey ||
+        v.control ||
+        v.principalAt !== undefined ||
+        !validVehicleCargoCapacity(v.cargoCapacity) ||
         !Number.isSafeInteger(v.seats) ||
         v.seats < 2 ||
         new Set(v.authorized).size !== v.authorized.length,
@@ -142,6 +182,29 @@ export function emptyMobilityState(
   };
 }
 export const activeRide = (r: Ride) => r.status !== 'completed' && r.status !== 'cancelled';
+export function validVehicleCargoCapacity(c: Vehicle['cargoCapacity']) {
+  return (
+    c === undefined ||
+    (c.version === 'vehicle-cargo-capacity-v1' &&
+      Number.isFinite(c.units) &&
+      c.units > 0 &&
+      c.units <= 10000 &&
+      ['scenario-seed', 'authorized-extension'].includes(c.source) &&
+      !!c.sourceId.trim() &&
+      c.sourceId.length <= 120)
+  );
+}
+export function sameVehicleCargoCapacity(a: Vehicle['cargoCapacity'], b: Vehicle['cargoCapacity']) {
+  return (
+    a === b ||
+    (!!a &&
+      !!b &&
+      a.version === b.version &&
+      a.units === b.units &&
+      a.source === b.source &&
+      a.sourceId === b.sourceId)
+  );
+}
 export const assignedRide = (r: Ride) => activeRide(r) && r.status !== 'requested';
 export const authorizedDriver = (v: Vehicle, id: string) =>
-  v.ownerId === id || v.authorized.includes(id);
+  (v.control === undefined && v.ownerId === id) || v.authorized.includes(id);

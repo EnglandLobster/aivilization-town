@@ -1,0 +1,309 @@
+{
+  "phase": "society-livelihoods-activation-v1",
+  "status": "engineering-gates-and-single-free-opportunity-verified",
+  "boundary": "Application composition of existing domain transitions; no new resident tools, prices, providers, facilities or consent. Existing sessions block incompatible upgrades.",
+  "activation": {
+    "passed": true,
+    "previousRevision": 111,
+    "revision": 116,
+    "first": {
+      "version": "society-livelihoods-activation-v1",
+      "status": "blocked",
+      "completed": [
+        "service-engagements",
+        "service-time",
+        "service-employment"
+      ],
+      "features": [
+        {
+          "feature": "service-engagements",
+          "enabled": true
+        },
+        {
+          "feature": "service-time",
+          "enabled": true
+        },
+        {
+          "feature": "service-employment",
+          "enabled": true
+        },
+        {
+          "feature": "productive-employment",
+          "enabled": false
+        }
+      ],
+      "reason": "productive-employment:productive-employment-needs-labor-materials-and-no-active-material-or-prepaid-work",
+      "scope": "actual-delivery-and-payroll-no-facilities-providers-prices-or-consent"
+    },
+    "advancement": {
+      "from": 2731000,
+      "to": 3331000,
+      "alreadyCommittedJobs": [
+        "gather-a004-wood-1"
+      ],
+      "revision": 115
+    },
+    "final": {
+      "version": "society-livelihoods-activation-v1",
+      "status": "enabled",
+      "completed": [
+        "service-engagements",
+        "service-time",
+        "service-employment",
+        "productive-employment"
+      ],
+      "features": [
+        {
+          "feature": "service-engagements",
+          "enabled": true
+        },
+        {
+          "feature": "service-time",
+          "enabled": true
+        },
+        {
+          "feature": "service-employment",
+          "enabled": true
+        },
+        {
+          "feature": "productive-employment",
+          "enabled": true
+        }
+      ],
+      "scope": "actual-delivery-and-payroll-no-facilities-providers-prices-or-consent"
+    },
+    "manifestUnchanged": true,
+    "activationPreservedExistingFacts": true,
+    "retryCreatedNoCommits": true,
+    "replayMatched": true,
+    "limitations": [
+      "No provider, facility, wage consent, service or organization created by activation.",
+      "Simulation advancement completes prior resident work; it is not a new autonomous model decision.",
+      "Original non-enterprise wages, physical facilities and full-mode integration remain incomplete."
+    ]
+  },
+  "cli": {
+    "ok": true,
+    "explicitActivation": true,
+    "evidenceKind": "directed-compiled-http-cli-not-free-emergence",
+    "calls": 26,
+    "expectedRefusals": 7,
+    "results": [
+      {
+        "route": "business found",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business post-job",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business join",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements offer",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements accept",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements fund",
+        "ok": false,
+        "exitCode": 1,
+        "error": "exact-enterprise-service-authorization-required"
+      },
+      {
+        "route": "business authorize-service",
+        "ok": false,
+        "exitCode": 1,
+        "error": "enterprise-service-authorization-required"
+      },
+      {
+        "route": "business authorize-service",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business services",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business service",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business service",
+        "ok": false,
+        "exitCode": 1,
+        "error": "service-business-record-not-found"
+      },
+      {
+        "route": "engagements fund",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements start",
+        "ok": false,
+        "exitCode": 1,
+        "error": "exact-current-service-employment-acceptance-required"
+      },
+      {
+        "route": "engagements read",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements start",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements start",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements ledger",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements ledger",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements ledger",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business close",
+        "ok": false,
+        "exitCode": 1,
+        "error": "enterprise-service-contracts-require-settlement"
+      },
+      {
+        "route": "business layoff",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business claim-wage",
+        "ok": false,
+        "exitCode": 1,
+        "error": "own-service-wage-required"
+      },
+      {
+        "route": "city observe",
+        "ok": false,
+        "exitCode": 1,
+        "error": "own-labor-not-found"
+      },
+      {
+        "route": "business fund",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business claim-wage",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      }
+    ],
+    "independentCompanyPermission": true,
+    "independentWorkerAcceptance": true,
+    "actualWaitingDistinctFromService": true,
+    "serviceIncomeAndWagesSeparate": true,
+    "patientBodyPrivacy": true,
+    "layoffPreservesPersonalDebt": true,
+    "actualCashPaysOnlyCreditor": true,
+    "replayEqual": true,
+    "journalBytesUnchanged": true
+  },
+  "unitTests": {
+    "passed": 8,
+    "log": "/tmp/livelihood-tests.log"
+  },
+  "checks": {
+    "lint": "/tmp/livelihood-lint.log",
+    "scriptLint": "/tmp/livelihood-script-lint.log",
+    "typecheck": "/tmp/livelihood-typecheck.log",
+    "build": "/tmp/livelihood-build.log",
+    "fullTests": "/tmp/livelihood-full-tests.log"
+  },
+  "sourceSha256": {
+    "apps/worker/src/openSociety/societyActivation.ts": "2050bea09d9379b0da68991dfa459b050c38cb81ea12785eb873698fe54d9aac",
+    "apps/worker/src/openSociety/societyActivation.test.ts": "5d9408f4c846bd43e8d1ea37d3ed72e33db64a2da36c794f30b312262040e1a1",
+    "apps/residents/src/cli.ts": "37fdf470cb34f57a9467bf880874b74c0b0540d60d71b4524894c71a3d917a0e",
+    "apps/residents/scripts/verify-service-employment.mjs": "57444a40e3433fa354adfb9d57841d8a0d95cf55787f753386251f2e162f8f2a",
+    "apps/server/scripts/verify-canonical-livelihoods.mjs": "354dc537c33e641abeefa43d3a128d62eaf56c94ed98ff15691d38e6f3ea9ecc"
+  },
+  "limitations": [
+    "This phase does not endow actual care/teaching facilities or providers.",
+    "Initial non-enterprise wages, complete original-mode integration and the full 25-capability scope remain unfinished.",
+    "Directed service verification is not autonomous adoption.",
+    "Simulation-time advancement honored existing resident work; not a new model decision."
+  ],
+  "fullRegression": {
+    "filesPassed": 498,
+    "filesSkipped": 1,
+    "testsPassed": 3288,
+    "testsSkipped": 1,
+    "durationSeconds": 61.46
+  },
+  "formatCheck": "/tmp/livelihood-format-check.log",
+  "freeModel": {
+    "completed": true,
+    "status": "completed",
+    "exitCode": 0,
+    "termination": {
+      "exitSignal": null,
+      "aborted": false,
+      "abortReason": null,
+      "providerErrorEvent": false
+    },
+    "elapsedMs": 124089,
+    "model": "opencode-go/deepseek-v4.1-flash",
+    "previousRevision": 116,
+    "revision": 138,
+    "journalCommits": 138,
+    "journalSha256": "600594d5875f406edf6438b69e3c67e1e764e7d3e6f01a76adb7c65e4d4b690f",
+    "worldEventCounts": {
+      "ResidentMaterialsCommitted": 4,
+      "SimulationTimeAdvanced": 1
+    },
+    "materialOperations": {
+      "create-stock": 1,
+      "create-extraction": 1,
+      "start-production": 1,
+      "production-progress": 1
+    },
+    "rejections": [],
+    "replayMatched": true,
+    "reopenedWithoutNewCommits": true,
+    "writerReleased": true,
+    "limitations": [
+      "One free opportunity is not stable social emergence.",
+      "No service engagement or enterprise labor offer/acceptance observed."
+    ],
+    "opportunities": 1,
+    "calls": 19
+  }
+}

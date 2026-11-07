@@ -2595,23 +2595,11 @@ export function createSimulationWideAuthority(input: {
       return [operation];
     },
     readInbox({ partitionKey, consumerId, limit = 100 }) {
-      assertConsumerId(consumerId);
-      assertInboxLimit(limit);
-      const state = readSnapshot(statePath);
-      assertKnownPartition(state, partitionKey);
-      const cursor = state.materializerCursors[createCursorKey(partitionKey, consumerId)];
-      const afterFencingToken = cursor?.throughFencingToken ?? 0;
-      const deliveries = Object.values(state.operations)
-        .map((entry) => entry.operation)
-        .flatMap((operation) =>
-          createInboxDeliveries(operation, state.partitionKeys, state.ownerPartitionKeyByAgentId),
-        )
-        .filter((delivery) => delivery.partitionKey === partitionKey)
-        .filter((delivery) => delivery.fencingToken > afterFencingToken)
-        .sort((left, right) => left.fencingToken - right.fencingToken)
-        .slice(0, limit)
-        .map(clone);
-      return { cursor: cursor === undefined ? undefined : clone(cursor), deliveries };
+      return readSimulationWideAuthorityInbox(readSnapshot(statePath), {
+        partitionKey,
+        consumerId,
+        limit,
+      });
     },
     acknowledgeInbox(request) {
       assertConsumerId(request.consumerId);
@@ -3930,4 +3918,35 @@ function sha256(value: string): string {
 
 function clone<TValue>(value: TValue): TValue {
   return structuredClone(value);
+}
+
+/** Read the existing delivery semantics from one captured authority boundary, without I/O. */
+export function readSimulationWideAuthorityInbox(
+  state: SimulationWideAuthoritySnapshot,
+  {
+    partitionKey,
+    consumerId,
+    limit = 100,
+  }: {
+    readonly partitionKey: PartitionKey;
+    readonly consumerId: string;
+    readonly limit?: number;
+  },
+) {
+  assertConsumerId(consumerId);
+  assertInboxLimit(limit);
+  assertKnownPartition(state, partitionKey);
+  const cursor = state.materializerCursors[createCursorKey(partitionKey, consumerId)];
+  const afterFencingToken = cursor?.throughFencingToken ?? 0;
+  const deliveries = Object.values(state.operations)
+    .map((entry) => entry.operation)
+    .flatMap((operation) =>
+      createInboxDeliveries(operation, state.partitionKeys, state.ownerPartitionKeyByAgentId),
+    )
+    .filter((delivery) => delivery.partitionKey === partitionKey)
+    .filter((delivery) => delivery.fencingToken > afterFencingToken)
+    .sort((left, right) => left.fencingToken - right.fencingToken)
+    .slice(0, limit)
+    .map(clone);
+  return { cursor: cursor === undefined ? undefined : clone(cursor), deliveries };
 }

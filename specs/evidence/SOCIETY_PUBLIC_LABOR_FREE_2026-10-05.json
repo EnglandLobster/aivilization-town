@@ -1,0 +1,283 @@
+{
+  "date": "2026-10-05",
+  "evidenceKind": "free-autonomous-continuation",
+  "priorOpportunities": 192,
+  "completedOpportunities": 224,
+  "newOpportunities": 32,
+  "newProviderStatuses": {
+    "completed": 32
+  },
+  "simulationTime": 105294000,
+  "journalCommits": 1761,
+  "capabilityCalls": 982,
+  "journalSha256": "de0da7ccaed838c626029e40b1741c77d84dec0bf6ae6d0a013a4205fff417a6",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFiles": 81,
+  "deltaCapabilityCounts": {
+    "world.eat": 5,
+    "world.sleep": 5,
+    "schedule.wait": 32,
+    "world.observe": 15,
+    "world.move": 11,
+    "world.work": 4,
+    "world.trade": 2,
+    "sources.read": 4,
+    "stocks.read": 10,
+    "production.gather": 4,
+    "production.start": 7,
+    "production.create": 3,
+    "world.apply_job": 4,
+    "cognition.update": 1,
+    "stocks.withdraw": 2,
+    "notifications.list": 1,
+    "stocks.deposit": 1,
+    "messages.send": 2,
+    "messages.read": 1
+  },
+  "newRefusals": [
+    {
+      "sequence": 1552,
+      "actorId": "resident-002",
+      "capability": "world.work",
+      "error": "current-public-employment-required"
+    },
+    {
+      "sequence": 1602,
+      "actorId": "resident-003",
+      "capability": "world.work",
+      "error": "current-public-employment-required"
+    },
+    {
+      "sequence": 1604,
+      "actorId": "resident-003",
+      "capability": "world.apply_job",
+      "error": "application quota exceeded: allowed 1, used 1"
+    },
+    {
+      "sequence": 1612,
+      "actorId": "resident-001",
+      "capability": "world.apply_job",
+      "error": "application quota exceeded: allowed 1, used 1"
+    },
+    {
+      "sequence": 1632,
+      "actorId": "resident-001",
+      "capability": "world.apply_job",
+      "error": "application quota exceeded: allowed 1, used 1"
+    }
+  ],
+  "publicSessions": {
+    "public-work-13053": {
+      "actorId": "resident-003",
+      "earnedMicros": 160707708,
+      "elapsedMs": 18294000,
+      "id": "public-work-13053",
+      "locationId": "workshop",
+      "paidMicros": 160707708,
+      "refundedMicros": 0,
+      "revision": 341,
+      "settledAt": 105294000,
+      "startedAt": 87000000,
+      "status": "active",
+      "terms": {
+        "energyCostPerHour": 5,
+        "grossMicros": 253000000,
+        "occupation": "Waiter",
+        "quotedWage": 253,
+        "referenceSeconds": 28800,
+        "satietyCostPerHour": 3,
+        "sourceId": "initial-public-employment-v1",
+        "sourceKind": "initial-public-employment-regime",
+        "taxMicros": 0,
+        "taxPolicyVersion": "tax-regime-v2",
+        "withholdingVersion": "labor-reference-period-withholding-v1"
+      },
+      "until": 115800000,
+      "withheldMicros": 0
+    },
+    "public-work-14735": {
+      "actorId": "resident-002",
+      "earnedMicros": 89079861,
+      "elapsedMs": 10262000,
+      "id": "public-work-14735",
+      "locationId": "workshop",
+      "paidMicros": 89079861,
+      "refundedMicros": 0,
+      "revision": 190,
+      "settledAt": 105294000,
+      "startedAt": 95032000,
+      "status": "active",
+      "terms": {
+        "energyCostPerHour": 5,
+        "grossMicros": 125000000,
+        "occupation": "Cleaner",
+        "quotedWage": 250,
+        "referenceSeconds": 28800,
+        "satietyCostPerHour": 3,
+        "sourceId": "initial-public-employment-v1",
+        "sourceKind": "initial-public-employment-regime",
+        "taxMicros": 0,
+        "taxPolicyVersion": "tax-regime-v2",
+        "withholdingVersion": "labor-reference-period-withholding-v1"
+      },
+      "until": 109432000,
+      "withheldMicros": 0
+    }
+  },
+  "qualificationAndRecruitmentEvents": [
+    {
+      "sequence": 1616,
+      "at": 86399000,
+      "capability": "system.advance-time",
+      "actorId": "system",
+      "event": {
+        "commandId": "open-ee517bbf18f785a6d09554999381519b",
+        "id": "open-ee517bbf18f785a6d09554999381519b:event:14",
+        "occurredAt": 86399000,
+        "payload": {
+          "agentId": "resident-002",
+          "applicationId": "open-6a056ee7503e4ff5e36715520eafa2a7:application",
+          "cycleNumber": 0,
+          "occupationName": "Cleaner",
+          "reason": "competitive-match",
+          "status": "accepted"
+        },
+        "sequence": 12904,
+        "simulationId": "open-town",
+        "type": "JobApplicationResolved"
+      }
+    },
+    {
+      "sequence": 1616,
+      "at": 86399000,
+      "capability": "system.advance-time",
+      "actorId": "system",
+      "event": {
+        "commandId": "open-ee517bbf18f785a6d09554999381519b",
+        "id": "open-ee517bbf18f785a6d09554999381519b:event:15",
+        "occurredAt": 86399000,
+        "payload": {
+          "agentId": "resident-002",
+          "applicationId": "open-6a056ee7503e4ff5e36715520eafa2a7:application",
+          "cycleNumber": 0,
+          "occupationName": "Cleaner",
+          "previousJob": null
+        },
+        "sequence": 12905,
+        "simulationId": "open-town",
+        "type": "JobAssigned"
+      }
+    },
+    {
+      "sequence": 1616,
+      "at": 86399000,
+      "capability": "system.advance-time",
+      "actorId": "system",
+      "event": {
+        "commandId": "open-ee517bbf18f785a6d09554999381519b",
+        "id": "open-ee517bbf18f785a6d09554999381519b:event:17",
+        "occurredAt": 86399000,
+        "payload": {
+          "agentId": "resident-001",
+          "applicationId": "open-4c95707d643e634ca7275f0552495eb2:application",
+          "cycleNumber": 0,
+          "occupationName": "Cleaner",
+          "reason": "capacity-exhausted",
+          "status": "rejected"
+        },
+        "sequence": 12907,
+        "simulationId": "open-town",
+        "type": "JobApplicationResolved"
+      }
+    },
+    {
+      "sequence": 1616,
+      "at": 86399000,
+      "capability": "system.advance-time",
+      "actorId": "system",
+      "event": {
+        "commandId": "open-ee517bbf18f785a6d09554999381519b",
+        "id": "open-ee517bbf18f785a6d09554999381519b:event:19",
+        "occurredAt": 86399000,
+        "payload": {
+          "agentId": "resident-003",
+          "applicationId": "open-8baf8ca4231866a25e4e31a0fe6e4852:application",
+          "cycleNumber": 0,
+          "occupationName": "Waiter",
+          "reason": "competitive-match",
+          "status": "accepted"
+        },
+        "sequence": 12909,
+        "simulationId": "open-town",
+        "type": "JobApplicationResolved"
+      }
+    },
+    {
+      "sequence": 1616,
+      "at": 86399000,
+      "capability": "system.advance-time",
+      "actorId": "system",
+      "event": {
+        "commandId": "open-ee517bbf18f785a6d09554999381519b",
+        "id": "open-ee517bbf18f785a6d09554999381519b:event:20",
+        "occurredAt": 86399000,
+        "payload": {
+          "agentId": "resident-003",
+          "applicationId": "open-8baf8ca4231866a25e4e31a0fe6e4852:application",
+          "cycleNumber": 0,
+          "occupationName": "Waiter",
+          "previousJob": null
+        },
+        "sequence": 12910,
+        "simulationId": "open-town",
+        "type": "JobAssigned"
+      }
+    },
+    {
+      "sequence": 1616,
+      "at": 86399000,
+      "capability": "system.advance-time",
+      "actorId": "system",
+      "event": {
+        "commandId": "open-ee517bbf18f785a6d09554999381519b",
+        "id": "open-ee517bbf18f785a6d09554999381519b:event:46",
+        "occurredAt": 86399000,
+        "payload": {
+          "agentId": "resident-004",
+          "nextLevel": 4,
+          "previousLevel": 3,
+          "reason": "education-exam-admission:cycle-0"
+        },
+        "sequence": 12936,
+        "simulationId": "open-town",
+        "type": "EducationLevelChanged"
+      }
+    }
+  ],
+  "residentAuthoredCounts": {
+    "spaces": 0,
+    "documents": 4,
+    "messages": 139,
+    "groups": 0,
+    "collectives": 0,
+    "registers": 0,
+    "views": 0,
+    "programs": 0,
+    "services": 0
+  },
+  "providerReported": {
+    "completedSteps": 132,
+    "elapsedMs": 1079597,
+    "cost": 0.217634496,
+    "independentBillingVerification": false
+  },
+  "notes": [
+    "Two residents independently began initial public work after their prior applications were assigned; this is not a resident-created public institution.",
+    "Existing level-4 application was actually admitted; ordinary learning did not create a qualification.",
+    "resident-001 balance is zero with pending application and housing arrears, continuing actual wood gathering.",
+    "No company, collective or resident service.",
+    "Recruitment resolvedAt uses command start rather than boundary in the new mode; timestamps need correction for future events, historical journal preserved."
+  ]
+}

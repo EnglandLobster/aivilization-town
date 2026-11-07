@@ -3,7 +3,7 @@ import {
   createInitialTownGovernanceState,
   type GovernancePolicyChangedDomainEvent,
 } from '@aivilization/society';
-import type { WorldEvent } from '../events';
+import type { WorldEvent, GovernancePolicyChangedPayload } from '../events';
 import type { WorldGovernanceState, WorldProjection } from '../projection';
 
 /** Replays complete enacted-policy facts; no current default or formula is consulted. */
@@ -12,6 +12,23 @@ export function applyGovernanceProjectionEvent(
   event: WorldEvent,
 ): WorldProjection | undefined {
   if (event.type !== 'GovernancePolicyChanged') return undefined;
+  if (projection.publicGovernance && event.payload.authority.kind !== 'operator')
+    throw Error('exact-public-procedure-composite-event-required');
+  return applyEnactedGovernancePolicy(projection, event.payload);
+}
+
+/** Shared enacted-state applier for legacy and atomically authorized public procedure events. */
+export function applyEnactedGovernancePolicy(
+  projection: WorldProjection,
+  payload: GovernancePolicyChangedPayload,
+): WorldProjection {
+  if (
+    projection.publicGovernance?.authority.grant.procurement &&
+    payload.policyKind === 'public-budget' &&
+    payload.publicBudgetPolicy?.allocations.length
+  )
+    throw Error('abstract-budget-disabled-by-public-procurement');
+  const event = { payload };
   const domainEvent: GovernancePolicyChangedDomainEvent = {
     type: 'GovernancePolicyChanged',
     policyKind: event.payload.policyKind,

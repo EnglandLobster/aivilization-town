@@ -1,0 +1,208 @@
+{
+  "root": "/home/dev/aivilization-town/.local/open-residents/society-elapsed-study-20261005",
+  "journalSha256": "44401ea59f29b353c1303711248aebbafdab0c40de2f71270af1b337b1f8103b",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "simulationTime": 53498000,
+  "journalCommits": 1285,
+  "capabilityCalls": 742,
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "completedOpportunities": 160,
+  "frozenFilesVerified": 81,
+  "checkpoint": "checkpoints/free-160",
+  "newPhaseOpportunities": 32,
+  "newPhaseProviderErrors": 0,
+  "providerCumulative": {
+    "records": 160,
+    "completedModelSteps": 764,
+    "elapsedMs": 5154597,
+    "reportedCost": 0.728925204
+  },
+  "providerNewPhase": {
+    "records": 32,
+    "completedModelSteps": 124,
+    "elapsedMs": 1094986,
+    "reportedCost": 0.187177272
+  },
+  "newPhaseRefusals": [
+    {
+      "sequence": 1059,
+      "actorId": "resident-004",
+      "capability": "world.eat",
+      "error": "insufficient Apple Pie: required 0.2, available 0.19999999999999996"
+    },
+    {
+      "sequence": 1212,
+      "actorId": "resident-001",
+      "capability": "world.apply_job",
+      "error": "application quota exceeded: allowed 1, used 1"
+    }
+  ],
+  "newPhaseCapabilities": {
+    "world.observe/accepted": 11,
+    "sources.list/accepted": 1,
+    "files.index/accepted": 1,
+    "messages.list/accepted": 1,
+    "files.create/accepted": 1,
+    "messages.send/accepted": 24,
+    "schedule.wait/accepted": 32,
+    "messages.read/accepted": 17,
+    "cognition.update/accepted": 1,
+    "world.move/accepted": 8,
+    "stocks.read/accepted": 4,
+    "production.gather/accepted": 2,
+    "production.start/accepted": 2,
+    "world.trade/accepted": 1,
+    "world.study/accepted": 2,
+    "world.eat/accepted": 4,
+    "world.apply_job/accepted": 1,
+    "world.give/accepted": 5,
+    "sources.read/accepted": 5,
+    "stocks.withdraw/accepted": 1,
+    "world.sleep/accepted": 1,
+    "world.apply_job/refused": 1,
+    "world.eat/refused": 1,
+    "housing.list/accepted": 1,
+    "programs.list/accepted": 1,
+    "funds.list/accepted": 1
+  },
+  "stateSummary": {
+    "at": 53498000,
+    "commits": 1285,
+    "enterpriseIds": [],
+    "examApplications": [
+      {
+        "agentId": "resident-004",
+        "targetLevel": 4,
+        "status": "pending"
+      }
+    ],
+    "residents": [
+      {
+        "agentId": "resident-001",
+        "educationScore": 180,
+        "educationLevel": 3,
+        "residentialTier": 2,
+        "job": null,
+        "balance": 22.57630725249718
+      },
+      {
+        "agentId": "resident-002",
+        "educationScore": 314.69999999999993,
+        "educationLevel": 3,
+        "residentialTier": 1,
+        "job": null,
+        "balance": 58.64898989898995
+      },
+      {
+        "agentId": "resident-003",
+        "educationScore": 181.66666666700002,
+        "educationLevel": 3,
+        "residentialTier": 1,
+        "job": null,
+        "balance": 230.47619047619054
+      },
+      {
+        "agentId": "resident-004",
+        "educationScore": 330.00000000000006,
+        "educationLevel": 3,
+        "residentialTier": 1,
+        "job": null,
+        "balance": 126.87931811274962
+      }
+    ],
+    "productions": [
+      {
+        "id": "res-002-wood-batch1",
+        "status": "completed",
+        "progressMs": 120000
+      },
+      {
+        "id": "res-002-book1",
+        "status": "completed",
+        "progressMs": 96000
+      },
+      {
+        "id": "order-004-apple-1",
+        "status": "completed",
+        "progressMs": 60000
+      },
+      {
+        "id": "order-004-wheat-1",
+        "status": "completed",
+        "progressMs": 60000
+      },
+      {
+        "id": "order-004-flour-1",
+        "status": "completed",
+        "progressMs": 60000
+      },
+      {
+        "id": "order-004-pie-1",
+        "status": "completed",
+        "progressMs": 120000
+      },
+      {
+        "id": "gather-003-apple-1",
+        "status": "completed",
+        "progressMs": 2400000
+      },
+      {
+        "id": "order-001-apple-1",
+        "status": "completed",
+        "progressMs": 1200000
+      },
+      {
+        "id": "res-002-copperore1",
+        "status": "completed",
+        "progressMs": 60000
+      },
+      {
+        "id": "res-002-copperingot1",
+        "status": "completed",
+        "progressMs": 144000
+      },
+      {
+        "id": "order-001-apple-2",
+        "status": "completed",
+        "progressMs": 1200000
+      },
+      {
+        "id": "order-001-apple-3",
+        "status": "completed",
+        "progressMs": 1140000
+      },
+      {
+        "id": "order-001-wood-1",
+        "status": "open",
+        "progressMs": 60000
+      }
+    ]
+  },
+  "authoredCounts": {
+    "spaces": 0,
+    "documents": 3,
+    "messages": 117,
+    "groups": 0,
+    "collectives": 0,
+    "registers": 0,
+    "views": 0,
+    "programs": 0,
+    "services": 0
+  },
+  "interpretation": {
+    "actualFoodTransfers": 5,
+    "foodTransferSequences": [
+      1055,
+      1058,
+      1073,
+      1074,
+      1099
+    ],
+    "marketCoordination": "resident authored messages; future sale schedule fulfillment not yet verified",
+    "serviceEmploymentAdopted": false,
+    "formalInstitutionsObserved": false,
+    "fractionalFoodRequestBugSequence": 1059,
+    "remainingOpenProduction": "order-001-wood-1"
+  }
+}

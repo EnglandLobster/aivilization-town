@@ -1,4 +1,24 @@
+import { LABOR_TERMS_TOOLS } from './laborTermsCatalog';
+import { RESOURCE_PRINCIPAL_TOOLS } from './resourcePrincipalCatalog';
+import { PERIODIC_TOOLS } from './periodicCatalog';
+import { HOUSING_OCCUPANCY_TOOLS } from './housingOccupancyCatalog';
+import { HOUSING_CHOICE_TOOLS } from './housingChoiceCatalog';
+import { CAPITAL_TOOLS } from './capitalCatalog';
+import { SERVICE_BUSINESS_TOOLS } from './serviceBusinessCatalog';
+import { EVIDENCE_TRADE_TOOLS } from './evidenceTradeCatalog';
+import { PERMIT_TOOLS } from './permitCatalog';
+import { ENGAGEMENT_TOOLS } from './engagementCatalog';
+import { LOGISTICS_TOOLS } from './logisticsCatalog';
+import { PREMISES_TOOLS } from './premisesCatalog';
+import { MATERIAL_TOOLS } from './materialCatalog';
+import { PUBLIC_GOVERNANCE_TOOLS } from './publicGovernanceCatalog';
+import { RESOURCE_CONTROL_TOOLS } from './resourceControlCatalog';
+import { REACTION_TOOLS } from './reactionCatalog';
+import { COMMON_ACCOUNT_TOOLS } from './commonAccountCatalog';
+import { COLLECTIVE_TOOLS } from './collectiveCatalog';
 import { MOBILITY_TOOLS } from './mobilityCatalog';
+import { KERNEL_TOOLS } from './kernelCatalog';
+import { RECORD_VIEW_TOOLS } from './recordViewCatalog';
 import { LIFE_TOOLS } from './lifeCatalog';
 import { SERVICES_TOOLS } from './servicesCatalog';
 import { COMMERCE_TOOLS } from './commerceCatalog';
@@ -6,7 +26,7 @@ import { COLLABORATION_TOOLS } from './collaborationCatalog';
 import type { OpenToolDefinition, OpenToolProperty } from '@aivilization/agent-runtime';
 import type { CoreCommandType } from '@aivilization/sim-core';
 import { DOCUMENT_METADATA_POLICY } from '@aivilization/information';
-export const OPEN_CAPABILITY_CATALOG_VERSION = 'open-capabilities-v7';
+export const OPEN_CAPABILITY_CATALOG_VERSION = 'open-capabilities-v68';
 
 import { text, number, integer, choice, strings, tool, page } from './capabilitySchema';
 export { text, tool } from './capabilitySchema';
@@ -46,11 +66,30 @@ export const OPEN_INFORMATION_TOOLS: readonly OpenToolDefinition[] = [
   ),
   tool(
     'world.observe',
-    'Read your own state, current location/people, public destinations, local market, rules, or your running action. Others private state is not visible.',
+    'Read your own state, location/people, public destinations, market, rules, running action, or fiscal tax/subsidy aggregates. Fiscal is a bounded historical subset, not a complete treasury ledger; use its cursor. Others private state is not visible.',
     false,
     {
-      view: choice(['self', 'location', 'locations', 'market', 'rules', 'action', 'enterprises']),
-      section: text('Optional rule group to expand', 100),
+      view: choice([
+        'self',
+        'location',
+        'locations',
+        'market',
+        'rules',
+        'action',
+        'study',
+        'qualifications',
+        'labor',
+        'enterprises',
+        'fiscal',
+      ]),
+      section: text(
+        'Rule group (index lists names), or your exact own session ID when view=study/labor',
+        200,
+      ),
+      cursor: text(
+        'Only view=fiscal: use its returned nextCursor for older facts; do not use section/offset/limit for this view.',
+        160,
+      ),
       ...page,
     },
     ['view'],
@@ -222,8 +261,34 @@ export const OPEN_INFORMATION_TOOLS: readonly OpenToolDefinition[] = [
     [],
   ),
   tool('schedule.cancel', 'Cancel one of your outstanding reminders.', true, {
-    id: text('Your reminder ID', 96),
+    id: text(
+      'Your full reminder ID returned by remind/list, or the original local ID. Only your own reminder can be cancelled.',
+      193,
+    ),
   }),
+  tool(
+    'schedule.plan',
+    'Queue up to eight of your own actions to be carried out one after another without a new opportunity per step. You are woken when the plan finishes, a step is refused, or a paced message arrives. Replaces your current plan. Each step is an ordinary authorized command.',
+    true,
+    {
+      id: text('Your plan ID', 96),
+      note: text('Why you are doing this, in your own words', 1000),
+      steps: {
+        ...strings,
+        minItems: 1,
+        maxItems: 8,
+        description:
+          "One town command per step, exactly as you would type it, e.g. 'town travel go --target-location-id workshop'. Only your own actions; plannable in your context lists which commands this town allows. Use --expected-revision current / --source-revision current for revisions you cannot know yet, and production start --until complete to work until the batch is done.",
+      },
+    },
+  ),
+  tool(
+    'schedule.plan-cancel',
+    'Stop your current plan before its next step. Steps already carried out stay done.',
+    true,
+    {},
+    [],
+  ),
 ];
 
 export type WorldToolDefinition = OpenToolDefinition & { readonly commandType: CoreCommandType };
@@ -277,10 +342,28 @@ export const OPEN_WORLD_TOOLS: readonly WorldToolDefinition[] = [
     duration,
   ),
   world(
+    'stop_rest',
+    'AgentStopRest',
+    'Personally stop your active elapsed sleep. Read its id and revision with town city observe --view action. Only already elapsed recovery is retained; requires elapsed-rest policy.',
+    {
+      id: text('Your active rest session ID', 200),
+      expectedRevision: number('Observed session revision', 1),
+    },
+  ),
+  world(
     'study',
     'AgentStudy',
     'Study at an appropriate facility. Education rate and eligibility are authoritative.',
     duration,
+  ),
+  world(
+    'stop_study',
+    'AgentStopStudy',
+    'Personally stop an active elapsed study session. Already earned learning remains; unspent tuition returns to its original payer. Requires the explicit elapsed-study mode; query own id/revision with town city observe --view action.',
+    {
+      id: text('Your active study session ID', 200),
+      expectedRevision: number('Observed session revision', 1),
+    },
   ),
   world(
     'trade',
@@ -292,7 +375,7 @@ export const OPEN_WORLD_TOOLS: readonly WorldToolDefinition[] = [
   world(
     'work',
     'AgentWork',
-    'Work in an occupation you hold. Wages, labor cost, location and employment are authoritative.',
+    'Work in an occupation you hold. Explicit enterprise-labor mode earns wages and spends effort only over actual time, retains personal unpaid claims and permits early exit. Initial public work retains its recorded policy; inspect city observe --view rules --section labor.',
     {
       occupationName: text('Occupation', 100),
       laborSeconds: { ...number('Labor seconds', 1), maximum: 28_800 },
@@ -303,13 +386,31 @@ export const OPEN_WORLD_TOOLS: readonly WorldToolDefinition[] = [
   world(
     'produce',
     'AgentProduce',
-    'Produce a commodity with real inputs, qualifications and time. Missing resources cause rejection.',
+    'Legacy production, disabled when physicalProduction is enabled. In that mode use production recipes/create/start or sources list and production gather/start; actual labor is required.',
     {
       ...commodity,
       availableLaborSeconds: { ...number('Labor seconds', 1), maximum: 28_800 },
       enterpriseId: enterprise.enterpriseId,
     },
     ['commodityName', 'quantity', 'availableLaborSeconds'],
+  ),
+  world(
+    'stop_work',
+    'AgentStopWork',
+    'Personally end active actual enterprise labor at its current revision; earned wages remain yours. Query city observe --view action for session revision.',
+    {
+      id: text('Own active labor session ID', 200),
+      expectedRevision: integer('Current session revision'),
+    },
+  ),
+  world(
+    'claim_wage',
+    'AgentClaimWage',
+    'Collect only your own earned unpaid wage, including after leaving a firm. Use claim revision from city observe --view labor --section ID. Payment is limited by real employer cash and records withholding.',
+    {
+      id: text('Own labor session and claim ID', 200),
+      expectedRevision: integer('Current claim revision'),
+    },
   ),
   world(
     'apply_job',
@@ -353,6 +454,12 @@ export const OPEN_WORLD_TOOLS: readonly WorldToolDefinition[] = [
     'AgentFundEnterprise',
     'Transfer your money into an enterprise under ownership rules.',
     { ...enterprise, amount: number('Amount', 0.01) },
+  ),
+  world(
+    'layoff_employee',
+    'AgentLayoffEnterpriseEmployee',
+    'Current employer ends one employment. Actual work and personal earned wages remain; future associated labor stops.',
+    { ...enterprise, employeeAgentId: text('Exact current employee ID', 96) },
   ),
   world(
     'close_enterprise',
@@ -455,6 +562,26 @@ export const OPEN_WORLD_TOOLS: readonly WorldToolDefinition[] = [
   ),
 ];
 export const OPEN_SOCIETY_TOOLS: readonly OpenToolDefinition[] = [
+  ...PUBLIC_GOVERNANCE_TOOLS,
+  ...CAPITAL_TOOLS,
+  ...HOUSING_CHOICE_TOOLS,
+  ...HOUSING_OCCUPANCY_TOOLS,
+  ...RESOURCE_PRINCIPAL_TOOLS,
+  ...PERIODIC_TOOLS,
+  ...MATERIAL_TOOLS,
+  ...PREMISES_TOOLS,
+  ...ENGAGEMENT_TOOLS,
+  ...SERVICE_BUSINESS_TOOLS,
+  ...LABOR_TERMS_TOOLS,
+  ...LOGISTICS_TOOLS,
+  ...EVIDENCE_TRADE_TOOLS,
+  ...PERMIT_TOOLS,
+  ...KERNEL_TOOLS,
+  ...REACTION_TOOLS,
+  ...RESOURCE_CONTROL_TOOLS,
+  ...RECORD_VIEW_TOOLS,
+  ...COLLECTIVE_TOOLS,
+  ...COMMON_ACCOUNT_TOOLS,
   ...OPEN_INFORMATION_TOOLS,
   ...DISTRIBUTION_TOOLS,
   ...COMMUNICATION_TOOLS,

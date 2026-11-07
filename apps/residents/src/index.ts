@@ -6,3 +6,13 @@ export * from './cliCatalog';
 export * from './residentSkill';
 export * from './openCode';
 export * from './report';
+
+export * from './daemon';
+export * from './replica';
+export * from './partitionExecution';
+export * from './partitionRunner';
+export * from './partitionWorker';
+export * from './authorityEndpoint';
+export * from './residentListener';
+
+export * from './providerWorkspace';

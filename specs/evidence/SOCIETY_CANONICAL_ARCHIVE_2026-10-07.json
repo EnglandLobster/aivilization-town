@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "canonical-society-source-archive-evidence-v1",
+  "sourceSha256": {
+    "apps/server/src/canonicalSocietyArchive.ts": "786d11733086987e100ed311347df66b48763f542593d89a322c4adf910fa55a",
+    "apps/server/src/canonicalSocietyArchiveCli.ts": "3daa5d81cbf67a20d06f251617092077051919a0f81aef74d86938e0036448c6",
+    "apps/server/src/canonicalSocietyArchive.test.ts": "ec0f99b0648b1ebee7d5a6729e6d0cd6801fbeca79dcd9bac7526819888d4abe",
+    "apps/server/src/localRuntimeTownCliMain.ts": "bcb6faf1bb1d1a1113dfcfd3fb5c572e4a5dc2854178432ba46b045ea969570d",
+    "apps/residents/scripts/verify-canonical-source-archive.mjs": "bf296c127f36708fd434ce8033a3a98154619b822d4213641ab027edf460da25"
+  },
+  "compiledCli": {
+    "passed": true,
+    "root": "/home/dev/aivilization-town/.local/canonical-source-archive-20261007",
+    "actualCanonicalPartitions": 2,
+    "actualTrade": "actual-buy",
+    "sourceWriterProcessExited": true,
+    "sourceCaptureSha256": "27ea0f99a381518612f3d75aff92beab1b3ca1b1242868ee35fa3daec7fb1283",
+    "entries": 90,
+    "sourceTreeSha256": "74ff96efa8aa0cd4a0a6aa11d581502e221756b9201b55ff128c3f2c0b8ba5fa",
+    "compiledCliCalls": 3,
+    "expectedRejections": 1,
+    "idempotent": true,
+    "allSourceAndArchiveFileHashesEqual": true,
+    "stopEvidence": "operator-declaration-only",
+    "limitations": [
+      "Controlled seed writer actually exited; generic CLI does not fence arbitrary existing writers.",
+      "Archive preserves bytes including undelivered operations; not semantic migration or free emergence."
+    ]
+  },
+  "validation": {
+    "targeted": {
+      "passed": 7,
+      "log": "/tmp/canonical-archive-tests2.log"
+    },
+    "lint": {
+      "passed": true,
+      "log": "/tmp/canonical-archive-lint2.log"
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/canonical-archive-typecheck.log"
+    },
+    "tests": {
+      "passed": 3220,
+      "skipped": 1,
+      "filesPassed": 483,
+      "log": "/tmp/canonical-archive-full-tests.log"
+    },
+    "build": {
+      "passed": true,
+      "package": "@aivilization/server",
+      "log": "/tmp/canonical-archive-build.log"
+    },
+    "formatAndDiffCheck": true
+  },
+  "retainedFailures": [
+    {
+      "log": "/tmp/canonical-archive-lint.log",
+      "reason": "Test inline import type syntax rejected by repository rule; replaced with type-only namespace import."
+    },
+    {
+      "log": "/tmp/canonical-archive-script-lint.log",
+      "reason": "New script directory was outside configured JavaScript lint scope; moved verifier to existing apps/residents/scripts convention, with no lint exclusion or rule weakening."
+    }
+  ],
+  "limitations": [
+    "Operator stop declaration is not verified fencing for arbitrary canonical writers.",
+    "A byte-preserved source archive is not a ready-to-run migrated society.",
+    "No full domain replay or cognition/policy migration claimed for the archive.",
+    "All 25 capability contracts remain active; actual cutover still requires writer fencing and complete mapping."
+  ]
+}

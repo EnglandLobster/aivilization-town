@@ -1,0 +1,104 @@
+{
+  "stage": "initial-public-labor",
+  "date": "2026-10-05",
+  "evidenceKind": "engineering-not-autonomous-adoption",
+  "validation": {
+    "command": "pnpm check",
+    "exitCode": 0,
+    "testsPassed": 2742,
+    "testsSkipped": 1,
+    "filesPassed": 388,
+    "filesSkipped": 1,
+    "build": "pnpm --filter @aivilization/residents... build",
+    "buildExitCode": 0
+  },
+  "compiledCLI": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-http-cli-not-free-emergence",
+    "calls": 11,
+    "expectedRefusals": 5,
+    "results": [
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business work",
+        "ok": false,
+        "exitCode": 1,
+        "error": "current-public-employment-required"
+      },
+      {
+        "route": "business work",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": false,
+        "exitCode": 1,
+        "error": "own-labor-not-found"
+      },
+      {
+        "route": "life stop-work",
+        "ok": false,
+        "exitCode": 1,
+        "error": "public-labor-stop-authority-required"
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "life stop-work",
+        "ok": false,
+        "exitCode": 1,
+        "error": "public-labor-revision-conflict"
+      },
+      {
+        "route": "life stop-work",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business claim-wage",
+        "ok": false,
+        "exitCode": 1,
+        "error": "own-labor-required"
+      },
+      {
+        "route": "city observe",
+        "ok": true,
+        "exitCode": 0
+      }
+    ],
+    "fundedBeforeStart": true,
+    "noFutureWageOrEffort": true,
+    "actualPublicWages": true,
+    "ownRecordPrivacy": true,
+    "unearnedRefund": true,
+    "noDoubleClaim": true,
+    "replayEqual": true,
+    "journalBytesUnchanged": true
+  },
+  "versions": {
+    "catalog": 41,
+    "skill": 40,
+    "rulebook": 30,
+    "routes": 360
+  },
+  "limits": [
+    "open-resident mode only; canonical and partition integration pending",
+    "initial public jobs and frozen wage regime, not resident-created government",
+    "public project/service linkage and resident wage regime modification pending",
+    "retirement/departure refund adapter tested on recorded terminal events; full lifecycle remains guarded",
+    "no new free-run adoption evidence for public work"
+  ]
+}

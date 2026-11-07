@@ -1,0 +1,109 @@
+{
+  "capability": "M02-resident-record-views",
+  "mode": "real-compiled-cli-engineering-acceptance",
+  "modelInvoked": false,
+  "cliCalls": 18,
+  "results": [
+    {
+      "route": "rules capability",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "registers create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "records put",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "records put",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "views publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "views query",
+      "exitCode": 1,
+      "ok": false,
+      "error": "view-not-found"
+    },
+    {
+      "route": "views query",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "registers configure",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "views query",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "views publish",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "views query",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "views revise",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "views query",
+      "exitCode": 1,
+      "ok": false,
+      "error": "revision-conflict"
+    },
+    {
+      "route": "views history",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "views disable",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "views query",
+      "exitCode": 1,
+      "ok": false,
+      "error": "view-disabled"
+    },
+    {
+      "route": "registers configure",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "views read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "view-not-found"
+    }
+  ],
+  "independentAuthors": true,
+  "twoResidentDefinedUses": true,
+  "sourceAclRechecked": true,
+  "wholeInputAggregate": 13,
+  "worldUnchanged": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true
+}

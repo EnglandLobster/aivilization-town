@@ -1,0 +1,39 @@
+{
+  "ok": true,
+  "scope": "freight-custody-domain",
+  "worldAcceptance": false,
+  "version": "freight-custody-handoff-v1",
+  "quality": {
+    "targetedTestsPassed": 13,
+    "newTests": 5,
+    "testsPassed": 3368,
+    "testsSkipped": 1,
+    "lint": true,
+    "typecheck": true,
+    "build": "worker-and-dependencies-passed"
+  },
+  "assertions": [
+    "original freight contract and escrow unchanged",
+    "current custody reference changes only after required consents and personal acceptance",
+    "living original carrier consent required",
+    "departed original carrier requires exact population reference",
+    "physical taking failure prevents handoff",
+    "stale expired or altered proposal rejected",
+    "withdrawn proposal cannot execute",
+    "collective authorization rechecked at taking",
+    "deterministic replay rejects repeated or altered consent"
+  ],
+  "limitations": [
+    "Domain physical and authority ports use fixtures; real world cross-aggregate evidence not integrated",
+    "No manifest enable or CLI capability added",
+    "No actual inventory movement or changed carrier fee rights",
+    "No transport resumption runtime population transaction or OpenCode acceptance"
+  ],
+  "logs": {
+    "target": "/tmp/custody-handoff-target.log",
+    "lint": "/tmp/custody-handoff-lint.log",
+    "typecheck": "/tmp/custody-handoff-typecheck.log",
+    "tests": "/tmp/custody-handoff-tests.log",
+    "build": "/tmp/custody-handoff-build.log"
+  }
+}

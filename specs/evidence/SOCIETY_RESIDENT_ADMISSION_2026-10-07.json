@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T16:24:21.749146+00:00",
+  "spec": "specs/SOCIETY_RESIDENT_ADMISSION_V1.md",
+  "status": "engineering-admission-and-bank-source-verified-not-full-lifetime-society",
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/resident-admission-final-lint-2.log"
+    },
+    "sortedTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/resident-admission-final-typecheck-2.log"
+    },
+    "dependencyBuild": {
+      "exitCode": 0,
+      "log": "/tmp/resident-admission-final-build-2.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/resident-admission-final-tests.log"
+    },
+    "existingAuthenticatedCompiledCLI": {
+      "exitCode": 0,
+      "log": "/tmp/resident-admission-periodic-cli-regression.log"
+    },
+    "prettier": {
+      "exitCode": 0,
+      "log": "/tmp/resident-admission-final-format-check.log"
+    },
+    "diffCheck": {
+      "exitCode": 0,
+      "log": "/tmp/resident-admission-diff-check.log"
+    }
+  },
+  "fullTests": {
+    "passed": 3115,
+    "skipped": 1,
+    "filesPassed": 460,
+    "filesSkipped": 1
+  },
+  "newTests": {
+    "societyAdmission": 4,
+    "worldAdmission": 6,
+    "creditBankCoverage": 2,
+    "worldBankSourcesAndClaims": 3,
+    "total": 15
+  },
+  "existingCompiledCLI": {
+    "calls": 59,
+    "expectedRefusals": 19,
+    "newActivationCLI": false
+  },
+  "verified": [
+    "Permanent departed identity rejects registration and ownership arrival before state/cash mutation.",
+    "Explicit lifetime capacity records actual owning-domain limits; final slot admits, full reservations reject new body before initial money creation.",
+    "Death at full reservations retains cash/backpack and converts one reservation without requiring another slot.",
+    "Current deposits and active/defaulted claims require observed original living or preserved subjects; new issuance and replay reserve 128 original claims.",
+    "New explicit bank mode rejects authoritative snapshot replacement of original claims/deposit/cash; unchanged actual checkpoint may be corroborated.",
+    "New partition migration requires unported reservation/customer coordination and explicitly refuses; legacy no-policy path retains its valid transfer facts."
+  ],
+  "notDelivered": [
+    "Natural permanent-population scheduler and full activity/cargo/durable-goods protection.",
+    "History archival, whole original obligations and capacity before all new agreements.",
+    "All succession resources, cash/physical/capital/bank distribution and eleven-context liquidation.",
+    "Authenticated policy activation, manifest and bounded private queries.",
+    "Canonical/partition R01 and R02 conditions/long-running organization, all twenty-five original contracts and H4-H6."
+  ],
+  "freeExperiment": {
+    "enabled": false,
+    "frozenRoot": "/tmp/aivilization-periodic-obligations-20261006"
+  },
+  "preservedDevelopmentFailures": [
+    "/tmp/resident-admission-bank-tests.log",
+    "/tmp/resident-admission-final-typecheck.log"
+  ],
+  "verifiedSourceSha256": {
+    "packages/society/src/residentAdmission.ts": "5b0eb2e17b576e451a74a6bb008d9128c255d1a1f190c5edc04b6070aae235fa",
+    "packages/society/src/residentAdmission.test.ts": "9a2258594d80c2c8fb5f7d680792654656a849929910bc43c3b582e114d56991",
+    "packages/credit/src/estateCustomers.ts": "ca26ae5594d2fe3a3ee7235d775d2a80d6fa6f0b642886e41aa932712877c959",
+    "packages/credit/src/estateCustomers.test.ts": "87220bee6294f250852e150d42fb644b1f3b018885f05e2abde81f304ee8211e",
+    "packages/world/src/residentAdmission.ts": "87c30e44fe914fa52b999fdda152d80065f559f03429cc0f1b2a164d10b44ba2",
+    "packages/world/src/residentAdmission.test.ts": "14873b64650557e23b98f89b4382a6a4999795d475b6830866c8b1167345ce70",
+    "packages/world/src/residentEstateCredit.ts": "59dbae41fbe0b6b95828181fbfc1d981adc3b098ab93a732b27d29d788f42be5",
+    "packages/world/src/residentEstateCredit.test.ts": "47abf305bef9b9eba6a823c97a017f46b58d69a448acb8a0d802cddc758c1386",
+    "packages/world/src/handlers/registration.ts": "cbcc7bab1dac1ff3c33c20dbbb664126aff40d2038442a9bba458cde1795ad5b",
+    "packages/world/src/handlers/credit.ts": "8c0e9da089c04c7847e7b080fe5953b5f6b0e14771bffe81f0491141a14fbd29",
+    "packages/world/src/projectionReducers/credit.ts": "40df0aca220b12c5466a0b39dab9abdf46274937f02c8a01057c5b705d2a25c5",
+    "packages/world/src/projection.ts": "247e98c807dfaa4eea147c7d1415322aa9396564fd49079aaff458faecb9008a",
+    "packages/world/src/events.ts": "2e38b3401bd86c5909d336221ed66aac9bc755f74669471d34ba04df7ea22af7",
+    "packages/sim-core/src/event.ts": "1354ae2d51b2809bcabe7385c43cefcd86742f00924977d70f6096fad21d5cc6",
+    "packages/world/src/index.ts": "8d6fa464036516fa7e5a1a9ea3c5e1b6513e791ccc6b1fe8b689d5aaa0e9c834",
+    "packages/society/src/index.ts": "b5a896e27151486993bdca96a862e9cf35945dd739881e162eebdcd606ad7e44"
+  }
+}

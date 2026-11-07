@@ -1,56 +1,17 @@
-import { OPEN_SOCIETY_TOOLS } from '@aivilization/worker';
+import { OPEN_SOCIETY_TOOLS, residentCapabilityRoute } from '@aivilization/worker';
 import type { OpenToolDefinition } from '@aivilization/agent-runtime';
 
-export const RESIDENT_CLI_VERSION = 'resident-cli-v4';
-export const RESIDENT_SKILL_VERSION = 'town-resident-skill-v6';
+export { RESIDENT_CLI_VERSION, RESIDENT_SKILL_VERSION } from '@aivilization/worker';
 
-const worldRoutes: Readonly<Record<string, string>> = {
-  observe: 'city observe',
-  raise_petition: 'civic petition',
-  sign_petition: 'civic sign',
-  post_bulletin: 'civic post-bulletin',
-  raise_matter: 'civic request-help',
-  respond_matter: 'civic respond',
-  assign_matter: 'civic assign',
-  close_matter: 'civic close',
-  move: 'travel go',
-  eat: 'life eat',
-  consume: 'life consume',
-  sleep: 'life sleep',
-  doctor: 'life doctor',
-  study: 'education study',
-  trade: 'market trade',
-  work: 'business work',
-  produce: 'business produce',
-  apply_job: 'business apply-job',
-  give: 'market give',
-  found_enterprise: 'business found',
-  join_enterprise: 'business join',
-  leave_enterprise: 'business leave',
-  fund_enterprise: 'business fund',
-  close_enterprise: 'business close',
-  post_job: 'business post-job',
-  deposit: 'bank deposit',
-  withdraw: 'bank withdraw',
-  borrow: 'bank borrow',
-  export: 'market export',
-  import: 'market import',
-  upgrade_home: 'housing upgrade',
-  choose_residence: 'housing choose',
-  build_housing: 'housing build',
-  apply_exam: 'education apply-exam',
-};
-export const flagName = (name: string) =>
-  name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+import { capabilityFlagName } from '@aivilization/worker';
+export const flagName = capabilityFlagName;
 export type ResidentCliCommand = {
   readonly route: string;
   readonly definition: OpenToolDefinition;
 };
 export const RESIDENT_COMMANDS: readonly ResidentCliCommand[] = OPEN_SOCIETY_TOOLS.map(
   (definition) => {
-    const [category, operation] = definition.name.split('.') as [string, string];
-    const route = category === 'world' ? worldRoutes[operation] : `${category} ${operation}`;
-    if (route === undefined) throw new Error(`missing-cli-route:${definition.name}`);
+    const route = residentCapabilityRoute(definition.name);
     return { route, definition };
   },
 );
@@ -69,12 +30,12 @@ export function commandHelp(command: ResidentCliCommand): string {
     `town ${command.route} [flags]`,
     definition.description,
     ...Object.entries(definition.inputSchema.properties).map(([name, property]) =>
-      `--${flagName(name)} <${property.enum?.join('|') ?? property.type}> ${definition.inputSchema.required.includes(name) ? '(required)' : '(optional)'}${property.type === 'array' ? ' repeat flag per item; omit for [] when required' : ''}${property.minimum === undefined ? '' : ` min=${property.minimum}`}${property.maximum === undefined ? '' : ` max=${property.maximum}`}${property.maxLength === undefined ? '' : ` maxLength=${property.maxLength}`} ${property.description ?? ''}`.trimEnd(),
+      `--${flagName(name)} <${property.enum?.join('|') ?? property.type}> ${definition.inputSchema.required.includes(name) ? (property.type === 'array' && (property.minItems ?? 0) === 0 ? '(optional flag; omitted means [])' : '(required)') : '(optional)'}${property.type === 'array' ? ' repeat flag per item; an empty quoted string is one item, not an empty list' : ''}${property.minItems === undefined ? '' : ` minItems=${property.minItems}`}${property.maxItems === undefined ? '' : ` maxItems=${property.maxItems}`}${property.minimum === undefined ? '' : ` min=${property.minimum}`}${property.maximum === undefined ? '' : ` max=${property.maximum}`}${property.maxLength === undefined ? '' : ` maxLength=${property.maxLength}`} ${property.description ?? ''}`.trimEnd(),
     ),
     '--request-id <id> Optional idempotency key. Reuse only for an identical retry.',
     ...(definition.inputSchema.properties.content === undefined
       ? []
       : ['--content-stdin Read original content from stdin instead of --content (terminal use).']),
-    'Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.',
+    'Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.',
   ].join('\n');
 }

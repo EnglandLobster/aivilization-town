@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "society-service-supply-relations-evidence-v1",
+  "date": "2026-10-06",
+  "policy": "resident-service-supply-relations-v5",
+  "entrypoints": [
+    "principals.read --kind service --id ID",
+    "principals.operate services.offer-supply/services.accept-supply/services.end-supply/services.cancel-supply",
+    "principals.control",
+    "enable-service-supply-relations"
+  ],
+  "catalog": 58,
+  "skill": 57,
+  "rulebook": 47,
+  "fullGate": {
+    "command": "pnpm check",
+    "testsPassed": 2927,
+    "testsSkipped": 1,
+    "lintPassed": true,
+    "sortedRepositoryTypecheckPassed": true,
+    "logSha256": "22ac2619a1dac61fb447e263821b97ba09a8c5114a753e9c29e26c0c8c752371"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... --sort build",
+    "passed": true
+  },
+  "compiledCli": {
+    "passed": true,
+    "commands": 44,
+    "expectedRefusals": 6,
+    "policy": "resident-service-supply-relations-v5",
+    "checks": [
+      "compiled-authenticated-cli",
+      "explicit-migration-no-relationship-or-manifest-rewrite",
+      "actual-provider-body-protected",
+      "both-current-parties-separate",
+      "historical-firm-close-independent-directory",
+      "directory-invitation-enterprise-acceptance",
+      "current-source-for-control",
+      "old-source-and-obligations-preserved",
+      "private-grants-not-public-text",
+      "expiry-and-rejection",
+      "public-exact-invite-and-end",
+      "exact-journal-replay"
+    ]
+  },
+  "invariants": [
+    "Original firm provenance remains immutable; current supply relation is independently versioned and explicit null after termination",
+    "Either actual current party may end future supply; live providers and open bookings/queues prevent erasing participation",
+    "Only actual directory controller invites an existing available firm; invited firm independently accepts exact unexpired current offer",
+    "Pending exact invitation cannot silently inherit changed directory control; unsolicited outside firm cannot lock another directory",
+    "Current firm source governs staffing, directory control and enterprise estate; ended historical firm can close without owning the directory",
+    "Existing contracts, account flows, wages, bodies and prior original author remain unchanged",
+    "New v5 owning world proof and public/collective execution validate real prior state and consume authorizations atomically",
+    "Private grants are not exposed in public service text; old events/manifest preserve their semantics",
+    "Full journal replay and authenticated compiled CLI passed"
+  ],
+  "remainingInFullGoal": [
+    "Organizational service income/wages/contracts and full estate composition",
+    "Public physical procurement/construction and housing H3-H6",
+    "Long obligations, bilateral remedy and exit",
+    "Canonical/partition wiring",
+    "All 25 contracts and multi-condition long unprompted society experiments"
+  ]
+}

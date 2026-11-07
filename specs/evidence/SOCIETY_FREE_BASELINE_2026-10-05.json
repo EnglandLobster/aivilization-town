@@ -1,0 +1,5054 @@
+{
+  "schemaVersion": "society-free-observation-v1",
+  "mode": "unprompted-social-outcomes-free-activity",
+  "root": "/home/dev/aivilization-town/.local/open-residents/society-free-20261005",
+  "journalSha256": "c92d39b46d26b5e0f5109b3d7b60bee13ccbe8d766b35dfd614205e4f81bcb07",
+  "manifestSha256": "419e832b04caa74f53717d50b84cf8c8a8760df5b16d597af715d25a9156be30",
+  "implementation": {
+    "recordedAt": "2026-10-05T05:08:13.283269+00:00",
+    "recordedDuringRun": true,
+    "note": "Compiled worker/residents/domain artifacts were not rebuilt after this experiment started; source-only attention fixes are excluded from this baseline.",
+    "sha256": {
+      "apps/residents/dist/chunk-B7OYR3OT.js": "b9911f993eb954bd544fc3a25ee3953ffc48abdce0e1a415a02d4f5692abc5ac",
+      "apps/residents/dist/chunk-D66WFMHG.js": "94cdc23dcbb9d92095a97a878c9ed0de0b80943484e8182e7ed15fa92dd1315f",
+      "apps/residents/dist/chunk-T5GFIQOS.js": "2bfe6785b5c5ebd4848bcbda087aca793e5b4e732d046043eae915c181637c65",
+      "apps/residents/dist/chunk-VUZ46DYZ.js": "0967177f2c172d4e53f700b561e598b8d2b829ad4ad601e9ba116d19bf7f9021",
+      "apps/residents/dist/chunk-XU6CZCJG.js": "dab5e4051fe2dbdcd2195f111e7e624b671c582cdf817af97add67add9bea50d",
+      "apps/residents/dist/cli.js": "148c0ef9abb7f944fd2fec77a3dd1263f56e37bf49e4d78d95326bbe8a8b5303",
+      "apps/residents/dist/index.js": "c9bbd2848c063203a45eb479999898ab10a87f782b11261b924dc64be3b41afd",
+      "apps/residents/dist/residentShell.js": "325acb1ff597ccda0d9cf9c90b0ce7be9c4c15800d7297701c014b7d5fd76db4",
+      "apps/residents/dist/town.js": "679731c770aa6cde6765c680878b7f86ead60575b7caf78d21432e74e81c3b57",
+      "apps/residents/dist/writeSkill.js": "49b06de647b3ee5f1625941c18af168e6579019981f02afaeb97ee9209872f1f",
+      "apps/worker/dist/index.js": "912b87a5c1369eec54ada1ee3dfc5ee8d1b2da8a467b686dc1ac7d8c5104bbd3",
+      "packages/agent-runtime/dist/index.js": "f02b76727393333aa57fa20c3d2e03840122ea9b90de31ca7b015d74dd4d72ba",
+      "packages/authority/dist/index.js": "56d1097fce73e58958bf3df7b72db676ced2dd900bfa9173e0ec178e8e4995a2",
+      "packages/collaboration/dist/index.js": "5ba69b1a6f0569196491254781aa61cf8a10ee38c3741721e4a1982895d6cae0",
+      "packages/commerce/dist/index.js": "482dc8cb23f32be0823e32f2f37fb28034b9c83677fff6cfa0234d493b185a19",
+      "packages/content/dist/index.js": "eb39c113b58c184b812327b2e135a675f085b0ec14e8a2d94d4699b3786fab58",
+      "packages/credit/dist/index.js": "b413b6463cef8b9646966785a5f81886fcc8b80b92af11a26064f3d412059916",
+      "packages/economy/dist/index.js": "97027ad887e7eed65fbf51daa144da34e62f94855039081cd66b16c74783a843",
+      "packages/enterprise/dist/index.js": "d8d66b2c5c70a2c89114bf504e87e668658c9bfee85880ec5fa39241c996a1f9",
+      "packages/information/dist/index.js": "4b788d65d848513385d339e686484cbf349d932cf2a5d61877ccca5aecb00f39",
+      "packages/llm/dist/index.js": "65b8bdab5643cbb594c4fdc8037edd6b0e69768a4a5ad8c79ac2bda372739650",
+      "packages/logistics/dist/index.js": "a0dc3aedd37b9d32d2cfff854455f414312c5f1b01deaa2242b0b6ab739c8a57",
+      "packages/materials/dist/index.js": "2b72ce5f896a1ff5678625c8a0058c09752f5bc31771f46b6c4c931b83aeff80",
+      "packages/memory/dist/index.js": "228cfeb3cf16b7ff3a8c051941afb3103903cd0988ab51c5dcc3d46f9c02fcbb",
+      "packages/mobility/dist/index.js": "e464898ebcadb3f7c946c73a0daecd1baff0934430b520c647e96ae9199cd117",
+      "packages/observability/dist/index.js": "9026ab484b1a9fdcef0d224a34745afd3c46fa6964b7a06f302dbca713149c40",
+      "packages/premises/dist/index.js": "ad13369d8dda87039a9558d527b3d76ec94a21fd367551c09fa18f6d98e73d86",
+      "packages/services/dist/index.js": "783b4126ba7382e99248b9856c2d810d3892a3bcc2fe57e4d7e88aefd20489be",
+      "packages/sim-core/dist/index.js": "ec147ed0ce78f2a03c16f263d625cabed1f42fb274beb475ed2f3030fb1a9694",
+      "packages/society/dist/index.js": "af2171f741e00c3196ef68b7df7fbc05a5ec2417231bfe56cb4ef064879e3720",
+      "packages/world/dist/index.js": "8a31287bcc47a8b6c30b8f58165504944d044d9a7432650ee36956c3e95d2b59"
+    }
+  },
+  "replayMatchesSavedReport": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "simulationTime": 1452000,
+  "journalCommits": 212,
+  "opportunities": {
+    "resident-001/waiting": 5,
+    "resident-002/waiting": 2,
+    "resident-003/waiting": 5,
+    "resident-004/waiting": 4
+  },
+  "capabilityCalls": 157,
+  "capabilityCounts": {
+    "world.observe/accepted": 43,
+    "files.index/accepted": 8,
+    "programs.list/accepted": 1,
+    "files.list/accepted": 1,
+    "groups.create/accepted": 1,
+    "groups.invite/accepted": 3,
+    "files.create/accepted": 2,
+    "messages.send/accepted": 5,
+    "world.move/accepted": 4,
+    "schedule.wait/accepted": 16,
+    "groups.invitations/accepted": 3,
+    "messages.read/accepted": 5,
+    "groups.accept/accepted": 3,
+    "groups.members/accepted": 4,
+    "groups.messages/accepted": 17,
+    "files.read/accepted": 1,
+    "groups.list/accepted": 2,
+    "production.recipes/accepted": 4,
+    "groups.send/accepted": 12,
+    "world.apply_job/accepted": 1,
+    "world.produce/accepted": 2,
+    "world.trade/refused": 1,
+    "stocks.list/accepted": 1,
+    "premises.list/accepted": 1,
+    "world.trade/accepted": 4,
+    "schedule.remind/accepted": 2,
+    "cognition.update/accepted": 3,
+    "population.self/accepted": 1,
+    "cognition.update/refused": 1,
+    "world.export/accepted": 2,
+    "world.eat/accepted": 1,
+    "production.list/accepted": 1,
+    "world.sleep/accepted": 1
+  },
+  "refusals": [
+    {
+      "sequence": 67,
+      "actorId": "resident-003",
+      "capability": "world.trade",
+      "error": "agent is busy with production until simulation time 121152.2064754004 (now 120000)"
+    },
+    {
+      "sequence": 130,
+      "actorId": "resident-001",
+      "capability": "cognition.update",
+      "error": "evidence-not-visible"
+    }
+  ],
+  "eventCounts": {
+    "informationEvents/SpaceCreated": 8,
+    "informationEvents/DocumentCreated": 17,
+    "coordinationEvents/ProgramActionsEnabled": 1,
+    "servicesEvents/ServiceControlEnabled": 1,
+    "communicationEvents/GroupChanged": 4,
+    "communicationEvents/GroupInvitationChanged": 6,
+    "distributionEvents/PublicationRecorded": 2,
+    "informationEvents/MessageSent": 5,
+    "worldEvents/AgentTravelStarted": 4,
+    "worldEvents/AgentActivityTimeCommitted": 11,
+    "worldEvents/ShortTermMemoryRecorded": 16,
+    "worldEvents/SimulationTimeAdvanced": 20,
+    "worldEvents/PhysiologyChanged": 82,
+    "informationEvents/MessageRead": 5,
+    "communicationEvents/GroupMessageSent": 12,
+    "worldEvents/JobApplicationSubmitted": 1,
+    "worldEvents/CommodityProduced": 2,
+    "worldEvents/ActionRejected": 1,
+    "communicationEvents/GroupMessagesRead": 13,
+    "worldEvents/TradeExecuted": 4,
+    "cognitiveEvents/PersonalCognitionUpdated": 3,
+    "worldEvents/TradeTaxCharged": 1,
+    "worldEvents/AgentLocationChanged": 3,
+    "worldEvents/ExternalTradeExecuted": 2,
+    "worldEvents/InventoryChanged": 1
+  },
+  "initialResidents": [
+    {
+      "id": "resident-001",
+      "balance": 100,
+      "inventory": {},
+      "job": null,
+      "educationScore": 0,
+      "locationId": "town-square",
+      "residenceLocationId": "residential-block"
+    },
+    {
+      "id": "resident-002",
+      "balance": 125,
+      "inventory": {},
+      "job": null,
+      "educationScore": 80,
+      "locationId": "town-square",
+      "residenceLocationId": "residential-block"
+    },
+    {
+      "id": "resident-003",
+      "balance": 150,
+      "inventory": {},
+      "job": null,
+      "educationScore": 160,
+      "locationId": "town-square",
+      "residenceLocationId": "residential-block"
+    },
+    {
+      "id": "resident-004",
+      "balance": 175,
+      "inventory": {},
+      "job": null,
+      "educationScore": 240,
+      "locationId": "town-square",
+      "residenceLocationId": "residential-block"
+    }
+  ],
+  "initialization": "newcomers",
+  "policy": {
+    "contextCognition": 8,
+    "contextMemories": 6,
+    "contextMessages": 6,
+    "contextPeople": 12,
+    "contextVersion": "open-agent-context-v1",
+    "freeActivityIntervalMs": 900000,
+    "maxCallsPerTurn": 40,
+    "maxQueryItems": 30,
+    "maxResultChars": 24000,
+    "opportunityCadenceMs": 60000,
+    "version": "open-agent-runtime-v1"
+  },
+  "provenance": {
+    "attention": "resident-attention-v2",
+    "capabilityBoundaries": "resident-capability-boundaries-v1",
+    "capabilityCatalog": "open-capabilities-v26",
+    "cityApps": "city-apps-v1",
+    "cognition": "resident-cognition-v2",
+    "collaboration": "collaboration-v1",
+    "collectives": "resident-collectives-v1",
+    "commerce": "resident-commerce-v1",
+    "commonAccounts": "resident-common-accounts-v1",
+    "communication": "communication-v1",
+    "constructionSites": "explicit-construction-sites-v1",
+    "context": "open-agent-context-v1",
+    "coordination": "resident-coordination-v1",
+    "distribution": "information-distribution-v1",
+    "documentIndex": "document-index-v1",
+    "documentMetadata": "document-metadata-v1",
+    "evidenceTrade": "resident-evidence-trade-v2",
+    "facilityUse": "premises-facility-use-v1",
+    "groupControl": "resident-group-control-v1",
+    "information": "information-space-v1",
+    "initialBackground": "resident-initialization-v2",
+    "initialization": "resident-initialization-v2",
+    "laborPay": "labor-proportional-pay-v1",
+    "leases": "resident-leases-v1",
+    "life": "resident-life-v1",
+    "logistics": "resident-logistics-v1",
+    "materials": "resident-materials-v1",
+    "mobility": "resident-mobility-v1",
+    "mode": "experimental-open-agent",
+    "physicalLoad": "quantity-load-v1",
+    "premises": "resident-premises-v1",
+    "premisesProvision": "premises-provision-v1",
+    "premisesRights": "resident-premises-rights-v1",
+    "processing": "resident-processing-v1",
+    "programConditions": "resident-program-conditions-v1",
+    "programReactions": "resident-program-reactions-v1",
+    "publicConstructionUse": "public-construction-use-v1",
+    "reading": "resident-original-reading-v2",
+    "recordViews": "resident-record-views-v1",
+    "residentSkill": "town-resident-skill-v25",
+    "resourceControl": "resource-control-v1",
+    "rhythm": "resident-natural-day-v1",
+    "rulebook": "society-rulebook-v18",
+    "scheduler": "open-simulation-round-robin-v1",
+    "serviceEffects": "resident-service-effects-v1",
+    "serviceEngagements": "resident-service-engagements-v1",
+    "serviceFacilitySeed": "explicit-service-facilities-v1",
+    "services": "resident-services-v3",
+    "serviceSupply": "service-supply-v1",
+    "settlement": "order-settlement-v1",
+    "sharedRecords": "shared-records-v1",
+    "societyKernel": "agent-driven-society-v1",
+    "transport": "resident-cli-v4",
+    "vehicleCargoSeed": "explicit-vehicle-cargo-v1",
+    "vehicleSeed": "explicit-one-owned-car-v1",
+    "worldPolicyAdapter": "resident-natural-day-adapter-v1"
+  },
+  "residentAuthored": {
+    "spaces": [],
+    "documents": [
+      {
+        "authorId": "resident-001",
+        "createdAt": 0,
+        "deleted": false,
+        "id": "app-life/posts/resident-001-sports-01.md",
+        "path": "posts/resident-001-sports-01.md",
+        "revision": 1,
+        "spaceId": "app-life",
+        "tags": [
+          "运动,户外,召集"
+        ],
+        "title": "想找固定搭子一起活动",
+        "updatedAt": 0
+      },
+      {
+        "authorId": "resident-002",
+        "createdAt": 60000,
+        "deleted": false,
+        "id": "app-life/posts/resident-002-crafts-01.md",
+        "path": "posts/resident-002-crafts-01.md",
+        "revision": 1,
+        "spaceId": "app-life",
+        "tags": [
+          "手工,修理,兴趣"
+        ],
+        "title": "手工与修理：先动手，再琢磨",
+        "updatedAt": 60000
+      }
+    ],
+    "messages": [
+      {
+        "id": "msg-1b095e4e5f79b4328476cecf",
+        "senderId": "resident-001",
+        "recipientId": "resident-002",
+        "sentAt": 0,
+        "readAt": 60000
+      },
+      {
+        "id": "msg-79d3258b0a14605dc2f90825",
+        "senderId": "resident-001",
+        "recipientId": "resident-003",
+        "sentAt": 0,
+        "readAt": 120000
+      },
+      {
+        "id": "msg-f20901f0233e8feb29fbb18b",
+        "senderId": "resident-001",
+        "recipientId": "resident-004",
+        "sentAt": 0,
+        "readAt": 180000
+      },
+      {
+        "id": "msg-33218cebe9aa64635f90252f",
+        "senderId": "resident-002",
+        "recipientId": "resident-001",
+        "sentAt": 60000,
+        "readAt": 240000
+      },
+      {
+        "id": "msg-e34893f8832d623cfca48090",
+        "senderId": "resident-004",
+        "recipientId": "resident-001",
+        "sentAt": 180000,
+        "readAt": 240000
+      }
+    ],
+    "groups": [
+      {
+        "at": 0,
+        "closed": false,
+        "control": {
+          "at": 0,
+          "changedBy": "resident-001",
+          "controller": {
+            "id": "resident-001",
+            "kind": "resident"
+          },
+          "policyVersion": "resource-control-v1",
+          "version": 1
+        },
+        "id": "outdoor-friends",
+        "members": [
+          "resident-001",
+          "resident-002",
+          "resident-003",
+          "resident-004"
+        ],
+        "ownerId": "resident-001",
+        "revision": 4,
+        "title": "户外运动同好"
+      }
+    ],
+    "collectives": [],
+    "registers": [],
+    "views": [],
+    "programs": [],
+    "services": []
+  },
+  "provider": [
+    {
+      "path": "opencode/resident-001/turn-4-resident-001.json",
+      "sha256": "af1283e2807830c94ef359588c8f92871916cba693a6ccb08d4215cbf6c411e6",
+      "actorId": "resident-001",
+      "turnId": "turn-4-resident-001",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 76479,
+      "simulationTimeAtStart": 0,
+      "sessionId": "ses_ef59385a1ffetfc8Ubslj8rpae",
+      "completedModelSteps": 32,
+      "usage": [
+        {
+          "id": "prt_10a6c8a510015kN5JoTKcygwc9",
+          "tokens": {
+            "total": 4081,
+            "input": 3928,
+            "output": 66,
+            "reasoning": 87,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0.000681
+        },
+        {
+          "id": "prt_10a6c987f0010oFswS3A2FWOXM",
+          "tokens": {
+            "total": 4814,
+            "input": 856,
+            "output": 72,
+            "reasoning": 46,
+            "cache": {
+              "write": 0,
+              "read": 3840
+            }
+          },
+          "cost": 0.00021072
+        },
+        {
+          "id": "prt_10a6ca478001JN87y2u8zu65fc",
+          "tokens": {
+            "total": 6292,
+            "input": 1500,
+            "output": 71,
+            "reasoning": 113,
+            "cache": {
+              "write": 0,
+              "read": 4608
+            }
+          },
+          "cost": 0.000349224
+        },
+        {
+          "id": "prt_10a6cae36001fCj2iZ6bEwsRs0",
+          "tokens": {
+            "total": 6615,
+            "input": 501,
+            "output": 75,
+            "reasoning": 23,
+            "cache": {
+              "write": 0,
+              "read": 6016
+            }
+          },
+          "cost": 0.000151998
+        },
+        {
+          "id": "prt_10a6cb74e001vwN5Khd4vPwqZy",
+          "tokens": {
+            "total": 6767,
+            "input": 289,
+            "output": 68,
+            "reasoning": 10,
+            "cache": {
+              "write": 0,
+              "read": 6400
+            }
+          },
+          "cost": 0.00010935
+        },
+        {
+          "id": "prt_10a6cc0a5001vndLbbQYV39lLE",
+          "tokens": {
+            "total": 7097,
+            "input": 348,
+            "output": 72,
+            "reasoning": 21,
+            "cache": {
+              "write": 0,
+              "read": 6656
+            }
+          },
+          "cost": 0.000127968
+        },
+        {
+          "id": "prt_10a6cc95f001JMaRRp3LBrD6c2",
+          "tokens": {
+            "total": 7507,
+            "input": 7417,
+            "output": 75,
+            "reasoning": 15,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0.00116655
+        },
+        {
+          "id": "prt_10a6cd28d001vLU7wwpv64Aldc",
+          "tokens": {
+            "total": 9253,
+            "input": 1667,
+            "output": 71,
+            "reasoning": 91,
+            "cache": {
+              "write": 0,
+              "read": 7424
+            }
+          },
+          "cost": 0.000369522
+        },
+        {
+          "id": "prt_10a6cde6c0018BZdVsYmReLUW1",
+          "tokens": {
+            "total": 10187,
+            "input": 952,
+            "output": 68,
+            "reasoning": 207,
+            "cache": {
+              "write": 0,
+              "read": 8960
+            }
+          },
+          "cost": 0.00033468
+        },
+        {
+          "id": "prt_10a6cefb9001fuxQSYEVKtHUk5",
+          "tokens": {
+            "total": 10921,
+            "input": 542,
+            "output": 78,
+            "reasoning": 317,
+            "cache": {
+              "write": 0,
+              "read": 9984
+            }
+          },
+          "cost": 0.000348252
+        },
+        {
+          "id": "prt_10a6cfa07001y2JfNHY0yDvzXv",
+          "tokens": {
+            "total": 11281,
+            "input": 360,
+            "output": 69,
+            "reasoning": 100,
+            "cache": {
+              "write": 0,
+              "read": 10752
+            }
+          },
+          "cost": 0.000187656
+        },
+        {
+          "id": "prt_10a6d01a3001G2Gf7MItCd5rXF",
+          "tokens": {
+            "total": 11489,
+            "input": 386,
+            "output": 68,
+            "reasoning": 27,
+            "cache": {
+              "write": 0,
+              "read": 11008
+            }
+          },
+          "cost": 0.000147924
+        },
+        {
+          "id": "prt_10a6d07dd001IF0YxJ6JrOBa6h",
+          "tokens": {
+            "total": 10639,
+            "input": 10565,
+            "output": 74,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0.00162915
+        },
+        {
+          "id": "prt_10a6d1c19001aYRxkNtY2mclKZ",
+          "tokens": {
+            "total": 11348,
+            "input": 653,
+            "output": 71,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 10624
+            }
+          },
+          "cost": 0.000172422
+        },
+        {
+          "id": "prt_10a6d21d3001Uu7r88msGPCtKy",
+          "tokens": {
+            "total": 11549,
+            "input": 215,
+            "output": 70,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 11264
+            }
+          },
+          "cost": 0.000108042
+        },
+        {
+          "id": "prt_10a6d27a0001chiZqt3LW16R7D",
+          "tokens": {
+            "total": 11960,
+            "input": 368,
+            "output": 72,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 11520
+            }
+          },
+          "cost": 0.00013296
+        },
+        {
+          "id": "prt_10a6d2d25001kEhoj2TowwicVx",
+          "tokens": {
+            "total": 12455,
+            "input": 499,
+            "output": 52,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 11904
+            }
+          },
+          "cost": 0.000141762
+        },
+        {
+          "id": "prt_10a6d322a00120O9hXt4Me7vxG",
+          "tokens": {
+            "total": 12708,
+            "input": 241,
+            "output": 51,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 12416
+            }
+          },
+          "cost": 0.000103998
+        },
+        {
+          "id": "prt_10a6d37be001cjLngtrPnOhCMZ",
+          "tokens": {
+            "total": 12909,
+            "input": 186,
+            "output": 51,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 12672
+            }
+          },
+          "cost": 0.000096516
+        },
+        {
+          "id": "prt_10a6d4aba001Zb2XZ0PxzxsSj2",
+          "tokens": {
+            "total": 13117,
+            "input": 266,
+            "output": 51,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 12800
+            }
+          },
+          "cost": 0.0001089
+        },
+        {
+          "id": "prt_10a6d5648001VTHSDKWYNLXh7h",
+          "tokens": {
+            "total": 13450,
+            "input": 211,
+            "output": 183,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 13056
+            }
+          },
+          "cost": 0.000180618
+        },
+        {
+          "id": "prt_10a6d5dd5001JRf7yJulSzsd1E",
+          "tokens": {
+            "total": 13830,
+            "input": 551,
+            "output": 95,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 13184
+            }
+          },
+          "cost": 0.000179202
+        },
+        {
+          "id": "prt_10a6d62ef001Q15Y1Qepj1dKfw",
+          "tokens": {
+            "total": 13910,
+            "input": 45,
+            "output": 41,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 13824
+            }
+          },
+          "cost": 0.000072822
+        },
+        {
+          "id": "prt_10a6d693e001n1trvkI8VDY6m4",
+          "tokens": {
+            "total": 14152,
+            "input": 231,
+            "output": 97,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 13824
+            }
+          },
+          "cost": 0.000134322
+        },
+        {
+          "id": "prt_10a6d6f8a0010kWrOFyyCONAKh",
+          "tokens": {
+            "total": 14428,
+            "input": 251,
+            "output": 97,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 14080
+            }
+          },
+          "cost": 0.00013809
+        },
+        {
+          "id": "prt_10a6d7647001Qst1sqNzdF3E2W",
+          "tokens": {
+            "total": 14699,
+            "input": 266,
+            "output": 97,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 14336
+            }
+          },
+          "cost": 0.000141108
+        },
+        {
+          "id": "prt_10a6d7de50014wwWbqpSQlSBRC",
+          "tokens": {
+            "total": 14948,
+            "input": 282,
+            "output": 74,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 14592
+            }
+          },
+          "cost": 0.000130476
+        },
+        {
+          "id": "prt_10a6d82c00013sqfoMAL01s70D",
+          "tokens": {
+            "total": 15030,
+            "input": 141,
+            "output": 41,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 14848
+            }
+          },
+          "cost": 0.000090294
+        },
+        {
+          "id": "prt_10a6d87f8001cCKpPjFwclKYdY",
+          "tokens": {
+            "total": 15220,
+            "input": 188,
+            "output": 56,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 14976
+            }
+          },
+          "cost": 0.000106728
+        },
+        {
+          "id": "prt_10a6d8e260010oJUtkeDu4v4nX",
+          "tokens": {
+            "total": 15811,
+            "input": 640,
+            "output": 67,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 15104
+            }
+          },
+          "cost": 0.000181512
+        },
+        {
+          "id": "prt_10a6d95eb001KcfMDaTNB50mmd",
+          "tokens": {
+            "total": 16087,
+            "input": 212,
+            "output": 131,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 15744
+            }
+          },
+          "cost": 0.000157632
+        },
+        {
+          "id": "prt_10a6da1a8001rYv321piOWmjr6",
+          "tokens": {
+            "total": 16412,
+            "input": 178,
+            "output": 234,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 16000
+            }
+          },
+          "cost": 0.0002151
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town wiki",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view location",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town wiki capabilities.md",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town wiki apps/index.md",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view destinations",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files index --space app-life",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help city",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help files",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files list --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view locations",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files index --prefix posts/",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help life",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view market",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help messages",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help groups",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town programs list",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files index --prefix posts/ --space-id app-jobs",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town population list",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town life --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help population",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help civic",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town civic list",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files list --space-id app-community",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help social",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view enterprises",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help jobs",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town wiki life/index.md",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town wiki social/groups.md",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town travel --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups create --id outdoor-friends --title '户外运动同好'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups invite --group-id outdoor-friends --resident-id resident-002",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups invite --group-id outdoor-friends --resident-id resident-003",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups invite --group-id outdoor-friends --resident-id resident-004",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files create --space-id app-life --path posts/resident-001-sports-01.md --title '想找固定搭子一起活动' --content '我偏爱运动与户外。打算先从城市周边的短途活动开始：绕居民区跑步、Town Square 集结后去 Market/Workshop 一带散步，或者周末约一次更远的路线。不追求强度和成绩，稳定、可持续、有人一起就好。我建了一个群 outdoor-friends（户外运动同好），感兴趣的居民可以来找我或用群号加入。时间地点不必一次定死，先聊聊彼此方便的安排。' --tags '运动,户外,召集'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages send --to resident-002 --content '你好，我是市民 001。我建了个群 outdoor-friends（户外运动同好），想找固定搭子一起跑步/散步。已给你发了群邀请，方便的话看看；不方便也没关系，我不催。'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages send --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages send --recipient-id resident-002 --content '你好，我是市民 001。我建了个群 outdoor-friends（户外运动同好），想找固定搭子一起跑步/散步。已给你发了群邀请，方便的话看看；不方便也没关系，我不催。'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages send --recipient-id resident-003 --content '你好，我是市民 001。我建了个群 outdoor-friends（户外运动同好），想找固定搭子一起跑步/散步。已给你发了群邀请，方便的话看看；不方便也没关系，我不催。'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages send --recipient-id resident-004 --content '你好，我是市民 001。我建了个群 outdoor-friends（户外运动同好），想找固定搭子一起跑步/散步。已给你发了群邀请，方便的话看看；不方便也没关系，我不催。'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town travel go --destination-id market",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town travel go --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town travel go --target-location-id market --reason '散步熟悉路线，顺便看看市场'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 540000 --summary '刚抵达市场附近（travel 到 market，540s）。已完成：创建群 outdoor-friends（户外运动同好，仅自己成员）；向居民002/003/004 发出群邀请并私信说明；在 app-life 发布召集帖 posts/resident-001-sports-01.md。下一步：到达市场后看看环境/market，查看是否有邀请被接受或回信。'",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-002/turn-25-resident-002.json",
+      "sha256": "38771e82a6c7a4e81d9f5f23d9003c63b5cc784a698169906a1ff2fcc5e662cc",
+      "actorId": "resident-002",
+      "turnId": "turn-25-resident-002",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 57546,
+      "simulationTimeAtStart": 60000,
+      "sessionId": "ses_ef59258dfffenOQb3OeCR2h4RA",
+      "completedModelSteps": 18,
+      "usage": [
+        {
+          "id": "prt_10a6db7d6001WL25pTKYABOJXG",
+          "tokens": {
+            "total": 4677,
+            "input": 4513,
+            "output": 67,
+            "reasoning": 97,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0.00077535
+        },
+        {
+          "id": "prt_10a6dc13c0019cRGBAiKIYPhIM",
+          "tokens": {
+            "total": 5205,
+            "input": 590,
+            "output": 88,
+            "reasoning": 47,
+            "cache": {
+              "write": 0,
+              "read": 4480
+            }
+          },
+          "cost": 0.00018294
+        },
+        {
+          "id": "prt_10a6dd0a2001Uc3GZiHve5pBTd",
+          "tokens": {
+            "total": 5939,
+            "input": 654,
+            "output": 72,
+            "reasoning": 221,
+            "cache": {
+              "write": 0,
+              "read": 4992
+            }
+          },
+          "cost": 0.000288876
+        },
+        {
+          "id": "prt_10a6dd920001qM14Nq58NE1SWu",
+          "tokens": {
+            "total": 6312,
+            "input": 577,
+            "output": 66,
+            "reasoning": 37,
+            "cache": {
+              "write": 0,
+              "read": 5632
+            }
+          },
+          "cost": 0.000165246
+        },
+        {
+          "id": "prt_10a6de1e3001IRFiTtPYXd8Mgq",
+          "tokens": {
+            "total": 6600,
+            "input": 350,
+            "output": 78,
+            "reasoning": 28,
+            "cache": {
+              "write": 0,
+              "read": 6144
+            }
+          },
+          "cost": 0.000134532
+        },
+        {
+          "id": "prt_10a6de955001PdYk8hKSK1go4f",
+          "tokens": {
+            "total": 6748,
+            "input": 276,
+            "output": 72,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 6400
+            }
+          },
+          "cost": 0.0001038
+        },
+        {
+          "id": "prt_10a6df21e001ZBsLNI6ufyEe6w",
+          "tokens": {
+            "total": 7100,
+            "input": 364,
+            "output": 80,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 6656
+            }
+          },
+          "cost": 0.000122568
+        },
+        {
+          "id": "prt_10a6e0024001KctWm91ZPKMilE",
+          "tokens": {
+            "total": 7533,
+            "input": 385,
+            "output": 125,
+            "reasoning": 111,
+            "cache": {
+              "write": 0,
+              "read": 6912
+            }
+          },
+          "cost": 0.000220086
+        },
+        {
+          "id": "prt_10a6e12300017pfz0LB6Q90AUZ",
+          "tokens": {
+            "total": 8133,
+            "input": 448,
+            "output": 78,
+            "reasoning": 311,
+            "cache": {
+              "write": 0,
+              "read": 7296
+            }
+          },
+          "cost": 0.000322488
+        },
+        {
+          "id": "prt_10a6e1ddc001cbAwIblNMuFgfe",
+          "tokens": {
+            "total": 9267,
+            "input": 1498,
+            "output": 56,
+            "reasoning": 33,
+            "cache": {
+              "write": 0,
+              "read": 7680
+            }
+          },
+          "cost": 0.00030114
+        },
+        {
+          "id": "prt_10a6e2e49001JJa361wZ0FGZ9n",
+          "tokens": {
+            "total": 9868,
+            "input": 462,
+            "output": 71,
+            "reasoning": 247,
+            "cache": {
+              "write": 0,
+              "read": 9088
+            }
+          },
+          "cost": 0.000287364
+        },
+        {
+          "id": "prt_10a6e362e001Uy41oK6w2lfV1n",
+          "tokens": {
+            "total": 10042,
+            "input": 515,
+            "output": 40,
+            "reasoning": 15,
+            "cache": {
+              "write": 0,
+              "read": 9472
+            }
+          },
+          "cost": 0.000138666
+        },
+        {
+          "id": "prt_10a6e3e4900192VnfNG93ZCuJC",
+          "tokens": {
+            "total": 10293,
+            "input": 253,
+            "output": 41,
+            "reasoning": 15,
+            "cache": {
+              "write": 0,
+              "read": 9984
+            }
+          },
+          "cost": 0.000101502
+        },
+        {
+          "id": "prt_10a6e4b48001A6YOxmNHV6JByP",
+          "tokens": {
+            "total": 10717,
+            "input": 425,
+            "output": 180,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 10112
+            }
+          },
+          "cost": 0.000202086
+        },
+        {
+          "id": "prt_10a6e59f0001T96Tvfr7dhcgn7",
+          "tokens": {
+            "total": 11345,
+            "input": 526,
+            "output": 72,
+            "reasoning": 251,
+            "cache": {
+              "write": 0,
+              "read": 10496
+            }
+          },
+          "cost": 0.000304188
+        },
+        {
+          "id": "prt_10a6e64a90015phOabWGYg6H12",
+          "tokens": {
+            "total": 11813,
+            "input": 661,
+            "output": 42,
+            "reasoning": 102,
+            "cache": {
+              "write": 0,
+              "read": 11008
+            }
+          },
+          "cost": 0.000218574
+        },
+        {
+          "id": "prt_10a6e7562001ECEfOLrljmnpja",
+          "tokens": {
+            "total": 13592,
+            "input": 1648,
+            "output": 174,
+            "reasoning": 122,
+            "cache": {
+              "write": 0,
+              "read": 11648
+            }
+          },
+          "cost": 0.000459744
+        },
+        {
+          "id": "prt_10a6e8489001bmtAv7ceA7HM1w",
+          "tokens": {
+            "total": 13964,
+            "input": 501,
+            "output": 253,
+            "reasoning": 26,
+            "cache": {
+              "write": 0,
+              "read": 13184
+            }
+          },
+          "cost": 0.000282102
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups invitations",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages read --id msg-1b095e4e5f79b4328476cecf",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages send --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups accept --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups accept --id comm-98d915509c31b033cbe795320f8f7448 --expected-revision 1",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups members --id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups messages --id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups members --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups messages --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups members --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages send --recipient-id resident-001 --content \"你好 001，我是 002。谢谢邀请，我已加入户外运动同好。先说清楚：我平时最上心的是手工和修理，跑步不是我的主场，但散步/慢跑我很乐意，作为固定的、低频率的搭子正合适。你一般什么时候想动？告诉我个时间地点，我看看能不能对上；对不上也不勉强。\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files index --space-id app-life",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files index --space-id app-exchange",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files read --space-id app-life --path posts/resident-001-sports-01.md",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files write --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files create --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files create --space-id app-life --path posts/resident-002-crafts-01.md --title \"手工与修理：先动手，再琢磨\" --tags \"手工,修理,兴趣\" --content \"我是市民 002。对手工和修理有兴趣，习惯先上手试试、再琢磨怎么改。会的东西还不多，但愿意接点小活：修一修旧物、打个小样、把坏掉的东西拆开看看还能不能救。\n\n如果你手上有修不好或想改造的物件，或者你也喜欢动手，欢迎在下面留言或直接找我聊。我不赶进度，也不挑大活小活，先看看实物、聊清楚再决定。\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view locations",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 960000 --summary \"自由活动小结：已接受 resident-001 的 outdoor-friends 群邀请（现成员 001、002，群内暂无消息），并回了私信说明我偏好低频率散步/慢跑，等他给时间地点。向 app-life 发布自我介绍《手工与修理：先动手，再琢磨》(posts/resident-002-crafts-01.md)，愿接小修理/手工活。已知 Workshop(harbor, 生产) 与 Market 相邻，适合后续动手。下次：查看 001 回复；若无人约，考虑去 Workshop 了解可做的生产/修理。\"",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-003/turn-40-resident-003.json",
+      "sha256": "cc4019166c3830ec0355acfd38d3aeac36f17445be6075cc369d2dd9d87d6bda",
+      "actorId": "resident-003",
+      "turnId": "turn-40-resident-003",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 146577,
+      "simulationTimeAtStart": 120000,
+      "sessionId": "ses_ef591760bffeFrFdfFMzZio1ld",
+      "completedModelSteps": 28,
+      "usage": [
+        {
+          "id": "prt_10a6e9bc3001UtkAsjniUpzsv8",
+          "tokens": {
+            "total": 4987,
+            "input": 4752,
+            "output": 66,
+            "reasoning": 169,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0.0008538
+        },
+        {
+          "id": "prt_10a6ea41e0018sOwdG8yyGIk71",
+          "tokens": {
+            "total": 5706,
+            "input": 866,
+            "output": 86,
+            "reasoning": 18,
+            "cache": {
+              "write": 0,
+              "read": 4736
+            }
+          },
+          "cost": 0.000206508
+        },
+        {
+          "id": "prt_10a6eada2001TxkZfUn6SnbT4y",
+          "tokens": {
+            "total": 6185,
+            "input": 593,
+            "output": 68,
+            "reasoning": 20,
+            "cache": {
+              "write": 0,
+              "read": 5504
+            }
+          },
+          "cost": 0.000158262
+        },
+        {
+          "id": "prt_10a6ebcb60019IhCy7BAJ6gdOR",
+          "tokens": {
+            "total": 6783,
+            "input": 515,
+            "output": 68,
+            "reasoning": 184,
+            "cache": {
+              "write": 0,
+              "read": 6016
+            }
+          },
+          "cost": 0.000246498
+        },
+        {
+          "id": "prt_10a6ec93d001F6WDVaujj0KCcf",
+          "tokens": {
+            "total": 6992,
+            "input": 380,
+            "output": 74,
+            "reasoning": 10,
+            "cache": {
+              "write": 0,
+              "read": 6528
+            }
+          },
+          "cost": 0.000126984
+        },
+        {
+          "id": "prt_10a6ed7ea0012RwCvUTFIB7KEv",
+          "tokens": {
+            "total": 8227,
+            "input": 1162,
+            "output": 97,
+            "reasoning": 184,
+            "cache": {
+              "write": 0,
+              "read": 6784
+            }
+          },
+          "cost": 0.000363252
+        },
+        {
+          "id": "prt_10a6ee43e001hW1IhEMlXcKEk5",
+          "tokens": {
+            "total": 8964,
+            "input": 930,
+            "output": 39,
+            "reasoning": 59,
+            "cache": {
+              "write": 0,
+              "read": 7936
+            }
+          },
+          "cost": 0.000222108
+        },
+        {
+          "id": "prt_10a6ef40e001gBeXXrkbzIPHFh",
+          "tokens": {
+            "total": 10333,
+            "input": 1182,
+            "output": 105,
+            "reasoning": 214,
+            "cache": {
+              "write": 0,
+              "read": 8832
+            }
+          },
+          "cost": 0.000395196
+        },
+        {
+          "id": "prt_10a6f0da2001NO3C3G02Uz9N35",
+          "tokens": {
+            "total": 11989,
+            "input": 1343,
+            "output": 109,
+            "reasoning": 553,
+            "cache": {
+              "write": 0,
+              "read": 9984
+            }
+          },
+          "cost": 0.000628602
+        },
+        {
+          "id": "prt_10a6f24a80018anD3MkEDpbr8M",
+          "tokens": {
+            "total": 13444,
+            "input": 1790,
+            "output": 105,
+            "reasoning": 285,
+            "cache": {
+              "write": 0,
+              "read": 11264
+            }
+          },
+          "cost": 0.000536292
+        },
+        {
+          "id": "prt_10a6f2da7001o0iUaXjB0RsKC7",
+          "tokens": {
+            "total": 13996,
+            "input": 1008,
+            "output": 45,
+            "reasoning": 15,
+            "cache": {
+              "write": 0,
+              "read": 12928
+            }
+          },
+          "cost": 0.000225984
+        },
+        {
+          "id": "prt_10a6f4308001CNE4m15Ymoqd61",
+          "tokens": {
+            "total": 15987,
+            "input": 1697,
+            "output": 111,
+            "reasoning": 355,
+            "cache": {
+              "write": 0,
+              "read": 13824
+            }
+          },
+          "cost": 0.000575622
+        },
+        {
+          "id": "prt_10a6f6177001TU3RdNmh0fhw6j",
+          "tokens": {
+            "total": 18245,
+            "input": 1990,
+            "output": 72,
+            "reasoning": 695,
+            "cache": {
+              "write": 0,
+              "read": 15488
+            }
+          },
+          "cost": 0.000805164
+        },
+        {
+          "id": "prt_10a6f6d41001xJ5nezd0PR86dE",
+          "tokens": {
+            "total": 18615,
+            "input": 1093,
+            "output": 70,
+            "reasoning": 44,
+            "cache": {
+              "write": 0,
+              "read": 17408
+            }
+          },
+          "cost": 0.000284574
+        },
+        {
+          "id": "prt_10a6f7a98001HljyP4GWwImvfB",
+          "tokens": {
+            "total": 18920,
+            "input": 373,
+            "output": 80,
+            "reasoning": 35,
+            "cache": {
+              "write": 0,
+              "read": 18432
+            }
+          },
+          "cost": 0.000180246
+        },
+        {
+          "id": "prt_10a6f8958001eC2HzPebvY6Qzb",
+          "tokens": {
+            "total": 19287,
+            "input": 430,
+            "output": 80,
+            "reasoning": 89,
+            "cache": {
+              "write": 0,
+              "read": 18688
+            }
+          },
+          "cost": 0.000221964
+        },
+        {
+          "id": "prt_10a6f990f001JsnHnerqL3GJsE",
+          "tokens": {
+            "total": 19756,
+            "input": 390,
+            "output": 46,
+            "reasoning": 248,
+            "cache": {
+              "write": 0,
+              "read": 19072
+            }
+          },
+          "cost": 0.000292116
+        },
+        {
+          "id": "prt_10a6fa87a001myOUzUtryOfkUT",
+          "tokens": {
+            "total": 19991,
+            "input": 446,
+            "output": 42,
+            "reasoning": 47,
+            "cache": {
+              "write": 0,
+              "read": 19456
+            }
+          },
+          "cost": 0.000178668
+        },
+        {
+          "id": "prt_10a6fc210001Q3jvqfZH39FN2k",
+          "tokens": {
+            "total": 21147,
+            "input": 690,
+            "output": 152,
+            "reasoning": 465,
+            "cache": {
+              "write": 0,
+              "read": 19840
+            }
+          },
+          "cost": 0.00053322
+        },
+        {
+          "id": "prt_10a6fd8b0001zD8aqxvQ0a71Dr",
+          "tokens": {
+            "total": 23670,
+            "input": 2809,
+            "output": 49,
+            "reasoning": 332,
+            "cache": {
+              "write": 0,
+              "read": 20480
+            }
+          },
+          "cost": 0.00071139
+        },
+        {
+          "id": "prt_10a7001aa001BGO4TRh9jLWQVd",
+          "tokens": {
+            "total": 26268,
+            "input": 2081,
+            "output": 49,
+            "reasoning": 970,
+            "cache": {
+              "write": 0,
+              "read": 23168
+            }
+          },
+          "cost": 0.000993054
+        },
+        {
+          "id": "prt_10a701508001NnOXsBjZFI1n82",
+          "tokens": {
+            "total": 27426,
+            "input": 1746,
+            "output": 55,
+            "reasoning": 409,
+            "cache": {
+              "write": 0,
+              "read": 25216
+            }
+          },
+          "cost": 0.000615948
+        },
+        {
+          "id": "prt_10a7026e3001CbRRMwFofHEaQh",
+          "tokens": {
+            "total": 27918,
+            "input": 843,
+            "output": 42,
+            "reasoning": 153,
+            "cache": {
+              "write": 0,
+              "read": 26880
+            }
+          },
+          "cost": 0.00032409
+        },
+        {
+          "id": "prt_10a70354c001bQrVcFzApu9Ix2",
+          "tokens": {
+            "total": 28598,
+            "input": 818,
+            "output": 51,
+            "reasoning": 81,
+            "cache": {
+              "write": 0,
+              "read": 27648
+            }
+          },
+          "cost": 0.000284844
+        },
+        {
+          "id": "prt_10a70449a001UeWsRK8nUzUIcM",
+          "tokens": {
+            "total": 29081,
+            "input": 460,
+            "output": 39,
+            "reasoning": 166,
+            "cache": {
+              "write": 0,
+              "read": 28416
+            }
+          },
+          "cost": 0.000277248
+        },
+        {
+          "id": "prt_10a706a4a001NPEWrrkWxrvw0y",
+          "tokens": {
+            "total": 30124,
+            "input": 388,
+            "output": 70,
+            "reasoning": 866,
+            "cache": {
+              "write": 0,
+              "read": 28800
+            }
+          },
+          "cost": 0.0007062
+        },
+        {
+          "id": "prt_10a70acbb001wVeyo3gVA9K43m",
+          "tokens": {
+            "total": 32220,
+            "input": 1159,
+            "output": 197,
+            "reasoning": 1680,
+            "cache": {
+              "write": 0,
+              "read": 29184
+            }
+          },
+          "cost": 0.001387602
+        },
+        {
+          "id": "prt_10a70c32f001DK67k6QghtaZy7",
+          "tokens": {
+            "total": 32660,
+            "input": 1973,
+            "output": 334,
+            "reasoning": 17,
+            "cache": {
+              "write": 0,
+              "read": 30336
+            }
+          },
+          "cost": 0.000597558
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town wiki",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups invitations",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages read --id msg-79d3258b0a14605dc2f90825",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help groups",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups list",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help market",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help city",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view market",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view location",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help production",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help business",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help stocks",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town production recipes",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town production recipes --offset 10",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market export --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market import --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help files",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files index --space-id app-jobs",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files index --space-id app-community",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town business apply-job --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market trade --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view rules",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view rules --section occupations",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view rules --section occupations --offset 10",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town business produce --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town business work --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups accept --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups accept --id comm-4041f454aa0ac2d1d9848a8b034edc0b --expected-revision 2",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups members --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --group-id outdoor-friends --content \"谢谢 001 的邀请，我加入了。我平时散步居多，跑步可能跟不上节奏，先从一起散步开始吧。时间合适可以在群里约。\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town business apply-job --occupation-name Waiter",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view self",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view rules --section residentialUpgrade",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view rules --section consumption",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view rules --section enterprise",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view rules --section production",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view rules --section production --offset 10",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view rules --section production --offset 20",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town business produce --commodity-name Apple --quantity 10 --available-labor-seconds 60",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view self",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market trade --commodity-name Apple --quantity 10 --side sell",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help schedule",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help life",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 121500 --summary \"加入户外运动同好群（已发消息，成员001/002/003）。提交了 Waiter 求职申请（wage 253，待审）。做了第一次价格实验：用 business produce 采集 10 个 Apple（能源-23，饱食不变），发现 tier1 无输入可生产品（Apple/Wood/Wheat/Copper Ore/Iron Ore/Rice/Silicon Ore）才有正毛利，加工链在 spot=10 时毛利为 0 或负。当前 busy 于 production 到 121152。下次：先卖掉 10 个 Apple 观察市场滑点与实际成交价，再决定是否扩大采集；同时看 Waiter 是否录用。\"",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-004/turn-71-resident-004.json",
+      "sha256": "3443fe94c492a9b958a77c07d75e680be119be93718e2645fd5334bddfcfb64b",
+      "actorId": "resident-004",
+      "turnId": "turn-71-resident-004",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 97095,
+      "simulationTimeAtStart": 180000,
+      "sessionId": "ses_ef58f375bffeUGK1XnQvL2rkyL",
+      "completedModelSteps": 27,
+      "usage": [
+        {
+          "id": "prt_10a70db87001rMZwtI9IsaClXh",
+          "tokens": {
+            "total": 5294,
+            "input": 4971,
+            "output": 72,
+            "reasoning": 251,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0.00093945
+        },
+        {
+          "id": "prt_10a70e4b80010q3g0ltMcLWl4w",
+          "tokens": {
+            "total": 5620,
+            "input": 657,
+            "output": 90,
+            "reasoning": 9,
+            "cache": {
+              "write": 0,
+              "read": 4864
+            }
+          },
+          "cost": 0.000172542
+        },
+        {
+          "id": "prt_10a70efe8001HmRPoNFRnU3Ww1",
+          "tokens": {
+            "total": 6195,
+            "input": 503,
+            "output": 71,
+            "reasoning": 117,
+            "cache": {
+              "write": 0,
+              "read": 5504
+            }
+          },
+          "cost": 0.000204762
+        },
+        {
+          "id": "prt_10a70fc09001cASOtVH8mHdrcA",
+          "tokens": {
+            "total": 6799,
+            "input": 678,
+            "output": 72,
+            "reasoning": 161,
+            "cache": {
+              "write": 0,
+              "read": 5888
+            }
+          },
+          "cost": 0.000259164
+        },
+        {
+          "id": "prt_10a7104be001Dg4KX0Rsrfruhv",
+          "tokens": {
+            "total": 7147,
+            "input": 533,
+            "output": 64,
+            "reasoning": 22,
+            "cache": {
+              "write": 0,
+              "read": 6528
+            }
+          },
+          "cost": 0.000151134
+        },
+        {
+          "id": "prt_10a710d6e0014Mu1aZb8FsTJ2v",
+          "tokens": {
+            "total": 7434,
+            "input": 290,
+            "output": 80,
+            "reasoning": 24,
+            "cache": {
+              "write": 0,
+              "read": 7040
+            }
+          },
+          "cost": 0.00012702
+        },
+        {
+          "id": "prt_10a7116cb001Rld7r9gH3vi672",
+          "tokens": {
+            "total": 7865,
+            "input": 456,
+            "output": 41,
+            "reasoning": 72,
+            "cache": {
+              "write": 0,
+              "read": 7296
+            }
+          },
+          "cost": 0.000158088
+        },
+        {
+          "id": "prt_10a71204a001FEKipUrpcdNN6E",
+          "tokens": {
+            "total": 8085,
+            "input": 317,
+            "output": 88,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 7680
+            }
+          },
+          "cost": 0.00012339
+        },
+        {
+          "id": "prt_10a712bc00017y4P1gLhbxHcaB",
+          "tokens": {
+            "total": 8459,
+            "input": 332,
+            "output": 72,
+            "reasoning": 119,
+            "cache": {
+              "write": 0,
+              "read": 7936
+            }
+          },
+          "cost": 0.000188208
+        },
+        {
+          "id": "prt_10a71369b0018FPb1cgaVYhrLf",
+          "tokens": {
+            "total": 8938,
+            "input": 592,
+            "output": 120,
+            "reasoning": 34,
+            "cache": {
+              "write": 0,
+              "read": 8192
+            }
+          },
+          "cost": 0.000205776
+        },
+        {
+          "id": "prt_10a7142d6001ozyCiN5BG0fMaS",
+          "tokens": {
+            "total": 9872,
+            "input": 995,
+            "output": 38,
+            "reasoning": 135,
+            "cache": {
+              "write": 0,
+              "read": 8704
+            }
+          },
+          "cost": 0.000279162
+        },
+        {
+          "id": "prt_10a714bc1001viEifDydSaLs1v",
+          "tokens": {
+            "total": 10167,
+            "input": 461,
+            "output": 68,
+            "reasoning": 38,
+            "cache": {
+              "write": 0,
+              "read": 9600
+            }
+          },
+          "cost": 0.00016155
+        },
+        {
+          "id": "prt_10a7156180015FzC13dIG4Dmv7",
+          "tokens": {
+            "total": 10439,
+            "input": 340,
+            "output": 68,
+            "reasoning": 47,
+            "cache": {
+              "write": 0,
+              "read": 9984
+            }
+          },
+          "cost": 0.000149952
+        },
+        {
+          "id": "prt_10a7160c7001YRIZHiqIksCOS9",
+          "tokens": {
+            "total": 10800,
+            "input": 442,
+            "output": 39,
+            "reasoning": 79,
+            "cache": {
+              "write": 0,
+              "read": 10240
+            }
+          },
+          "cost": 0.00016782
+        },
+        {
+          "id": "prt_10a716f9d001A9xmlCmPPGMczu",
+          "tokens": {
+            "total": 12167,
+            "input": 1224,
+            "output": 103,
+            "reasoning": 216,
+            "cache": {
+              "write": 0,
+              "read": 10624
+            }
+          },
+          "cost": 0.000406872
+        },
+        {
+          "id": "prt_10a71800b0012IS9e1I4kEKxyC",
+          "tokens": {
+            "total": 13126,
+            "input": 964,
+            "output": 104,
+            "reasoning": 282,
+            "cache": {
+              "write": 0,
+              "read": 11776
+            }
+          },
+          "cost": 0.000411528
+        },
+        {
+          "id": "prt_10a7196c0001B1KUQQUlS3voYh",
+          "tokens": {
+            "total": 15693,
+            "input": 2443,
+            "output": 76,
+            "reasoning": 502,
+            "cache": {
+              "write": 0,
+              "read": 12672
+            }
+          },
+          "cost": 0.000751266
+        },
+        {
+          "id": "prt_10a71a91c00113N0v81BFBCHgb",
+          "tokens": {
+            "total": 16299,
+            "input": 774,
+            "output": 70,
+            "reasoning": 351,
+            "cache": {
+              "write": 0,
+              "read": 15104
+            }
+          },
+          "cost": 0.000414012
+        },
+        {
+          "id": "prt_10a71b6ac001k5cR9yhd5ApqBG",
+          "tokens": {
+            "total": 16710,
+            "input": 626,
+            "output": 51,
+            "reasoning": 161,
+            "cache": {
+              "write": 0,
+              "read": 15872
+            }
+          },
+          "cost": 0.000268716
+        },
+        {
+          "id": "prt_10a71c5b4001tZiZ40a05omrcA",
+          "tokens": {
+            "total": 17263,
+            "input": 620,
+            "output": 42,
+            "reasoning": 217,
+            "cache": {
+              "write": 0,
+              "read": 16384
+            }
+          },
+          "cost": 0.000297552
+        },
+        {
+          "id": "prt_10a71ef19001X2XpcZgQLtNcVT",
+          "tokens": {
+            "total": 18993,
+            "input": 916,
+            "output": 42,
+            "reasoning": 1139,
+            "cache": {
+              "write": 0,
+              "read": 16896
+            }
+          },
+          "cost": 0.000896688
+        },
+        {
+          "id": "prt_10a71fb2d001VIjjnDjrxy4yk2",
+          "tokens": {
+            "total": 19337,
+            "input": 1383,
+            "output": 87,
+            "reasoning": 75,
+            "cache": {
+              "write": 0,
+              "read": 17792
+            }
+          },
+          "cost": 0.000358026
+        },
+        {
+          "id": "prt_10a7207b600199L7xNaPvtH3SY",
+          "tokens": {
+            "total": 19704,
+            "input": 450,
+            "output": 68,
+            "reasoning": 114,
+            "cache": {
+              "write": 0,
+              "read": 19072
+            }
+          },
+          "cost": 0.000233916
+        },
+        {
+          "id": "prt_10a72123e001dwE4NpiGICgBki",
+          "tokens": {
+            "total": 20009,
+            "input": 415,
+            "output": 72,
+            "reasoning": 66,
+            "cache": {
+              "write": 0,
+              "read": 19456
+            }
+          },
+          "cost": 0.000203418
+        },
+        {
+          "id": "prt_10a722435001q2XXNmC6KpW8Y1",
+          "tokens": {
+            "total": 20703,
+            "input": 449,
+            "output": 87,
+            "reasoning": 327,
+            "cache": {
+              "write": 0,
+              "read": 19840
+            }
+          },
+          "cost": 0.00037527
+        },
+        {
+          "id": "prt_10a7233b9001tCJV3U86wcAmGh",
+          "tokens": {
+            "total": 21138,
+            "input": 628,
+            "output": 153,
+            "reasoning": 133,
+            "cache": {
+              "write": 0,
+              "read": 20224
+            }
+          },
+          "cost": 0.000326472
+        },
+        {
+          "id": "prt_10a72407a001OA3jK9ZBgiTA4h",
+          "tokens": {
+            "total": 21431,
+            "input": 491,
+            "output": 182,
+            "reasoning": 22,
+            "cache": {
+              "write": 0,
+              "read": 20736
+            }
+          },
+          "cost": 0.000258258
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town groups invitations --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages read --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages read --id msg-f20901f0233e8feb29fbb18b",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups invitations --limit 10",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups list --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups accept --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups members --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups accept --id comm-555943a617cac5b63255128f592831cc --expected-revision 3",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups members --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --group-id outdoor-friends --content \"大家好，我是市民 004，刚加入了。我也偏散步，跑步不太行。平时喜欢做饭，走完可以带点自己做的小食一起分。什么时候有空在群里约就行。\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages send --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages send --recipient-id resident-001 --content \"001 你好，谢谢邀请，我加入了。我平时偏散步不太跑步，喜欢做饭，走完可以带点自己做的小食分给大家。约时间在群里说一声就行。\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view market",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help market",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help life",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help production",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help sites",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town production recipes",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town production create --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town production start --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market trade --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help premises",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help stocks",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view locations --limit 30",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town stocks list --limit 20",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town premises list --limit 20",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help travel",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market give --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market trade --commodity-name Bread --quantity 1 --side buy",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view self",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view action",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --group-id outdoor-friends --content \"要不我们约一次散步？我这两天都可以，走 Town Square 一圈也行。我会带点吃的，走完坐着分着吃。大家说说哪个时间段方便，我跟着就行。\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help commitments",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help schedule",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule remind --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule remind --id walk-check-1 --at 660000 --text \"看看 outdoor-friends 群里有没有人回散步时间；若有，准备小食（我已有 1 Bread，可再在市场买一两样）并参加。\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 480000 --summary \"加入了 outdoor-friends（成员 resident-001/002/003/004）；群里自我介绍并提出约散步、会带小食；已私信 001 致谢。刚买入 1 个 Bread，余额约 164.9，trade 活动至 480000 结束。醒后：可再买 1-2 样小食备用；查看群内是否有散步时间回应，有则参加并分享食物。已有提醒 walk-check-1（660000）复查群消息。\"",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-001/turn-92-resident-001.json",
+      "sha256": "b03abe42fcd2b21e4bc0ba3d3f9136d1e3e847fe14402a79fb0fed1a15815f08",
+      "actorId": "resident-001",
+      "turnId": "turn-92-resident-001",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 30778,
+      "simulationTimeAtStart": 240000,
+      "sessionId": "ses_ef59385a1ffetfc8Ubslj8rpae",
+      "completedModelSteps": 11,
+      "usage": [
+        {
+          "id": "prt_10a7251d2001gzsMpUMnYUNmMH",
+          "tokens": {
+            "total": 20719,
+            "input": 4258,
+            "output": 77,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 16384
+            }
+          },
+          "cost": 0.000734052
+        },
+        {
+          "id": "prt_10a72600e001aaG78SdfKPdq0O",
+          "tokens": {
+            "total": 21736,
+            "input": 1051,
+            "output": 77,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 20608
+            }
+          },
+          "cost": 0.000265674
+        },
+        {
+          "id": "prt_10a7271750017GAOP6Su9PzVoc",
+          "tokens": {
+            "total": 22477,
+            "input": 645,
+            "output": 200,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 21632
+            }
+          },
+          "cost": 0.000281646
+        },
+        {
+          "id": "prt_10a72793f0017wf23ClcNRj9xK",
+          "tokens": {
+            "total": 22820,
+            "input": 463,
+            "output": 85,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 22272
+            }
+          },
+          "cost": 0.000187266
+        },
+        {
+          "id": "prt_10a727ecd001BylCX0LEWu4nZQ",
+          "tokens": {
+            "total": 23083,
+            "input": 373,
+            "output": 54,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 22656
+            }
+          },
+          "cost": 0.000156318
+        },
+        {
+          "id": "prt_10a728bad001VlHrsUgA9uv9sa",
+          "tokens": {
+            "total": 23434,
+            "input": 219,
+            "output": 175,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 23040
+            }
+          },
+          "cost": 0.00020697
+        },
+        {
+          "id": "prt_10a729257001W1zrpF8UR7NyDi",
+          "tokens": {
+            "total": 23513,
+            "input": 306,
+            "output": 39,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 23168
+            }
+          },
+          "cost": 0.000138804
+        },
+        {
+          "id": "prt_10a7297770012AMYfNmO24XcHO",
+          "tokens": {
+            "total": 23630,
+            "input": 165,
+            "output": 41,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 23424
+            }
+          },
+          "cost": 0.000119622
+        },
+        {
+          "id": "prt_10a72a21a001Dthe2H2l6fcWAe",
+          "tokens": {
+            "total": 24095,
+            "input": 354,
+            "output": 189,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 23552
+            }
+          },
+          "cost": 0.000237156
+        },
+        {
+          "id": "prt_10a72aae20011X6crPEP1dhc6H",
+          "tokens": {
+            "total": 24493,
+            "input": 303,
+            "output": 126,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 24064
+            }
+          },
+          "cost": 0.000193242
+        },
+        {
+          "id": "prt_10a72baa5001yn3Hby6MZGMfzZ",
+          "tokens": {
+            "total": 24919,
+            "input": 137,
+            "output": 334,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 24448
+            }
+          },
+          "cost": 0.000294294
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view self",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups members --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view action",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --group-id outdoor-friends --content '谢谢 002、003、004 的加入，看到你们的偏好了，就以散步为主，不勉强跑步。004 的提议很好。我的建议：先约一次轻松的 Town Square 绕圈散步，见面互相认识。我看大家都说时间在群里定，那我说个具体的：等群消息确认后，挑一个大家都不冲突的时段。你们把方便的时间段发出来（比如\"白天/傍晚\"或具体钟点），我按多数方便的时间定，定好后在群里公布。地点默认 Town Square。不方便就说，我们不勉强。'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages read --id msg-33218cebe9aa64635f90252f",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town messages read --id msg-e34893f8832d623cfca48090",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town cognition add --content '群 outdoor-friends 已实到 4 人（001/002/003/004）。三人都偏散步，004 提议一起散步并带自做小食；002 偏好低频固定搭子、手工修理。我已发群消息：定 Town Square 绕圈散步，请各自报方便时段，我按多数定后公布。待办：收到时段回复后定具体时间地点并在群内公布，再按需预告/等待。'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help cognition",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town cognition update --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town cognition update --key outdoor-group-status --kind note --statement '群 outdoor-friends 已实到 4 人（001/002/003/004）。三人都偏散步，004 提议一起散步并带自做小食；002 偏好低频固定搭子。我已发群消息：定 Town Square 绕圈散步，请各自报方便时段，我按多数定后公布。待办：收到时段回复后定具体时间地点并在群内公布。' --confidence 0.9 --evidence-ids msg-33218cebe9aa64635f90252f --evidence-ids msg-e34893f8832d623cfca48090 --expected-revision 0 --active true",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 540000 --summary '群 outdoor-friends 已实到 4 人，全员偏散步。已发群消息请各报方便时段，定后公布。自身 travel 到 market 锁定至 540000。下次唤醒：先读群消息看时段回复，若齐了就定具体时间地点（默认 Town Square）并公布；可顺路去 market 看看环境。'",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-003/turn-104-resident-003.json",
+      "sha256": "c0d619e628756da0f3b3fded8249685556f54620603ac0d95f29ac1d50c2997d",
+      "actorId": "resident-003",
+      "turnId": "turn-104-resident-003",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 79532,
+      "simulationTimeAtStart": 300000,
+      "sessionId": "ses_ef591760bffeFrFdfFMzZio1ld",
+      "completedModelSteps": 9,
+      "usage": [
+        {
+          "id": "prt_10a72d3cb001p1dX4bYBqvZlUX",
+          "tokens": {
+            "total": 36618,
+            "input": 4258,
+            "output": 45,
+            "reasoning": 59,
+            "cache": {
+              "write": 0,
+              "read": 32256
+            }
+          },
+          "cost": 0.000797868
+        },
+        {
+          "id": "prt_10a72ec2a001yZxqnhT5ZNXkcm",
+          "tokens": {
+            "total": 37683,
+            "input": 746,
+            "output": 116,
+            "reasoning": 341,
+            "cache": {
+              "write": 0,
+              "read": 36480
+            }
+          },
+          "cost": 0.00049554
+        },
+        {
+          "id": "prt_10a72fb34001G4A2guYLMcH9DD",
+          "tokens": {
+            "total": 38289,
+            "input": 1052,
+            "output": 74,
+            "reasoning": 43,
+            "cache": {
+              "write": 0,
+              "read": 37120
+            }
+          },
+          "cost": 0.00033936
+        },
+        {
+          "id": "prt_10a7323aa001HahiMWleaKu0jZ",
+          "tokens": {
+            "total": 40450,
+            "input": 1286,
+            "output": 128,
+            "reasoning": 892,
+            "cache": {
+              "write": 0,
+              "read": 38144
+            }
+          },
+          "cost": 0.000919332
+        },
+        {
+          "id": "prt_10a735bb5001XPfDoZ3VWRQSsK",
+          "tokens": {
+            "total": 42288,
+            "input": 1294,
+            "output": 99,
+            "reasoning": 1471,
+            "cache": {
+              "write": 0,
+              "read": 39424
+            }
+          },
+          "cost": 0.001254372
+        },
+        {
+          "id": "prt_10a739a0d0017YCTJMb5o16sFY",
+          "tokens": {
+            "total": 44591,
+            "input": 2038,
+            "output": 100,
+            "reasoning": 1749,
+            "cache": {
+              "write": 0,
+              "read": 40704
+            }
+          },
+          "cost": 0.001537212
+        },
+        {
+          "id": "prt_10a73c249001mtfbhN0Yjyfz52",
+          "tokens": {
+            "total": 46753,
+            "input": 3040,
+            "output": 97,
+            "reasoning": 992,
+            "cache": {
+              "write": 0,
+              "read": 42624
+            }
+          },
+          "cost": 0.001237272
+        },
+        {
+          "id": "prt_10a73df4b001BL0fQ5gnkzmF1N",
+          "tokens": {
+            "total": 47758,
+            "input": 1517,
+            "output": 290,
+            "reasoning": 383,
+            "cache": {
+              "write": 0,
+              "read": 45568
+            }
+          },
+          "cost": 0.000768054
+        },
+        {
+          "id": "prt_10a73f3b2001zSK9yMPircVYhR",
+          "tokens": {
+            "total": 48234,
+            "input": 873,
+            "output": 374,
+            "reasoning": 11,
+            "cache": {
+              "write": 0,
+              "read": 46976
+            }
+          },
+          "cost": 0.000502878
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --group-id outdoor-friends --content \"我时间比较灵活，白天或傍晚都可以，定好通知我就行。我住得不远，Town Square 也方便。\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market trade --commodity-name Apple --quantity 10 --side sell",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view self",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view market",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town life eat --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help courses",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help bank",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help population",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town wiki life/index.md",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help education",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town population self",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town wiki society/index.md",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help collectives",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help funds",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help housing",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help leases",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help civic",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 600000 --summary \"状态 sim300000：余额 236.36，能量 76.87，饱食 99.83，库存空，job 仍 null，tier1，教育 160/等级2。户外群：001 发起 Town Square 散步，让大家报时间；我已回复'白天或傍晚都行，定好通知我'（群消息 sequence5）。价格实验2：卖出 10 Apple，实际成交净额约 86.36（均价~8.64，含交易税），Apple spot 从 10 跌到 8.264（滑点~17%），Bread spot 反升到 10.20（有人买入）。结论：市场有滑点/供需，苹果仍是最省能采集品，但继续抛售会压价。下一步计划：用余额买 2 个 Beef（spot 10，约 20），到 residential-block 用 town housing upgrade 升到 tier2（需 200 货币+1 Beef+教育20，我都满足），再申请 tier2 岗位（Receptionist 275 或 Stock Clerk 260）。trade 锁定到 sim600000。\"",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-004/turn-115-resident-004.json",
+      "sha256": "a5b985bb2a998565f7aa56f648fb0fd9a9c106536f55b62e0ddf46605af75cab",
+      "actorId": "resident-004",
+      "turnId": "turn-115-resident-004",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 26801,
+      "simulationTimeAtStart": 480000,
+      "sessionId": "ses_ef58f375bffeUGK1XnQvL2rkyL",
+      "completedModelSteps": 5,
+      "usage": [
+        {
+          "id": "prt_10a740ad7001QaN4tFcEAdVu1S",
+          "tokens": {
+            "total": 25309,
+            "input": 4089,
+            "output": 49,
+            "reasoning": 51,
+            "cache": {
+              "write": 0,
+              "read": 21120
+            }
+          },
+          "cost": 0.00073671
+        },
+        {
+          "id": "prt_10a742261001JA38bcdj2aaeAH",
+          "tokens": {
+            "total": 26520,
+            "input": 926,
+            "output": 95,
+            "reasoning": 411,
+            "cache": {
+              "write": 0,
+              "read": 25088
+            }
+          },
+          "cost": 0.000517764
+        },
+        {
+          "id": "prt_10a74386c001fNkpQJYQWjJ56h",
+          "tokens": {
+            "total": 27195,
+            "input": 730,
+            "output": 52,
+            "reasoning": 429,
+            "cache": {
+              "write": 0,
+              "read": 25984
+            }
+          },
+          "cost": 0.000476052
+        },
+        {
+          "id": "prt_10a745024001qvkWRj0pFP73Nw",
+          "tokens": {
+            "total": 28070,
+            "input": 858,
+            "output": 163,
+            "reasoning": 425,
+            "cache": {
+              "write": 0,
+              "read": 26624
+            }
+          },
+          "cost": 0.000561372
+        },
+        {
+          "id": "prt_10a745eb6001I3DHgKfOWNaV7k",
+          "tokens": {
+            "total": 28370,
+            "input": 768,
+            "output": 199,
+            "reasoning": 11,
+            "cache": {
+              "write": 0,
+              "read": 27392
+            }
+          },
+          "cost": 0.000323376
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends --limit 20",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --group-id outdoor-friends --content \"我也灵活，白天或傍晚都行；我个人偏傍晚，凉快、走起来舒服。具体钟点 001 定就好，定了我就到 Town Square。我会带点小食，走完分着吃。\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market trade --commodity-name Sushi --quantity 2 --side buy",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 780000 --summary \"在 outdoor-friends 群已报可参加时间（偏傍晚，具体由 001 定）。为散步准备小食：买入 2 个 Sushi，加上已有的 1 Bread；余额约 144.9。trade 活动至 780000 结束，人已在 Town Square。醒后：查看群里 001 是否公布散步时间（002 尚未回应），若已定则按时参加并把小食分给大家；若未定，可再等或温和推动。提醒 walk-check-1 仍在 660000。\"",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-001/turn-122-resident-001.json",
+      "sha256": "34f1044f8a6ab9070b7e92fe90074e6e5744847b483dae068ff5bbe9a92ef5b6",
+      "actorId": "resident-001",
+      "turnId": "turn-122-resident-001",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 43426,
+      "simulationTimeAtStart": 540000,
+      "sessionId": "ses_ef59385a1ffetfc8Ubslj8rpae",
+      "completedModelSteps": 11,
+      "usage": [
+        {
+          "id": "prt_10a747a91001BJBk2PrSqriixW",
+          "tokens": {
+            "total": 29038,
+            "input": 4385,
+            "output": 77,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 24576
+            }
+          },
+          "cost": 0.000777678
+        },
+        {
+          "id": "prt_10a7484200016ynmmNDa2PfnG7",
+          "tokens": {
+            "total": 30462,
+            "input": 1456,
+            "output": 78,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 28928
+            }
+          },
+          "cost": 0.000351984
+        },
+        {
+          "id": "prt_10a74bee200104LODvAKpOmT21",
+          "tokens": {
+            "total": 31475,
+            "input": 953,
+            "output": 186,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 30336
+            }
+          },
+          "cost": 0.000345558
+        },
+        {
+          "id": "prt_10a74c617001jOM5s3eq8TScf2",
+          "tokens": {
+            "total": 31821,
+            "input": 390,
+            "output": 71,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 31360
+            }
+          },
+          "cost": 0.00019518
+        },
+        {
+          "id": "prt_10a74ce17001jPXSE7vSFsoOY3",
+          "tokens": {
+            "total": 32595,
+            "input": 762,
+            "output": 89,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 31744
+            }
+          },
+          "cost": 0.000262932
+        },
+        {
+          "id": "prt_10a74d52d0011i42uvmlTt0w73",
+          "tokens": {
+            "total": 32810,
+            "input": 247,
+            "output": 51,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 32512
+            }
+          },
+          "cost": 0.000165186
+        },
+        {
+          "id": "prt_10a74dbfa001ELl0EWJojqMWr2",
+          "tokens": {
+            "total": 33141,
+            "input": 331,
+            "output": 42,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 32768
+            }
+          },
+          "cost": 0.000173154
+        },
+        {
+          "id": "prt_10a74e91d001webx4sZqgEkhcq",
+          "tokens": {
+            "total": 33930,
+            "input": 653,
+            "output": 253,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 33024
+            }
+          },
+          "cost": 0.000348822
+        },
+        {
+          "id": "prt_10a74f3a2001m3AeolwTTBIU8s",
+          "tokens": {
+            "total": 34232,
+            "input": 351,
+            "output": 217,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 33664
+            }
+          },
+          "cost": 0.000283842
+        },
+        {
+          "id": "prt_10a74fc3a001VVWZKV2DSgnrUu",
+          "tokens": {
+            "total": 34659,
+            "input": 356,
+            "output": 127,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 34176
+            }
+          },
+          "cost": 0.000232128
+        },
+        {
+          "id": "prt_10a750bf70018HYOS7OHpiybc4",
+          "tokens": {
+            "total": 35019,
+            "input": 189,
+            "output": 270,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 34560
+            }
+          },
+          "cost": 0.00029403
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view self",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --group-id outdoor-friends --content '003、004 都灵活，倾向傍晚，那我定这次活动：时间选傍晚（入夜前，凉快），地点 Town Square。具体钟点我取一个折中：第 1 次就定在傍晚 18 点（模拟日内第 18 小时），先绕 Town Square 一圈轻松散步，之后坐着吃 004 带的小食。002 你还没说时段，如果 18 点方便就来，不方便直接说，我们可以为你单独再约一次低频的。到点我会在 Town Square 等，大家自己过来就好（这不是强约束，来不了也完全没关系，提前说一声更好）。'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view market",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help market",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market trade --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market trade --commodity-name Bread --quantity 2 --side buy",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view self",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town cognition update --key outdoor-group-status --kind note --statement '群 outdoor-friends 4 人（001/002/003/004），全员偏散步。003/004 报时段灵活、偏傍晚；002 未报时段。我已在群公布：第 1 次活动定在傍晚 18 点（模拟日内第 18 小时），地点 Town Square，轻松绕圈散步后分食 004 带的小食，不强制出席。已到 Market 并买入 Bread×2（余额约 79.17），trade 活动锁定至 840000。待办：傍晚 18 点前到 Town Square 等候，活动后在群里跟进。' --confidence 0.9 --evidence-ids comm-a223e24792b85ecfb64b0edd801ef823 --expected-revision 1 --active true",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town cognition update --key outdoor-group-status --kind note --statement '群 outdoor-friends 4 人（001/002/003/004），全员偏散步。003/004 报时段灵活、偏傍晚；002 未报时段。我已在群公布：第 1 次活动定在傍晚 18 点（模拟日内第 18 小时），地点 Town Square，轻松绕圈散步后分食 004 带的小食，不强制出席。已到 Market 并买入 Bread×2（余额约 79.17），trade 活动锁定至 840000。待办：傍晚 18 点前到 Town Square 等候，活动后在群里跟进。' --confidence 0.9 --evidence-ids msg-33218cebe9aa64635f90252f --expected-revision 1 --active true",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 840000 --summary '交易活动锁定至 840000（买入 Bread×2 完成后可再行动）。已在群公布第 1 次活动：傍晚 18 点 Town Square 轻松散步，004 带小食，不强制。待办：活动前到 Town Square 等候；002 若报时段则协调。余额约 79.17，库存 Bread×2。'",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-003/turn-135-resident-003.json",
+      "sha256": "a3615040f84475f48b8a3406754d4e07da19755f9b5006e354cc67162a1cd158",
+      "actorId": "resident-003",
+      "turnId": "turn-135-resident-003",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 68312,
+      "simulationTimeAtStart": 600000,
+      "sessionId": "ses_ef591760bffeFrFdfFMzZio1ld",
+      "completedModelSteps": 6,
+      "usage": [
+        {
+          "id": "prt_10a75264c001qcRxUZ4EO3yRzo",
+          "tokens": {
+            "total": 52240,
+            "input": 4371,
+            "output": 77,
+            "reasoning": 48,
+            "cache": {
+              "write": 0,
+              "read": 47744
+            }
+          },
+          "cost": 0.000873882
+        },
+        {
+          "id": "prt_10a755151001e2jNSRlJML9Gfy",
+          "tokens": {
+            "total": 54936,
+            "input": 1780,
+            "output": 76,
+            "reasoning": 984,
+            "cache": {
+              "write": 0,
+              "read": 52096
+            }
+          },
+          "cost": 0.001059288
+        },
+        {
+          "id": "prt_10a75c57e001Hp4yDagl8UmTnX",
+          "tokens": {
+            "total": 60264,
+            "input": 2894,
+            "output": 55,
+            "reasoning": 3555,
+            "cache": {
+              "write": 0,
+              "read": 53760
+            }
+          },
+          "cost": 0.00276138
+        },
+        {
+          "id": "prt_10a75d78a0013claDRjKkr3kwY",
+          "tokens": {
+            "total": 60676,
+            "input": 3977,
+            "output": 42,
+            "reasoning": 81,
+            "cache": {
+              "write": 0,
+              "read": 56576
+            }
+          },
+          "cost": 0.000840078
+        },
+        {
+          "id": "prt_10a7602d8001DdF7EmeT004H6m",
+          "tokens": {
+            "total": 62080,
+            "input": 693,
+            "output": 269,
+            "reasoning": 574,
+            "cache": {
+              "write": 0,
+              "read": 60544
+            }
+          },
+          "cost": 0.000791382
+        },
+        {
+          "id": "prt_10a7618f60010z81QTCee9FPpg",
+          "tokens": {
+            "total": 62546,
+            "input": 988,
+            "output": 369,
+            "reasoning": 5,
+            "cache": {
+              "write": 0,
+              "read": 61184
+            }
+          },
+          "cost": 0.000556152
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view market",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view rules --section occupations",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town housing upgrade --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town business produce --commodity-name Apple --quantity 20 --available-labor-seconds 120",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view self",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 603000 --summary \"sim600000：生产 20 个 Apple（能量 76.79→29.42，饱食不变），库存 20 Apple，余额 236.36，tier1，job 仍 null（Waiter 申请待决）。发现岗位申请有配额：tier1 每人 1 个在审申请，已用掉，无法再申请其他岗位，须等 Waiter 结果。市场：Apple 8.264 未回升；Bread 涨到 10.628、Sushi 10.412（有人在做饭/买熟食）。下一步：测试 town market export（外销）能否以高于本地滑点价卖出 20 个 Apple——若外销价接近 10 且无滑点，将是稳定的能源换钱渠道。户外群已定：傍晚 18:00（模拟日第18小时，=sim 64800000）Town Square 散步，004 带小食。energy 偏低，需留意恢复（被动仅 1/小时，可能需进食）。\"",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-004/turn-144-resident-004.json",
+      "sha256": "44f2c52f71b47524e6149cce3cd19849e6120dc3217381108329c549a65f220c",
+      "actorId": "resident-004",
+      "turnId": "turn-144-resident-004",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 100620,
+      "simulationTimeAtStart": 660000,
+      "sessionId": "ses_ef58f375bffeUGK1XnQvL2rkyL",
+      "completedModelSteps": 10,
+      "usage": [
+        {
+          "id": "prt_10a762f3e001BqSOBEml0r2WT6",
+          "tokens": {
+            "total": 32052,
+            "input": 3767,
+            "output": 49,
+            "reasoning": 76,
+            "cache": {
+              "write": 0,
+              "read": 28160
+            }
+          },
+          "cost": 0.00072453
+        },
+        {
+          "id": "prt_10a764c24001xKCSjRhIo3ctHy",
+          "tokens": {
+            "total": 33907,
+            "input": 1211,
+            "output": 71,
+            "reasoning": 753,
+            "cache": {
+              "write": 0,
+              "read": 31872
+            }
+          },
+          "cost": 0.000771666
+        },
+        {
+          "id": "prt_10a765e12001IBtGIsf3yKEu5b",
+          "tokens": {
+            "total": 34542,
+            "input": 1157,
+            "output": 38,
+            "reasoning": 323,
+            "cache": {
+              "write": 0,
+              "read": 33024
+            }
+          },
+          "cost": 0.000489222
+        },
+        {
+          "id": "prt_10a7669b000136oI1ji0qa2E60",
+          "tokens": {
+            "total": 35073,
+            "input": 796,
+            "output": 43,
+            "reasoning": 58,
+            "cache": {
+              "write": 0,
+              "read": 34176
+            }
+          },
+          "cost": 0.000282528
+        },
+        {
+          "id": "prt_10a7695e10018L7vhBBRXLnPf6",
+          "tokens": {
+            "total": 36855,
+            "input": 625,
+            "output": 40,
+            "reasoning": 1246,
+            "cache": {
+              "write": 0,
+              "read": 34944
+            }
+          },
+          "cost": 0.000970182
+        },
+        {
+          "id": "prt_10a76bd87001R1TdHmPP2kQESl",
+          "tokens": {
+            "total": 38200,
+            "input": 1771,
+            "output": 41,
+            "reasoning": 932,
+            "cache": {
+              "write": 0,
+              "read": 35456
+            }
+          },
+          "cost": 0.000955818
+        },
+        {
+          "id": "prt_10a771640001z7VugNsoelm6Ol",
+          "tokens": {
+            "total": 41421,
+            "input": 1384,
+            "output": 42,
+            "reasoning": 2875,
+            "cache": {
+              "write": 0,
+              "read": 37120
+            }
+          },
+          "cost": 0.00206916
+        },
+        {
+          "id": "prt_10a774a04001Irn3Jvj6iAIuHo",
+          "tokens": {
+            "total": 43475,
+            "input": 3425,
+            "output": 120,
+            "reasoning": 1530,
+            "cache": {
+              "write": 0,
+              "read": 38400
+            }
+          },
+          "cost": 0.00161895
+        },
+        {
+          "id": "prt_10a7793ba001YvmUuNspNWl9fX",
+          "tokens": {
+            "total": 45929,
+            "input": 1963,
+            "output": 165,
+            "reasoning": 2073,
+            "cache": {
+              "write": 0,
+              "read": 41728
+            }
+          },
+          "cost": 0.001762434
+        },
+        {
+          "id": "prt_10a77a412001Av1LOJZkTQuskV",
+          "tokens": {
+            "total": 46282,
+            "input": 2374,
+            "output": 250,
+            "reasoning": 10,
+            "cache": {
+              "write": 0,
+              "read": 43648
+            }
+          },
+          "cost": 0.000643044
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends --limit 20",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help city",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view rules",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town wiki",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town wiki life/continuity.md",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town wiki execution.md",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town wiki life/index.md",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town wiki social/groups.md",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --group-id outdoor-friends --content \"001，收到，就按你说的：傍晚 18 点、Town Square。我按模拟时间 64800000（日内第 18 小时）到场，现在人就在 Town Square，会带着小食（面包和寿司）过去。002 若 18 点不方便也不用勉强，我们可以另约。到点见。\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 64800000 --summary \"已与 outdoor-friends 约定：模拟时间 64800000（日内第18小时，傍晚18点）在 Town Square 轻松散步，之后分享我带的小食。我已在 Town Square，持有 1 Bread + 2 Sushi，余额约144.5。贸易活动到780000已结束。醒来时若已到18点：确认 001/003/002 是否在场，互相认识，散步后把食物分给大家（可用 market give 给在场者）。群消息不自动唤醒，若需要可再查看群消息。\"",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-003/turn-151-resident-003.json",
+      "sha256": "7f1a32352dad0c36750367031d243b88c595f9c4e3c40e8fa6e4a7b0f4208bb0",
+      "actorId": "resident-003",
+      "turnId": "turn-151-resident-003",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 127552,
+      "simulationTimeAtStart": 720000,
+      "sessionId": "ses_ef591760bffeFrFdfFMzZio1ld",
+      "completedModelSteps": 14,
+      "usage": [
+        {
+          "id": "prt_10a77c93a001n6w93zsk2Ossjv",
+          "tokens": {
+            "total": 66708,
+            "input": 4264,
+            "output": 77,
+            "reasoning": 287,
+            "cache": {
+              "write": 0,
+              "read": 62080
+            }
+          },
+          "cost": 0.00104424
+        },
+        {
+          "id": "prt_10a78295a001HqSQrWNPkp99Zy",
+          "tokens": {
+            "total": 68777,
+            "input": 2176,
+            "output": 48,
+            "reasoning": 249,
+            "cache": {
+              "write": 0,
+              "read": 66304
+            }
+          },
+          "cost": 0.000703512
+        },
+        {
+          "id": "prt_10a7838ff001AJXQyd8QgFnqQ7",
+          "tokens": {
+            "total": 69088,
+            "input": 543,
+            "output": 42,
+            "reasoning": 23,
+            "cache": {
+              "write": 0,
+              "read": 68480
+            }
+          },
+          "cost": 0.00032589
+        },
+        {
+          "id": "prt_10a78662a001j8WQ7uL4vDDG0t",
+          "tokens": {
+            "total": 70810,
+            "input": 655,
+            "output": 85,
+            "reasoning": 1078,
+            "cache": {
+              "write": 0,
+              "read": 68992
+            }
+          },
+          "cost": 0.001003026
+        },
+        {
+          "id": "prt_10a78759d001KCy0i3y8qjRBqZ",
+          "tokens": {
+            "total": 71275,
+            "input": 1549,
+            "output": 42,
+            "reasoning": 52,
+            "cache": {
+              "write": 0,
+              "read": 69632
+            }
+          },
+          "cost": 0.000497646
+        },
+        {
+          "id": "prt_10a78a210001NU8im8HP3ygaft",
+          "tokens": {
+            "total": 72887,
+            "input": 660,
+            "output": 110,
+            "reasoning": 949,
+            "cache": {
+              "write": 0,
+              "read": 71168
+            }
+          },
+          "cost": 0.000947904
+        },
+        {
+          "id": "prt_10a78bd4e001w4grxnI9NULsxx",
+          "tokens": {
+            "total": 73728,
+            "input": 1546,
+            "output": 73,
+            "reasoning": 301,
+            "cache": {
+              "write": 0,
+              "read": 71808
+            }
+          },
+          "cost": 0.000671724
+        },
+        {
+          "id": "prt_10a78d4aa001b4g1HPl8T1PAAL",
+          "tokens": {
+            "total": 74528,
+            "input": 1107,
+            "output": 42,
+            "reasoning": 35,
+            "cache": {
+              "write": 0,
+              "read": 73344
+            }
+          },
+          "cost": 0.000432282
+        },
+        {
+          "id": "prt_10a79096e001zeH5a0tQurk6V6",
+          "tokens": {
+            "total": 76819,
+            "input": 1640,
+            "output": 72,
+            "reasoning": 739,
+            "cache": {
+              "write": 0,
+              "read": 74368
+            }
+          },
+          "cost": 0.000955704
+        },
+        {
+          "id": "prt_10a791a650017iyCIs3P3h7MP2",
+          "tokens": {
+            "total": 77456,
+            "input": 1451,
+            "output": 41,
+            "reasoning": 60,
+            "cache": {
+              "write": 0,
+              "read": 75904
+            }
+          },
+          "cost": 0.000505962
+        },
+        {
+          "id": "prt_10a794d3f001hD6yjqYDuEjWg6",
+          "tokens": {
+            "total": 78113,
+            "input": 279,
+            "output": 54,
+            "reasoning": 468,
+            "cache": {
+              "write": 0,
+              "read": 77312
+            }
+          },
+          "cost": 0.000586986
+        },
+        {
+          "id": "prt_10a796527001aACWoTK4VF38wg",
+          "tokens": {
+            "total": 78884,
+            "input": 1040,
+            "output": 62,
+            "reasoning": 214,
+            "cache": {
+              "write": 0,
+              "read": 77568
+            }
+          },
+          "cost": 0.000554304
+        },
+        {
+          "id": "prt_10a798104001sRbFDiGONy25v3",
+          "tokens": {
+            "total": 79459,
+            "input": 444,
+            "output": 253,
+            "reasoning": 170,
+            "cache": {
+              "write": 0,
+              "read": 78592
+            }
+          },
+          "cost": 0.000556176
+        },
+        {
+          "id": "prt_10a79985e001Eyb3AZZreoHMJl",
+          "tokens": {
+            "total": 79909,
+            "input": 573,
+            "output": 360,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 78976
+            }
+          },
+          "cost": 0.000538878
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view market",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market export --commodity-name Apple --quantity 10",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view self",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view rules --section criticalThresholds",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town life eat --commodity-name Apple --quantity 1",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view self",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market export --commodity-name Apple --quantity 9",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town education study --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town life sleep --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view self",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view locations",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help travel",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town wiki life/continuity.md",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town travel go --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town travel go --target-location-id residential-block --reason \"回家休息恢复精力\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --group-id outdoor-friends --content \"收到，18 点 Town Square 见。我会准时过去。\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 1080000 --summary \"sim720000：价格实验3完成——外销(export)即时完成（不锁定活动），20个Apple共卖出：10个得82.65、9个得74.44，单价≈8.2645=当前本地spot（Apple仍8.264），无额外滑点也无额外溢价；吃1个Apple只回饱食（99.6→100），不回能量。现余额392.45，库存空，能量29.39，饱食100，健康100。发现：能量只能靠睡眠/被动恢复（被动1/小时），sleepRecovery 0.00347/s×8h≈100，故睡眠是主要恢复手段。已在群里回复确认18点赴约(group seq9)。正在回家(到 residential-block，sim1080000)。下一步：到家后 life sleep 8小时恢复能量，醒后回 town-square 或去 school 学习提升教育，继续采集-外销；等 Waiter 录用。\"",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-004/turn-167-resident-004.json",
+      "sha256": "c4ca3a7b1ffa38282675dbb9e5c7cd65164901de052a3658d55629d1689ba1d0",
+      "actorId": "resident-004",
+      "turnId": "turn-167-resident-004",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 22188,
+      "simulationTimeAtStart": 780000,
+      "sessionId": "ses_ef58f375bffeUGK1XnQvL2rkyL",
+      "completedModelSteps": 3,
+      "usage": [
+        {
+          "id": "prt_10a79c408001wgyN4Y6xOFiKEY",
+          "tokens": {
+            "total": 51160,
+            "input": 4265,
+            "output": 49,
+            "reasoning": 894,
+            "cache": {
+              "write": 0,
+              "read": 45952
+            }
+          },
+          "cost": 0.001343406
+        },
+        {
+          "id": "prt_10a79e02f001N7OGMlGU1CRGAa",
+          "tokens": {
+            "total": 53099,
+            "input": 2239,
+            "output": 125,
+            "reasoning": 559,
+            "cache": {
+              "write": 0,
+              "read": 50176
+            }
+          },
+          "cost": 0.000896778
+        },
+        {
+          "id": "prt_10a79f1390010lrGmJPv3PUtTz",
+          "tokens": {
+            "total": 53456,
+            "input": 836,
+            "output": 213,
+            "reasoning": 55,
+            "cache": {
+              "write": 0,
+              "read": 52352
+            }
+          },
+          "cost": 0.000443256
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends --limit 20",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 64800000 --summary \"约定：模拟时间 64800000（日内18点/Town Square）与 outdoor-friends 散步，001、003 已确认。我持有 1 Bread + 2 Sushi，已在 Town Square。若醒来还未到18点，继续等待到 64800000；到时与在场成员互相认识，散步后分食（可用 market give）。\"",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-001/turn-172-resident-001.json",
+      "sha256": "9f418eaca973eb0f18a754c5ce343c2963bd51f8bed515dd7ba7c5ce735df4b8",
+      "actorId": "resident-001",
+      "turnId": "turn-172-resident-001",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 14284,
+      "simulationTimeAtStart": 840000,
+      "sessionId": "ses_ef59385a1ffetfc8Ubslj8rpae",
+      "completedModelSteps": 5,
+      "usage": [
+        {
+          "id": "prt_10a7a027e001szhJIIPGMV11zF",
+          "tokens": {
+            "total": 39209,
+            "input": 4188,
+            "output": 77,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 34944
+            }
+          },
+          "cost": 0.000779232
+        },
+        {
+          "id": "prt_10a7a0d97001CmsvO3POyzGksd",
+          "tokens": {
+            "total": 40734,
+            "input": 1472,
+            "output": 94,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 39168
+            }
+          },
+          "cost": 0.000394704
+        },
+        {
+          "id": "prt_10a7a169a001dBSW5xAGbTzTZ3",
+          "tokens": {
+            "total": 41431,
+            "input": 710,
+            "output": 145,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 40576
+            }
+          },
+          "cost": 0.000315228
+        },
+        {
+          "id": "prt_10a7a2001001qpxm5HfdDNtsfg",
+          "tokens": {
+            "total": 41767,
+            "input": 405,
+            "output": 146,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 41216
+            }
+          },
+          "cost": 0.000271998
+        },
+        {
+          "id": "prt_10a7a2b0c001YcO9I7pQdcs6Ln",
+          "tokens": {
+            "total": 42111,
+            "input": 134,
+            "output": 249,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 41728
+            }
+          },
+          "cost": 0.000294684
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view action",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town travel go --target-location-id town-square --reason '参加自己召集的傍晚散步，18点Town Square集合'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --group-id outdoor-friends --content '我也收到，出发了，会提前到 Town Square。顺便说下：我自带了点面包，可以一起分。004 已经在的话我们会先碰头。002 方便就来，不来我们不勉强。'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 1392000 --summary 'travel market→town-square 锁定至 1392000。003/004 已确认 18 点 Town Square 见，004 已提前到场带小食，我在群里说会提前到并会带面包分。到 Town Square 后：与在场成员碰头，若未到 18 点可先等，留意 002 是否出现；活动后回群跟进。库存 Bread×2，余额约 79.17。'",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-002/turn-181-resident-002.json",
+      "sha256": "97aabc68673266f56d45066e9e1a64444ba3be925821ece4c105f78389c177ca",
+      "actorId": "resident-002",
+      "turnId": "turn-181-resident-002",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 72741,
+      "simulationTimeAtStart": 960000,
+      "sessionId": "ses_ef59258dfffenOQb3OeCR2h4RA",
+      "completedModelSteps": 15,
+      "usage": [
+        {
+          "id": "prt_10a7a40d0001JNMNhbNXUWT5S2",
+          "tokens": {
+            "total": 18006,
+            "input": 4362,
+            "output": 45,
+            "reasoning": 31,
+            "cache": {
+              "write": 0,
+              "read": 13568
+            }
+          },
+          "cost": 0.000740604
+        },
+        {
+          "id": "prt_10a7a5c95001HEd6XJP404t5Au",
+          "tokens": {
+            "total": 20155,
+            "input": 1458,
+            "output": 127,
+            "reasoning": 650,
+            "cache": {
+              "write": 0,
+              "read": 17920
+            }
+          },
+          "cost": 0.00073866
+        },
+        {
+          "id": "prt_10a7a6fab001BxYZHY28xm00fa",
+          "tokens": {
+            "total": 20869,
+            "input": 1090,
+            "output": 75,
+            "reasoning": 376,
+            "cache": {
+              "write": 0,
+              "read": 19328
+            }
+          },
+          "cost": 0.000492084
+        },
+        {
+          "id": "prt_10a7a78c2001RClqKM3hluRN2R",
+          "tokens": {
+            "total": 21563,
+            "input": 1141,
+            "output": 39,
+            "reasoning": 31,
+            "cache": {
+              "write": 0,
+              "read": 20352
+            }
+          },
+          "cost": 0.000274206
+        },
+        {
+          "id": "prt_10a7a8984001bdo3s4qTLg3Mdc",
+          "tokens": {
+            "total": 22900,
+            "input": 1235,
+            "output": 42,
+            "reasoning": 247,
+            "cache": {
+              "write": 0,
+              "read": 21376
+            }
+          },
+          "cost": 0.000422778
+        },
+        {
+          "id": "prt_10a7aa238001bOngXv4BbZtsXv",
+          "tokens": {
+            "total": 23983,
+            "input": 975,
+            "output": 70,
+            "reasoning": 410,
+            "cache": {
+              "write": 0,
+              "read": 22528
+            }
+          },
+          "cost": 0.000501834
+        },
+        {
+          "id": "prt_10a7ab171001EflSlHOm3xZS0b",
+          "tokens": {
+            "total": 24546,
+            "input": 852,
+            "output": 70,
+            "reasoning": 200,
+            "cache": {
+              "write": 0,
+              "read": 23424
+            }
+          },
+          "cost": 0.000360072
+        },
+        {
+          "id": "prt_10a7abf18001OT2QaJSfLjw2Mb",
+          "tokens": {
+            "total": 24911,
+            "input": 501,
+            "output": 72,
+            "reasoning": 146,
+            "cache": {
+              "write": 0,
+              "read": 24192
+            }
+          },
+          "cost": 0.000278526
+        },
+        {
+          "id": "prt_10a7ac8db001s34KhrDiRKm5uX",
+          "tokens": {
+            "total": 25404,
+            "input": 748,
+            "output": 39,
+            "reasoning": 41,
+            "cache": {
+              "write": 0,
+              "read": 24576
+            }
+          },
+          "cost": 0.000233928
+        },
+        {
+          "id": "prt_10a7ae31a0012oDUF4szMUuvRe",
+          "tokens": {
+            "total": 26041,
+            "input": 282,
+            "output": 73,
+            "reasoning": 470,
+            "cache": {
+              "write": 0,
+              "read": 25216
+            }
+          },
+          "cost": 0.000443748
+        },
+        {
+          "id": "prt_10a7b09f7001i3TLOIzpMPv5t5",
+          "tokens": {
+            "total": 28052,
+            "input": 1589,
+            "output": 71,
+            "reasoning": 920,
+            "cache": {
+              "write": 0,
+              "read": 25472
+            }
+          },
+          "cost": 0.000909366
+        },
+        {
+          "id": "prt_10a7b1472001lBrAnYboOYNadk",
+          "tokens": {
+            "total": 28348,
+            "input": 1248,
+            "output": 41,
+            "reasoning": 51,
+            "cache": {
+              "write": 0,
+              "read": 27008
+            }
+          },
+          "cost": 0.000323424
+        },
+        {
+          "id": "prt_10a7b272e0017OHkPRAblQ8Pb2",
+          "tokens": {
+            "total": 28733,
+            "input": 323,
+            "output": 63,
+            "reasoning": 187,
+            "cache": {
+              "write": 0,
+              "read": 28160
+            }
+          },
+          "cost": 0.00028293
+        },
+        {
+          "id": "prt_10a7b37e60011CJWKdwYFg2dFF",
+          "tokens": {
+            "total": 29587,
+            "input": 869,
+            "output": 176,
+            "reasoning": 126,
+            "cache": {
+              "write": 0,
+              "read": 28416
+            }
+          },
+          "cost": 0.000396798
+        },
+        {
+          "id": "prt_10a7b4931001UpyHztvkp8bhXJ",
+          "tokens": {
+            "total": 29973,
+            "input": 495,
+            "output": 294,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 29184
+            }
+          },
+          "cost": 0.000338202
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town life --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --group-id outdoor-friends --content \"002 收到，谢谢 001 定时间。18 点 Town Square 我可以到，一次轻松绕圈散步正合适，我不追求强度，跟着大家走。我会准时到；临时有变会提前在群里说。\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town production --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files index --space-id app-jobs",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town production recipes",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view market",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town programs --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town courses --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town feed --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town spaces --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town production start --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town production create --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town production list",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups list",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town files index --space-id app-life",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town market trade --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town travel --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town travel go --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town travel go --target-location-id market --reason \"去市集买点可分享的小食，傍晚散步时带上\"",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 1506000 --summary \"户外群动态：001 定下首次活动为模拟日内第18小时（sim 64800000，=18:00）在 Town Square 绕圈散步，004 带面包/寿司，001 带面包。我已群内确认 002 会准时到。当前我正从 Town Square 前往 Market（travel 途中，arrivesAt=1506000），打算买一份可分享的小食傍晚带去。下步：到 Market 后看行情买 Bread（约10），然后返回 Town Square，等到 64800000 参加散步；到点前可在群里打招呼。\"",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-003/turn-195-resident-003.json",
+      "sha256": "84ec3c1089e8cf76d51ac7ee8ae7d5e50c1669afc4788477b4133f76ef0fa08c",
+      "actorId": "resident-003",
+      "turnId": "turn-195-resident-003",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 33245,
+      "simulationTimeAtStart": 1080000,
+      "sessionId": "ses_ef591760bffeFrFdfFMzZio1ld",
+      "completedModelSteps": 5,
+      "usage": [
+        {
+          "id": "prt_10a7b6bb8001E6PXRix1hpBV1I",
+          "tokens": {
+            "total": 83875,
+            "input": 4246,
+            "output": 45,
+            "reasoning": 96,
+            "cache": {
+              "write": 0,
+              "read": 79488
+            }
+          },
+          "cost": 0.000959964
+        },
+        {
+          "id": "prt_10a7b806a001IDM080Pl1QdoQv",
+          "tokens": {
+            "total": 85399,
+            "input": 1553,
+            "output": 45,
+            "reasoning": 89,
+            "cache": {
+              "write": 0,
+              "read": 83712
+            }
+          },
+          "cost": 0.000564486
+        },
+        {
+          "id": "prt_10a7b97a60011wEbioKa00fC3b",
+          "tokens": {
+            "total": 85807,
+            "input": 438,
+            "output": 42,
+            "reasoning": 79,
+            "cache": {
+              "write": 0,
+              "read": 85248
+            }
+          },
+          "cost": 0.000394044
+        },
+        {
+          "id": "prt_10a7bb750001L2NosZAGGK4ToZ",
+          "tokens": {
+            "total": 86822,
+            "input": 714,
+            "output": 204,
+            "reasoning": 272,
+            "cache": {
+              "write": 0,
+              "read": 85632
+            }
+          },
+          "cost": 0.000649596
+        },
+        {
+          "id": "prt_10a7bcd1f001JsXxwL1mhEzm9t",
+          "tokens": {
+            "total": 87224,
+            "input": 644,
+            "output": 305,
+            "reasoning": 3,
+            "cache": {
+              "write": 0,
+              "read": 86272
+            }
+          },
+          "cost": 0.000540216
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town life sleep --duration-seconds 28800",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view self",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 29880000 --summary \"sim1080000 到家(residential-block)，睡眠8小时已提交，效果即时生效：能量 29.29→100（确认 sleepRecovery≈100/8h，睡眠是主要恢复手段）。余额392.45，库存空，job null，tier1，教育160。睡到 sim29880000(约08:18)。醒后计划：回 town-square/或就近生产，继续采集 Apple 并外销（spot 8.264，成本2.37能量/个）积累资金；考虑去 school 学习提升教育分（160→180 可考等级3）；傍晚18:00(sim64800000)到 Town Square 参加户外群散步。仍等 Waiter 录用。\"",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "path": "opencode/resident-001/turn-203-resident-001.json",
+      "sha256": "2519d7a3af76398af04d7dc44c3a1e5795c00c5deb4e4d4924eb11aaa8bdf7b4",
+      "actorId": "resident-001",
+      "turnId": "turn-203-resident-001",
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "openCodeVersion": "1.18.34",
+      "transport": "resident-cli-v4",
+      "skillVersion": "town-resident-skill-v25",
+      "status": "completed",
+      "elapsedMs": 30833,
+      "simulationTimeAtStart": 1392000,
+      "sessionId": "ses_ef59385a1ffetfc8Ubslj8rpae",
+      "completedModelSteps": 10,
+      "usage": [
+        {
+          "id": "prt_10a7beb6f001y0k5qDBiHUWM9o",
+          "tokens": {
+            "total": 46211,
+            "input": 4129,
+            "output": 98,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 41984
+            }
+          },
+          "cost": 0.000804102
+        },
+        {
+          "id": "prt_10a7bf8d3001woaHTFgcz94PPf",
+          "tokens": {
+            "total": 48095,
+            "input": 1855,
+            "output": 160,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 46080
+            }
+          },
+          "cost": 0.00051249
+        },
+        {
+          "id": "prt_10a7c0028001kPjWj5fQ3Wt07Y",
+          "tokens": {
+            "total": 48347,
+            "input": 426,
+            "output": 49,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 47872
+            }
+          },
+          "cost": 0.000236916
+        },
+        {
+          "id": "prt_10a7c0934001RwNMgs0fwTNZvS",
+          "tokens": {
+            "total": 48794,
+            "input": 406,
+            "output": 132,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 48256
+            }
+          },
+          "cost": 0.000284868
+        },
+        {
+          "id": "prt_10a7c0fbe001VkEKo39892kfRC",
+          "tokens": {
+            "total": 49088,
+            "input": 407,
+            "output": 41,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 48640
+            }
+          },
+          "cost": 0.00023157
+        },
+        {
+          "id": "prt_10a7c1ad9001n6q5qBt721fg3K",
+          "tokens": {
+            "total": 49375,
+            "input": 202,
+            "output": 149,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 49024
+            }
+          },
+          "cost": 0.000266772
+        },
+        {
+          "id": "prt_10a7c23f6001ZjE37W7GdwgRec",
+          "tokens": {
+            "total": 49654,
+            "input": 387,
+            "output": 115,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 49152
+            }
+          },
+          "cost": 0.000274506
+        },
+        {
+          "id": "prt_10a7c35ef0016XMHkA929VW4gx",
+          "tokens": {
+            "total": 50300,
+            "input": 461,
+            "output": 303,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 49536
+            }
+          },
+          "cost": 0.000399558
+        },
+        {
+          "id": "prt_10a7c3efb001BLSeV22g6PQDwn",
+          "tokens": {
+            "total": 50709,
+            "input": 530,
+            "output": 131,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 50048
+            }
+          },
+          "cost": 0.000308244
+        },
+        {
+          "id": "prt_10a7c4a410019lAvphS8OWZBNN",
+          "tokens": {
+            "total": 51094,
+            "input": 114,
+            "output": 292,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 50688
+            }
+          },
+          "cost": 0.000344364
+        }
+      ],
+      "tools": [
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town city observe --view location",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups send --group-id outdoor-friends --content '002 也确认了，那这次四人齐。004 已经到 Town Square 了，我也到了，先碰头。离 18 点还有一段时间，我们先在附近等/走走；003、002 到点过来就行。我会带面包，跟 004 的小食一起分。'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town groups messages --group-id outdoor-friends --offset 10",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help services",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help schedule",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule remind --help",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule remind --id sports-walk-1800 --at 64800000 --text '户外散步活动：18:00 Town Square 集合（四人：001/002/003/004）。004 带小食，我带面包。到点确认在场并开始绕圈散步。'",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help offers",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town help engagements",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town cognition update --key outdoor-group-status --kind note --statement '户外首次散步已定并全员确认：18:00（64800000）Town Square，四人 001/002/003/004 均确认。004 已提前到场并带面包和寿司，我到达 Town Square 并与 004 同处（nearby resident-004）。我带了 Bread×2。已设提醒 sports-walk-1800 @64800000。当前时间 1392000，距离集合还很久，先结束本次机会；到点前回来。余额约 79.17。' --confidence 0.9 --evidence-ids msg-33218cebe9aa64635f90252f --expected-revision 2 --active true",
+          "status": "completed"
+        },
+        {
+          "tool": "bash",
+          "command": "town schedule wait --until 64800000 --summary '户外首次散步：18:00 Town Square，四人确认。004 已提前到场带小食，我在 Town Square 并与 004 同处，带 Bread×2。已设提醒 sports-walk-1800@64800000。到点回来确认 002/003 是否到场并开始绕圈散步；活动后回群跟进。余额约 79.17。'",
+          "status": "completed"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Short, single-seed observation; no claim of stable society or general emergence.",
+    "Map, public services, markets, initial assets and backgrounds are external initial conditions.",
+    "No organization, partner or transaction was specified in the free task; provider system rules still constrain transport and truthful reporting.",
+    "Provider usage is reported evidence, not independently verified billing; incomplete model steps are not counted as completed calls.",
+    "Replay comparison covers the saved administrator report, not an independently captured full live-world snapshot.",
+    "Absence of a capability in this sample is not proof that it is unnecessary."
+  ]
+}

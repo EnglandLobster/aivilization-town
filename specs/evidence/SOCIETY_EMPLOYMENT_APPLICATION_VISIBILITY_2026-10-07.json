@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "scope": "own-public-employment-records-query-not-admission-or-emergence",
+  "versions": {
+    "skill": "town-resident-skill-v70",
+    "catalog": "open-capabilities-v66"
+  },
+  "quality": {
+    "lint": true,
+    "typecheck": true,
+    "dependencyOrderedBuild": true,
+    "testsPassed": 3308,
+    "testsSkipped": 1
+  },
+  "cli": {
+    "ok": true,
+    "calls": 6,
+    "expectedRefusals": 1,
+    "ownRecordedPending": true,
+    "otherPrivate": true,
+    "queryWorldUnchanged": true,
+    "replayEqual": true
+  },
+  "source": "apps/residents/scripts/verify-employment-visibility.mjs",
+  "canonicalWorldUnchangedByDirectedAcceptance": true,
+  "priorBuildFailure": "residents-only build loaded stale worker; dependency-ordered build and same verifier then passed"
+}

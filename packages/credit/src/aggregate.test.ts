@@ -45,13 +45,12 @@ describe('credit policy validation and credit-limit schedule', () => {
     expect(() => validateCreditPolicy({ ...policy, accrualCadenceMs: 0 })).toThrow();
     expect(() => validateCreditPolicy({ ...policy, baseLoanLimit: 0 })).toThrow();
     expect(() => validateCreditPolicy({ ...policy, creditLimitDefaultPenaltyRatio: 2 })).toThrow();
-    expect(
-      () =>
-        validateCreditPolicy({
-          ...policy,
-          creditLimitMinMultiplier: 2,
-          creditLimitMaxMultiplier: 1,
-        }),
+    expect(() =>
+      validateCreditPolicy({
+        ...policy,
+        creditLimitMinMultiplier: 2,
+        creditLimitMaxMultiplier: 1,
+      }),
     ).toThrow();
   });
 
@@ -327,7 +326,12 @@ describe('loan repayment decisions', () => {
       balance: 1_000,
       loans: { 'loan-1': loan({ principal: 300, accruedInterest: 6 }) },
     });
-    const decision = decideRepayLoan({ bank, loanId: asLoanId('loan-1'), amount: 103, repaidAt: 5 });
+    const decision = decideRepayLoan({
+      bank,
+      loanId: asLoanId('loan-1'),
+      amount: 103,
+      repaidAt: 5,
+    });
     expect(decision.status).toBe('accepted');
     if (decision.status !== 'accepted') return;
     expect(decision.events[0]).toEqual({
@@ -682,4 +686,93 @@ describe('deceased-customer estate liquidation', () => {
       }),
     ).toThrow('cannot settle written-off loan');
   });
+});
+
+test('repayment, default and write-off remain bound to the original loan borrower; a substituted economic subject cannot gain credit history or redirect settlement', () => {
+  const bank = bankWith({ balance: 1000, loans: { 'loan-1': loan({ principal: 300 }) } });
+  const snapshot = structuredClone(bank);
+  const events: CreditDomainEvent[] = [
+    {
+      type: 'LoanRepaid',
+      loanId: asLoanId('loan-1'),
+      borrowerAgentId: depositorId,
+      settledAt: 1,
+      interestAccrued: 0,
+      paidAmount: 300,
+      interestPaid: 0,
+      principalPaid: 300,
+      missedPayments: 0,
+      status: 'repaid',
+    },
+    {
+      type: 'LoanDefaulted',
+      loanId: asLoanId('loan-1'),
+      borrowerAgentId: depositorId,
+      defaultedAt: 1,
+      interestAccrued: 0,
+      paidAmount: 0,
+      interestPaid: 0,
+      principalPaid: 0,
+      missedPayments: 4,
+      outstandingPrincipal: 300,
+      outstandingInterest: 0,
+    },
+    {
+      type: 'LoanWrittenOff',
+      loanId: asLoanId('loan-1'),
+      borrowerAgentId: depositorId,
+      writtenOffAt: 1,
+      outstandingPrincipal: 300,
+      outstandingInterest: 0,
+    },
+  ];
+  for (const event of events)
+    expect(() => applyCreditDomainEvent(bank, event)).toThrow(
+      'borrower does not match the loan book',
+    );
+  expect(bank).toEqual(snapshot);
+});
+
+test('valid original-borrower repayment, default and write-off facts still replay with their existing book semantics', () => {
+  const bank = bankWith({ balance: 1000, loans: { 'loan-1': loan({ principal: 300 }) } });
+  const repaid = applyCreditDomainEvent(bank, {
+    type: 'LoanRepaid',
+    loanId: asLoanId('loan-1'),
+    borrowerAgentId: borrowerId,
+    settledAt: 0,
+    interestAccrued: 0,
+    paidAmount: 300,
+    interestPaid: 0,
+    principalPaid: 300,
+    missedPayments: 0,
+    status: 'repaid',
+  });
+  expect(repaid.balance).toBe(1300);
+  expect(repaid.creditHistoryByAgent[borrowerId]?.repaidCount).toBe(1);
+  const defaulted = applyCreditDomainEvent(bank, {
+    type: 'LoanDefaulted',
+    loanId: asLoanId('loan-1'),
+    borrowerAgentId: borrowerId,
+    defaultedAt: 1,
+    interestAccrued: 0,
+    paidAmount: 0,
+    interestPaid: 0,
+    principalPaid: 0,
+    missedPayments: 4,
+    outstandingPrincipal: 300,
+    outstandingInterest: 0,
+  });
+  expect(defaulted.balance).toBe(1000);
+  expect(defaulted.loans['loan-1']?.status).toBe('defaulted');
+  const writtenOff = applyCreditDomainEvent(bank, {
+    type: 'LoanWrittenOff',
+    loanId: asLoanId('loan-1'),
+    borrowerAgentId: borrowerId,
+    writtenOffAt: 1,
+    outstandingPrincipal: 300,
+    outstandingInterest: 0,
+  });
+  expect(writtenOff.balance).toBe(1000);
+  expect(writtenOff.loans['loan-1']?.status).toBe('written-off');
+  expect(writtenOff.creditHistoryByAgent).toEqual(bank.creditHistoryByAgent);
 });

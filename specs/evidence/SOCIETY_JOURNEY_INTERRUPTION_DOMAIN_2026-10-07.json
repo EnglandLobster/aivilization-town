@@ -1,0 +1,37 @@
+{
+  "ok": true,
+  "scope": "mobility-domain-journey-interruption",
+  "transportAcceptance": false,
+  "version": "vehicle-journey-interruption-v1",
+  "quality": {
+    "targetedTestsPassed": 24,
+    "newTestCases": 6,
+    "testsPassed": 3358,
+    "testsSkipped": 1,
+    "lint": true,
+    "typecheck": true,
+    "build": "worker-and-dependencies-passed"
+  },
+  "assertions": [
+    "zero mid-route and pre-arrival stops retain original route and people",
+    "exact stop time and elapsed replay without arrival or coordinate invention",
+    "bad source participant revision time and repeated events refused",
+    "ordinary vehicle event cannot inject or erase stop",
+    "interrupted pickup neither auto-arrives nor expires into refund",
+    "old mobility and freight tests remain passing",
+    "world rejects standalone event until atomic body and cargo adapter exists"
+  ],
+  "limitations": [
+    "No world atomic body/transit/cargo implementation yet",
+    "No physical handoff resumption or interrupted-position CLI",
+    "No natural population or canonical activation",
+    "No new OpenCode or free-run evidence"
+  ],
+  "logs": {
+    "target": "/tmp/journey-interruption-target.log",
+    "lint": "/tmp/journey-interruption-lint.log",
+    "typecheck": "/tmp/journey-interruption-typecheck.log",
+    "tests": "/tmp/journey-interruption-tests.log",
+    "build": "/tmp/journey-interruption-build.log"
+  }
+}

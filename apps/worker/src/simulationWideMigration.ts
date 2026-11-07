@@ -100,7 +100,9 @@ export function settleDemandDrivenArrivals(input: {
     const populationBefore = Object.keys(projection.agents).length;
     const residentialCapacity = Object.values(projection.locations).reduce(
       (total, location) =>
-        location.kind === 'residence' && location.capacity !== null
+        location.kind === 'residence' &&
+        !location.source?.startsWith('resident-premises:') &&
+        location.capacity !== null
           ? total + location.capacity
           : total,
       0,
@@ -135,7 +137,10 @@ export function settleDemandDrivenArrivals(input: {
     for (let index = 0; index < decision.arrivalCount; index += 1) {
       const residence = selectResidenceForArrival({
         residences: Object.values(projection.locations)
-          .filter((location) => location.kind === 'residence')
+          .filter(
+            (location) =>
+              location.kind === 'residence' && !location.source?.startsWith('resident-premises:'),
+          )
           .map((location) => ({
             locationId: location.locationId,
             capacity: location.capacity,

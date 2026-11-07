@@ -1,0 +1,247 @@
+{
+  "schemaVersion": "society-resource-principals-verification-v2",
+  "scope": "Stock custody and administrative operations; complete 25-capability target remains incomplete",
+  "versions": {
+    "catalog": 49,
+    "skill": 48,
+    "rulebook": 38,
+    "routes": 381
+  },
+  "validation": {
+    "command": "pnpm check",
+    "testsPassed": 2835,
+    "testsSkipped": 1,
+    "filesPassed": 415,
+    "filesSkipped": 1
+  },
+  "build": "pnpm --filter @aivilization/residents... build",
+  "compiledCLI": {
+    "ok": true,
+    "validation": "compiled-authenticated-HTTP-CLI-not-emergence",
+    "calls": 41,
+    "refusals": 7,
+    "results": [
+      {
+        "route": "principals.list",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-principals-not-enabled"
+      },
+      {
+        "route": "stocks.create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks.deposit",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "business.found",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 2,
+        "ok": false,
+        "error": "unknown-flag:--actor-id"
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-control-authority-required"
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "business.close",
+        "exitCode": 1,
+        "ok": false,
+        "error": "enterprise-resource-estate-unsettled"
+      },
+      {
+        "route": "stocks.withdraw",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-controller-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.respond",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-control-authority-required"
+      },
+      {
+        "route": "collectives.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.decide",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "business.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.decide",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks.withdraw",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-controller-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.list",
+        "exitCode": 0,
+        "ok": true
+      }
+    ],
+    "replayEqual": true,
+    "originalManifestUnchanged": true,
+    "woodTotal": 24
+  },
+  "liveFreeEngineContainsThisSlice": false,
+  "limitations": [
+    "Stock resources only; organizational reservation beneficiaries and construction remain pending.",
+    "Full debt, in-kind estate and succession remain pending.",
+    "Canonical and partition modes not yet connected."
+  ]
+}

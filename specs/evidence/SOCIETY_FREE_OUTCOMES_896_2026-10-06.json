@@ -1,0 +1,164 @@
+{
+  "schemaVersion": "society-free-checkpoint-evidence-v1",
+  "opportunities": 896,
+  "journalCommits": 6357,
+  "capabilityCalls": 3015,
+  "simulationTime": 1041622000,
+  "journalSha256": "a7db548756676fd51c3f5e76f66ce944d29d072e309e3407e46864cc85113332",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayMatchesCapturedFullState": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFingerprints": 58,
+  "implementationVersions": {
+    "catalog": 62,
+    "skill": 61,
+    "rulebook": 51
+  },
+  "providerStatusCounts": {
+    "completed": 890,
+    "provider-error": 6
+  },
+  "latest32ProviderStatusCounts": {
+    "completed": 32
+  },
+  "treasury": 0,
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 456.0000000000102,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Maintenance Worker",
+      "balance": 439.140870083071,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Receptionist",
+      "balance": 612.1191935392609
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 898.131666666956,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Supermarket Manager",
+      "balance": 396.84727537655857,
+      "upkeepArrears": 1.6757897047188024
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Chef",
+      "balance": 450.1635398389666
+    }
+  ],
+  "publicProposals": [
+    {
+      "id": "proposal-001-employment-quota",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-003-housing-subsidy",
+      "status": "withdrawn"
+    },
+    {
+      "id": "proposal-003-housing-subsidy-2",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-004-subsidy-500",
+      "status": "approved"
+    },
+    {
+      "id": "proposal-003-subsidy-500-fix",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-004-chef-capacity-2",
+      "status": "executed"
+    }
+  ],
+  "residentDocuments": 13,
+  "residentMessages": 271,
+  "latestResidentCalls": 102,
+  "latestRefusals": [
+    {
+      "sequence": 6189,
+      "actorId": "resident-002",
+      "capability": "world.work",
+      "error": "public-wage-full-funding-required"
+    },
+    {
+      "sequence": 6319,
+      "actorId": "resident-001",
+      "capability": "world.move",
+      "error": "agent is busy with trade until simulation time 1041124000 (now 1040824000)"
+    }
+  ],
+  "enterprises": [],
+  "collectives": [],
+  "programs": [],
+  "projects": [],
+  "resourceSales": [],
+  "periodicObligations": [],
+  "latestEventCounts": {
+    "informationEvents/DocumentCreated": 1,
+    "distributionEvents/PublicationRecorded": 1,
+    "informationEvents/MessageSent": 5,
+    "worldEvents/SimulationTimeAdvanced": 69,
+    "worldEvents/PhysiologyChanged": 1575,
+    "informationEvents/MessageRead": 2,
+    "worldEvents/AgentTravelStarted": 12,
+    "worldEvents/AgentActivityTimeCommitted": 23,
+    "worldEvents/ShortTermMemoryRecorded": 27,
+    "worldEvents/AgentLocationChanged": 12,
+    "worldEvents/ResidentMaterialsCommitted": 42,
+    "worldEvents/TradeExecuted": 7,
+    "worldEvents/ActionRejected": 2,
+    "worldEvents/InventoryChanged": 2,
+    "worldEvents/ResidentRestSessionChanged": 1294,
+    "worldEvents/TradeTaxCharged": 5,
+    "worldEvents/TownDayPhaseChanged": 1,
+    "worldEvents/ResidentialUpkeepCharged": 1598,
+    "worldEvents/ExternalTradeBalancesDecayed": 6,
+    "worldEvents/RegionalLandValueUpdated": 3,
+    "worldEvents/RecruitmentCycleCompleted": 1,
+    "worldEvents/EducationExamCycleCompleted": 1,
+    "worldEvents/MedicalTreatmentCharged": 1,
+    "worldEvents/SubsidyPaid": 5,
+    "worldEvents/ResidentPeriodicObligationsCommitted": 1
+  },
+  "voluntaryInformationCoordination": {
+    "newDocument": {
+      "id": "app-community/posts/resident-003-0003.md",
+      "authorId": "resident-003",
+      "revision": 1,
+      "createdAt": 1039864000
+    },
+    "newMessageIds": [
+      "msg-e057da1450fe2233a4ece99e",
+      "msg-684b84380f8a822827bfacd1",
+      "msg-c0f7a5272a7e284a55c09465",
+      "msg-38ebebfa82d6d9672639e8f6",
+      "msg-1825110c2e64c9d15c6ddf8d"
+    ],
+    "observed": "Resident-written survival data, independent named replies, resident-001/resident-003 agreement to change raw material choice and coordinate sales timing.",
+    "meaning": "Information supports voluntary coordination; no platform-produced consensus, formal company or enforceable commitment is inferred."
+  },
+  "limits": [
+    "Original world/sessions, no prescribed goals/partners or operator fiscal rescue.",
+    "Five baseline subsidy payments remain recorded; the resident article claiming subsidies stopped is not an authoritative financial conclusion.",
+    "Exactly one periodic capability activation after 864; no resident periodic contracts adopted in this phase.",
+    "Six prior public proposals/four executions retained; no new autonomous governance.",
+    "Resident numeric and causal claims remain author statements, not source-validated macroeconomic facts.",
+    "Single initial condition; R02 comparison, long-lived organization and R01 full modes remain required.",
+    "Succession/estate development not enabled."
+  ]
+}

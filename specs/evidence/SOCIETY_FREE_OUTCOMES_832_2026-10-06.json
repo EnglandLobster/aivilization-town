@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "society-free-checkpoint-evidence-v1",
+  "opportunities": 832,
+  "journalCommits": 5910,
+  "capabilityCalls": 2815,
+  "simulationTime": 996513000,
+  "journalSha256": "09574cf2cdc236d05232ab4fc10168f82da9d80bd4b35e4a8c030635c27092d0",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "replayMatchesSavedReport": true,
+  "replayMatchesCapturedFullState": true,
+  "replayLeavesJournalBytesUnchanged": true,
+  "verifiedImplementationFingerprints": 82,
+  "implementationVersions": {
+    "catalog": 61,
+    "skill": 60,
+    "rulebook": 50
+  },
+  "providerStatusCounts": {
+    "provider-error": 6,
+    "completed": 826
+  },
+  "latest32ProviderStatusCounts": {
+    "completed": 32
+  },
+  "treasury": 0,
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 456.0000000000102,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Maintenance Worker",
+      "balance": 423.10118132514066,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Receptionist",
+      "balance": 541.6817212535757
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 898.131666666956,
+      "educationLevel": 5,
+      "residentialTier": 1,
+      "job": "Supermarket Manager",
+      "balance": 399.739693545206,
+      "upkeepArrears": 1.6757897047188024
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 334.5000000000002,
+      "educationLevel": 4,
+      "residentialTier": 1,
+      "job": "Chef",
+      "balance": 443.5443443780338
+    }
+  ],
+  "residentDocuments": 12,
+  "residentMessages": 266,
+  "latestResidentCalls": 95,
+  "latestRefusals": [
+    {
+      "sequence": 5826,
+      "actorId": "resident-003",
+      "capability": "world.sleep",
+      "error": "agent is busy with trade until simulation time 980764000 (now 980464000)"
+    },
+    {
+      "sequence": 5903,
+      "actorId": "resident-002",
+      "capability": "world.work",
+      "error": "public-wage-full-funding-required"
+    }
+  ],
+  "publicProposals": [
+    {
+      "id": "proposal-001-employment-quota",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-003-housing-subsidy",
+      "status": "withdrawn"
+    },
+    {
+      "id": "proposal-003-housing-subsidy-2",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-004-subsidy-500",
+      "status": "approved"
+    },
+    {
+      "id": "proposal-003-subsidy-500-fix",
+      "status": "executed"
+    },
+    {
+      "id": "proposal-004-chef-capacity-2",
+      "status": "executed"
+    }
+  ],
+  "enterprises": [],
+  "collectives": [],
+  "programs": [],
+  "projects": [],
+  "resourceSales": [],
+  "latestEventCounts": {
+    "informationEvents/MessageSent": 2,
+    "worldEvents/SimulationTimeAdvanced": 75,
+    "worldEvents/PhysiologyChanged": 1869,
+    "worldEvents/AgentTravelStarted": 12,
+    "worldEvents/AgentActivityTimeCommitted": 25,
+    "worldEvents/ShortTermMemoryRecorded": 31,
+    "worldEvents/AgentLocationChanged": 13,
+    "worldEvents/ResidentMaterialsCommitted": 42,
+    "worldEvents/TradeExecuted": 8,
+    "worldEvents/ActionRejected": 2,
+    "worldEvents/InventoryChanged": 4,
+    "worldEvents/ResidentRestSessionChanged": 1601,
+    "worldEvents/TradeTaxCharged": 5,
+    "worldEvents/TownDayPhaseChanged": 2,
+    "worldEvents/ResidentialUpkeepCharged": 1892,
+    "worldEvents/ExternalTradeBalancesDecayed": 7,
+    "worldEvents/SubsidyPaid": 5
+  },
+  "limits": [
+    "Engineering and free autonomous adoption are separate.",
+    "No new enterprises, collectives, programs, construction projects or paid control quotes.",
+    "Original six public proposals and four executions remain historical facts, no new ones this phase.",
+    "Periodic obligation development was not enabled or mixed into this frozen run.",
+    "No comparison across initial conditions yet; no assigned goals, partners or fiscal rescue.",
+    "Historical operator recovery remains provider-error, never fabricated provider success."
+  ]
+}

@@ -1,0 +1,523 @@
+{
+  "version": "resident-continuous-phase-observation-v1",
+  "mode": "unprompted-existing-world",
+  "finish": {
+    "event": "resident-society-finished",
+    "status": "limit-reached",
+    "opportunities": 11
+  },
+  "beforeRevision": 577,
+  "afterRevision": 741,
+  "beforeClock": 3349000,
+  "afterClock": 3463000,
+  "simulationElapsedMs": 114000,
+  "historicalPrefixPreserved": true,
+  "journalHash": "d3576448efef0cacf1a7ce976a9125ad7cecf7e107843e05f0bff02e211a5706",
+  "opportunities": 11,
+  "distinctResidents": 10,
+  "capabilityCounts": {
+    "world.observe/accepted": 40,
+    "sources.list/accepted": 4,
+    "production.recipes/accepted": 6,
+    "stocks.list/accepted": 4,
+    "rules.capabilities/accepted": 2,
+    "production.list/accepted": 2,
+    "stocks.create/accepted": 1,
+    "stocks.read/accepted": 7,
+    "sources.read/accepted": 3,
+    "production.gather/accepted": 2,
+    "production.read/accepted": 8,
+    "production.start/accepted": 5,
+    "schedule.wait/accepted": 11,
+    "world.move/accepted": 3,
+    "world.study/accepted": 4,
+    "business.services/accepted": 1,
+    "world.stop_study/accepted": 2,
+    "stocks.withdraw/accepted": 2,
+    "world.apply_job/accepted": 1,
+    "governance.employment/refused": 2,
+    "world.observe/refused": 1,
+    "queues.status/accepted": 1,
+    "principals.list/accepted": 1,
+    "messages.list/accepted": 2,
+    "rules.capability/accepted": 4,
+    "production.create/accepted": 2,
+    "cognition.update/accepted": 1,
+    "housing.standard/refused": 2,
+    "groups.list/accepted": 1,
+    "world.trade/accepted": 1,
+    "world.upgrade_home/refused": 1
+  },
+  "refusals": [
+    {
+      "sequence": 671,
+      "actorId": "smoke-25-world-main-agent-022",
+      "capability": "governance.employment",
+      "error": "public-employment-not-enabled"
+    },
+    {
+      "sequence": 672,
+      "actorId": "smoke-25-world-main-agent-022",
+      "capability": "world.observe",
+      "error": "own-labor-not-found"
+    },
+    {
+      "sequence": 723,
+      "actorId": "smoke-25-world-main-agent-012",
+      "capability": "housing.standard",
+      "error": "housing-choice-not-enabled"
+    },
+    {
+      "sequence": 724,
+      "actorId": "smoke-25-world-main-agent-012",
+      "capability": "governance.employment",
+      "error": "public-employment-not-enabled"
+    },
+    {
+      "sequence": 737,
+      "actorId": "smoke-25-world-main-agent-016",
+      "capability": "world.upgrade_home",
+      "error": "agent is busy with trade until simulation time 3762000 (now 3462000)"
+    },
+    {
+      "sequence": 738,
+      "actorId": "smoke-25-world-main-agent-016",
+      "capability": "housing.standard",
+      "error": "housing-choice-not-enabled"
+    }
+  ],
+  "eventCounts": {
+    "worldEvents/ResidentMaterialsCommitted": 210,
+    "worldEvents/SimulationTimeAdvanced": 17,
+    "worldEvents/ResidentRestSessionChanged": 16,
+    "worldEvents/AgentTravelStarted": 3,
+    "worldEvents/AgentActivityTimeCommitted": 4,
+    "worldEvents/ShortTermMemoryRecorded": 12,
+    "worldEvents/ResidentStudyCommitted": 33,
+    "worldEvents/JobApplicationSubmitted": 1,
+    "cognitiveEvents/PersonalCognitionUpdated": 1,
+    "worldEvents/TradeExecuted": 1,
+    "worldEvents/ActionRejected": 1
+  },
+  "materialOperations": {
+    "create-stock": 1,
+    "create-extraction": 2,
+    "start-production": 5,
+    "production-progress": 198,
+    "withdraw": 2,
+    "create-production": 2
+  },
+  "newMaterialConversions": [
+    {
+      "receiptId": "productive-body-457",
+      "operation": "production-progress",
+      "consumed": {
+        "Apple": 1
+      },
+      "produced": {
+        "Apple": 1
+      },
+      "productionId": "a005-apple-gather-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-458",
+      "operation": "production-progress",
+      "consumed": {
+        "Wood": 1
+      },
+      "produced": {
+        "Wood": 1
+      },
+      "productionId": "agent006-wood-order-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-459",
+      "operation": "production-progress",
+      "consumed": {
+        "Wood": 1
+      },
+      "produced": {
+        "Wood": 1
+      },
+      "productionId": "gather-wood-007-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-460",
+      "operation": "production-progress",
+      "consumed": {
+        "Apple": 1
+      },
+      "produced": {
+        "Apple": 1
+      },
+      "productionId": "agent011-apple-gather-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-461",
+      "operation": "production-progress",
+      "consumed": {
+        "Wheat": 1
+      },
+      "produced": {
+        "Wheat": 1
+      },
+      "productionId": "prod-012-wheat-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-462",
+      "operation": "production-progress",
+      "consumed": {
+        "Copper Ore": 1
+      },
+      "produced": {
+        "Copper Ore": 1
+      },
+      "productionId": "smoke13-order-copper-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-463",
+      "operation": "production-progress",
+      "consumed": {
+        "Wheat": 1
+      },
+      "produced": {
+        "Wheat": 1
+      },
+      "productionId": "gather-014-wheat",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-465",
+      "operation": "production-progress",
+      "consumed": {
+        "Rice": 1
+      },
+      "produced": {
+        "Rice": 1
+      },
+      "productionId": "agent-020-workstock",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-466",
+      "operation": "production-progress",
+      "consumed": {
+        "Iron Ore": 1
+      },
+      "produced": {
+        "Iron Ore": 1
+      },
+      "productionId": "smoke-022-iron-batch-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-467",
+      "operation": "production-progress",
+      "consumed": {
+        "Iron Ore": 1
+      },
+      "produced": {
+        "Iron Ore": 1
+      },
+      "productionId": "order-023-iron",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-468",
+      "operation": "production-progress",
+      "consumed": {
+        "Copper Ore": 1
+      },
+      "produced": {
+        "Copper Ore": 1
+      },
+      "productionId": "smoke25-024-gather-copper-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-508",
+      "operation": "production-progress",
+      "consumed": {
+        "Apple": 1
+      },
+      "produced": {
+        "Apple": 1
+      },
+      "productionId": "a005-apple-gather-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-509",
+      "operation": "production-progress",
+      "consumed": {
+        "Wood": 1
+      },
+      "produced": {
+        "Wood": 1
+      },
+      "productionId": "agent006-wood-order-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-528",
+      "operation": "production-progress",
+      "consumed": {
+        "Wood": 1
+      },
+      "produced": {
+        "Wood": 1
+      },
+      "productionId": "gather-wood-007-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-545",
+      "operation": "production-progress",
+      "consumed": {
+        "Apple": 1
+      },
+      "produced": {
+        "Apple": 1
+      },
+      "productionId": "agent011-apple-gather-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-546",
+      "operation": "production-progress",
+      "consumed": {
+        "Wheat": 1
+      },
+      "produced": {
+        "Wheat": 1
+      },
+      "productionId": "prod-012-wheat-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-565",
+      "operation": "production-progress",
+      "consumed": {
+        "Copper Ore": 1
+      },
+      "produced": {
+        "Copper Ore": 1
+      },
+      "productionId": "smoke13-order-copper-1",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    },
+    {
+      "receiptId": "productive-body-582",
+      "operation": "production-progress",
+      "consumed": {
+        "Wheat": 1
+      },
+      "produced": {
+        "Wheat": 1
+      },
+      "productionId": "gather-014-wheat",
+      "recipeVersion": "resident-extraction-v1",
+      "units": 1
+    }
+  ],
+  "limitations": [
+    "Facts cover this suffix only; existing institutions and assets are not new emergent outcomes.",
+    "Counts, names and model text do not prove cooperation or stable institutions.",
+    "A travel start is not arrival; enrollment is not completed learning.",
+    "Provider token categories are preserved separately and may overlap."
+  ],
+  "replayMatched": true,
+  "reopenDidNotAppend": true,
+  "providerSummary": [
+    {
+      "actorId": "smoke-25-world-main-agent-024",
+      "turnId": "turn-578-smoke-25-world-main-agent-024",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 216630,
+      "sha256": "e1f81e40e0a275a5526f377834a695d4c899f9d333edbdcc8f4f801ceaf13475"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-025",
+      "turnId": "turn-602-smoke-25-world-main-agent-025",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 233157,
+      "sha256": "38e48fbd98db4356b95b3ea0665546b842d67eaca27ff3fc6c0f3fff1749d80a"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-001",
+      "turnId": "turn-623-smoke-25-world-main-agent-001",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 125426,
+      "sha256": "ac53a8e884c42f224bcc6c5e9c4efa49dfafb5173988f6e2681b1df9abc7c0b0"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-002",
+      "turnId": "turn-644-smoke-25-world-main-agent-002",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 17372,
+      "sha256": "d8debc2c360c2f5686fc620a10d56cfcc4034059dcec1c6cace5df03ce131d75"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-003",
+      "turnId": "turn-651-smoke-25-world-main-agent-003",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 18741,
+      "sha256": "6818726193b2f514e06d4f8ca3e7e8c869bb5318d340c5ecf5d94ceb50ba0d2e"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-004",
+      "turnId": "turn-656-smoke-25-world-main-agent-004",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 39736,
+      "sha256": "9708c8c392e3ac22f7e54b1053334586343b648174d331b733c4036297582f7d"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-022",
+      "turnId": "turn-666-smoke-25-world-main-agent-022",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 86320,
+      "sha256": "17742cd1b5203e356233f948d1c9de7406edc78a7c72b16bb03cae8103fbd482"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-022",
+      "turnId": "turn-688-smoke-25-world-main-agent-022",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 157238,
+      "sha256": "ab8247746bce71d0ecd9e37b9ad35ee832a5695229c13721f1f53937ec2cd13d"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-006",
+      "turnId": "turn-705-smoke-25-world-main-agent-006",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 83385,
+      "sha256": "88139acba250e092e9edad51ac19f2ba720ea8f41b84fb8a97d00a7895788cce"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-012",
+      "turnId": "turn-716-smoke-25-world-main-agent-012",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 57531,
+      "sha256": "3cdc0ab2fddbe9385faf165a82fdcd3be858b676e5568e98fb7f101cb48bc8ce"
+    },
+    {
+      "actorId": "smoke-25-world-main-agent-016",
+      "turnId": "turn-731-smoke-25-world-main-agent-016",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "status": "completed",
+      "termination": {
+        "exitSignal": null,
+        "aborted": false,
+        "abortReason": null,
+        "providerErrorEvent": false
+      },
+      "elapsedMs": 113205,
+      "sha256": "c93923e07dba64b44af9cd83609e75358214d086a7101d267a44884d1b35359b"
+    }
+  ],
+  "frozenCompiledFiles": {
+    "count": 262,
+    "changed": 0
+  },
+  "precedingSegment": "SOCIETY_CONTINUOUS_FREE_INTERRUPTION_2026-10-07.json",
+  "combinedAccounting": {
+    "plannedOpportunities": 24,
+    "attemptedOpportunities": 24,
+    "completedProviderTurns": 23,
+    "timedOutProviderTurns": 1,
+    "uninterrupted": false
+  },
+  "sourceReport": ".local/canonical-cutover-20261007/continuous-remainder-observation.json"
+}

@@ -1,3 +1,9 @@
+import { publicHousingWorldPolicies } from './publicHousing';
+import type { ServicesState } from '@aivilization/services';
+import { publicEmploymentWorldPolicies } from './publicEmployment';
+import type { ControlAuthorizationPort } from '@aivilization/authority';
+import { handlePublicLabor } from './publicLabor';
+import { educationAuthorityFactsEqual, assertEducationAuthorityState } from './educationAuthority';
 import type { LaborPayPolicy } from '@aivilization/society';
 import type { CommandEnvelope, CoreCommandType } from '@aivilization/sim-core';
 import type { RenewableResourcePolicy } from '@aivilization/economy';
@@ -104,6 +110,9 @@ import {
   handleAgentChooseResidenceCommand,
 } from './handlers/housing';
 import { rejectBusyAgentCommand, rejectCommand } from './handlers/shared';
+import { handleElapsedSleep, handleStopResidentRest } from './residentRest';
+import { handleElapsedStudy } from './residentStudy';
+import { handleResidentLabor, usesResidentLabor, withEndedEmploymentLabor } from './residentLabor';
 
 // The command handlers live in ./handlers by domain. They are re-exported here
 // so the public @aivilization/world API is unchanged by the split.
@@ -372,6 +381,8 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
 };
 
 export function dispatchWorldCommand(input: {
+  readonly serviceDirectory?: ServicesState;
+  readonly enterpriseAuthorization?: ControlAuthorizationPort;
   readonly command: CommandEnvelope<CoreCommandType, unknown>;
   readonly projection: WorldProjection;
   readonly policies: WorldCommandPolicies;
@@ -383,7 +394,29 @@ export function dispatchWorldCommand(input: {
   /** Simulation-wide population supplied only when dry-running a global housing action. */
   readonly housingPopulation?: number;
 }): WorldEvent[] {
-  if (input.command.type.startsWith('Agent')) {
+  input = {
+    ...input,
+    policies: publicHousingWorldPolicies(
+      input.projection,
+      publicEmploymentWorldPolicies(input.projection, input.policies),
+    ),
+  };
+  assertEducationAuthorityState(input.projection);
+  if (
+    input.projection.educationAuthority &&
+    !educationAuthorityFactsEqual(
+      input.policies.educationSystem,
+      input.projection.educationAuthority.institution,
+    )
+  )
+    throw Error('education-institution-policy-mismatch');
+  if (
+    input.command.type.startsWith('Agent') &&
+    !(input.projection.productiveEmployment && input.command.type === 'AgentLeaveEnterprise') &&
+    !['AgentStopRest', 'AgentStopStudy', 'AgentStopWork', 'AgentClaimWage'].includes(
+      input.command.type,
+    )
+  ) {
     const busyRejection = rejectBusyAgentCommand(input);
     if (busyRejection !== undefined) {
       return busyRejection;
@@ -391,6 +424,20 @@ export function dispatchWorldCommand(input: {
   }
 
   switch (input.command.type) {
+    case 'ResidentServiceWork':
+      return rejectCommand(
+        input,
+        'ResidentServiceWork',
+        'resident-service-application-port-required',
+      );
+    case 'ResidentConstructionWork':
+      return rejectCommand(
+        input,
+        'ResidentConstructionWork',
+        'use-personal-construction-application-port',
+      );
+    case 'ResidentMaterialWork':
+      return rejectCommand(input, 'ResidentMaterialWork', 'use-personal-material-application-port');
     case 'ResidentParticipate':
       return rejectCommand(
         input,
@@ -640,6 +687,11 @@ export function dispatchWorldCommand(input: {
         nextSequence: input.nextSequence,
       });
     case 'AgentStudy': {
+      if (input.projection.residentStudy)
+        return handleElapsedStudy({
+          ...input,
+          command: input.command as CommandEnvelope<'AgentStudy', unknown>,
+        });
       const actor = input.projection.agents[input.command.actorId ?? ''];
       const settledQuality =
         actor === undefined
@@ -662,11 +714,21 @@ export function dispatchWorldCommand(input: {
         nextSequence: input.nextSequence,
       });
     }
+    case 'AgentStopRest':
+      return handleStopResidentRest({
+        ...input,
+        command: input.command as CommandEnvelope<'AgentStopRest', unknown>,
+      });
+    case 'AgentStopStudy':
+      return handleElapsedStudy({
+        ...input,
+        command: input.command as CommandEnvelope<'AgentStopStudy', unknown>,
+      });
     case 'AgentSleep':
       if (input.policies.sleep === undefined) {
         return rejectCommand(input, 'AgentSleep', 'missing sleep policy');
       }
-      return handleAgentSleepCommand({
+      return (input.projection.residentRest ? handleElapsedSleep : handleAgentSleepCommand)({
         command: input.command as CommandEnvelope<'AgentSleep', unknown>,
         projection: input.projection,
         energyRecoveryPerSecond: input.policies.sleep.energyRecoveryPerSecond,
@@ -705,6 +767,16 @@ export function dispatchWorldCommand(input: {
       });
     }
     case 'AgentWork':
+      if (usesResidentLabor(input.projection, String(input.command.actorId), input.command.payload))
+        return handleResidentLabor({
+          ...input,
+          command: input.command as CommandEnvelope<'AgentWork', unknown>,
+        });
+      if (input.projection.publicLabor)
+        return handlePublicLabor({
+          ...input,
+          command: input.command as CommandEnvelope<'AgentWork', unknown>,
+        });
       return handleAgentWorkCommand({
         command: input.command as CommandEnvelope<'AgentWork', unknown>,
         projection: input.projection,
@@ -714,6 +786,28 @@ export function dispatchWorldCommand(input: {
         criticalThresholds: input.policies.criticalThresholds,
         ...(input.policies.tax === undefined ? {} : { tax: input.policies.tax }),
         nextSequence: input.nextSequence,
+      });
+    case 'AgentStopWork': {
+      const payload = input.command.payload as { id?: unknown } | null;
+      if (
+        input.projection.publicLabor &&
+        payload &&
+        typeof payload.id === 'string' &&
+        input.projection.publicLabor.process.sessions[payload.id]
+      )
+        return handlePublicLabor({
+          ...input,
+          command: input.command as CommandEnvelope<'AgentStopWork', unknown>,
+        });
+      return handleResidentLabor({
+        ...input,
+        command: input.command as CommandEnvelope<'AgentStopWork', unknown>,
+      });
+    }
+    case 'AgentClaimWage':
+      return handleResidentLabor({
+        ...input,
+        command: input.command as CommandEnvelope<'AgentStopWork' | 'AgentClaimWage', unknown>,
       });
     case 'AgentFoundEnterprise':
       if (input.policies.enterprise === undefined) {
@@ -756,6 +850,10 @@ export function dispatchWorldCommand(input: {
         return rejectCommand(input, 'AgentCloseEnterprise', 'missing enterprise policy');
       }
       return handleAgentCloseEnterpriseCommand({
+        ...(input.serviceDirectory ? { serviceDirectory: input.serviceDirectory } : {}),
+        ...(input.enterpriseAuthorization
+          ? { enterpriseAuthorization: input.enterpriseAuthorization }
+          : {}),
         command: input.command as CommandEnvelope<'AgentCloseEnterprise', unknown>,
         projection: input.projection,
         policy: input.policies.enterprise,
@@ -766,6 +864,9 @@ export function dispatchWorldCommand(input: {
         return rejectCommand(input, 'AgentSetEnterpriseJobPosting', 'missing enterprise policy');
       }
       return handleAgentSetEnterpriseJobPostingCommand({
+        ...(input.enterpriseAuthorization
+          ? { enterpriseAuthorization: input.enterpriseAuthorization }
+          : {}),
         command: input.command as CommandEnvelope<'AgentSetEnterpriseJobPosting', unknown>,
         projection: input.projection,
         policy: input.policies.enterprise,
@@ -775,22 +876,31 @@ export function dispatchWorldCommand(input: {
       if (input.policies.enterprise === undefined) {
         return rejectCommand(input, 'AgentLeaveEnterprise', 'missing enterprise policy');
       }
-      return handleAgentLeaveEnterpriseCommand({
-        command: input.command as CommandEnvelope<'AgentLeaveEnterprise', unknown>,
-        projection: input.projection,
-        policy: input.policies.enterprise,
-        nextSequence: input.nextSequence,
-      });
+      return withEndedEmploymentLabor(
+        input,
+        handleAgentLeaveEnterpriseCommand({
+          command: input.command as CommandEnvelope<'AgentLeaveEnterprise', unknown>,
+          projection: input.projection,
+          policy: input.policies.enterprise,
+          nextSequence: input.nextSequence,
+        }),
+      );
     case 'AgentLayoffEnterpriseEmployee':
       if (input.policies.enterprise === undefined) {
         return rejectCommand(input, 'AgentLayoffEnterpriseEmployee', 'missing enterprise policy');
       }
-      return handleAgentLayoffEnterpriseEmployeeCommand({
-        command: input.command as CommandEnvelope<'AgentLayoffEnterpriseEmployee', unknown>,
-        projection: input.projection,
-        policy: input.policies.enterprise,
-        nextSequence: input.nextSequence,
-      });
+      return withEndedEmploymentLabor(
+        input,
+        handleAgentLayoffEnterpriseEmployeeCommand({
+          ...(input.enterpriseAuthorization
+            ? { enterpriseAuthorization: input.enterpriseAuthorization }
+            : {}),
+          command: input.command as CommandEnvelope<'AgentLayoffEnterpriseEmployee', unknown>,
+          projection: input.projection,
+          policy: input.policies.enterprise,
+          nextSequence: input.nextSequence,
+        }),
+      );
     case 'AgentDeposit':
       if (input.policies.credit === undefined) {
         return rejectCommand(input, 'AgentDeposit', 'missing credit policy');
@@ -826,6 +936,9 @@ export function dispatchWorldCommand(input: {
         return rejectCommand(input, 'AgentExportCommodity', 'missing external trade policy');
       }
       return handleAgentExportCommodityCommand({
+        ...(input.enterpriseAuthorization
+          ? { enterpriseAuthorization: input.enterpriseAuthorization }
+          : {}),
         command: input.command as CommandEnvelope<'AgentExportCommodity', unknown>,
         projection: input.projection,
         policy: input.policies.externalTrade,
@@ -839,6 +952,9 @@ export function dispatchWorldCommand(input: {
         return rejectCommand(input, 'AgentImportCommodity', 'missing external trade policy');
       }
       return handleAgentImportCommodityCommand({
+        ...(input.enterpriseAuthorization
+          ? { enterpriseAuthorization: input.enterpriseAuthorization }
+          : {}),
         command: input.command as CommandEnvelope<'AgentImportCommodity', unknown>,
         projection: input.projection,
         policy: input.policies.externalTrade,
@@ -849,6 +965,9 @@ export function dispatchWorldCommand(input: {
       });
     case 'AgentProduce':
       return handleAgentProduceCommand({
+        ...(input.enterpriseAuthorization
+          ? { enterpriseAuthorization: input.enterpriseAuthorization }
+          : {}),
         command: input.command as CommandEnvelope<'AgentProduce', unknown>,
         projection: input.projection,
         ...(input.policies.randomSeed === undefined
@@ -871,6 +990,9 @@ export function dispatchWorldCommand(input: {
       });
     case 'AgentTrade':
       return handleAgentTradeCommand({
+        ...(input.enterpriseAuthorization
+          ? { enterpriseAuthorization: input.enterpriseAuthorization }
+          : {}),
         command: input.command as CommandEnvelope<'AgentTrade', unknown>,
         projection: input.projection,
         ...(input.policies.tradeActivity === undefined

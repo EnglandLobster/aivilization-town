@@ -1,0 +1,522 @@
+{
+  "schemaVersion": "society-housing-outcomes-v1",
+  "scope": "free opportunities 417-448; original four residents and sessions",
+  "checkpoint": "/home/dev/aivilization-town/.local/open-residents/society-elapsed-study-20261005/checkpoints/free-448",
+  "simulationTime": 413558000,
+  "commits": 3328,
+  "totalOpportunities": 448,
+  "newOpportunities": 32,
+  "completed": 31,
+  "providerErrors": 1,
+  "newCalls": 91,
+  "totalCalls": 1699,
+  "engine": {
+    "root": "/tmp/aivilization-housing-20261006",
+    "verifiedFiles": 371,
+    "containsOccupancyOrPrincipals": false,
+    "timeoutMs": 360000
+  },
+  "journalSha256": "ab24159b4b73f5533c7516c10885f320dbd7d42dcb4c37cb040aa31a73142ff1",
+  "manifestSha256": "584ebb67f87fad6a25bf6d987b611dec01aca7e05c5e2c9c63a76b6c56fe0404",
+  "fullStateSha256": "2d809784df9146143d2c99d48c24e76621697371b6545c84dc8dc1033e48fe1b",
+  "replay": {
+    "matchesSavedReport": true,
+    "journalUnchanged": true,
+    "checkpointFullStateCaptured": true
+  },
+  "subsidyExecution": [
+    {
+      "commit": 3124,
+      "actorId": "resident-004",
+      "events": [
+        {
+          "id": "public-506fca74e5b6f3d94272df67c2860a6c:public",
+          "occurredAt": 364000000,
+          "payload": {
+            "events": [
+              {
+                "actorId": "resident-004",
+                "at": 364000000,
+                "effectIds": [
+                  "public-506fca74e5b6f3d94272df67c2860a6c:public"
+                ],
+                "previousRevision": 6,
+                "proposalId": "proposal-003-subsidy-500-fix",
+                "type": "PublicDecisionExecuted"
+              }
+            ],
+            "policyChange": {
+              "authority": {
+                "agentId": "resident-004",
+                "jurisdictionId": "town",
+                "kind": "public-procedure",
+                "procedureRevision": 1,
+                "proposalId": "proposal-003-subsidy-500-fix"
+              },
+              "changedAt": 364000000,
+              "governancePolicyVersion": "town-governance-v1",
+              "governanceRevision": 3,
+              "policyKind": "subsidy",
+              "reason": "Public decision proposal-003-subsidy-500-fix",
+              "subsidyPolicy": {
+                "maxSubsidy": 2000,
+                "minimumBalance": 500,
+                "policyVersion": "resident-public-subsidy-v1",
+                "source": "resident-public-procedure-v1"
+              }
+            },
+            "policyVersion": "resident-public-governance-v1"
+          },
+          "sequence": 65826,
+          "simulationId": "open-town",
+          "type": "ResidentPublicGovernanceCommitted"
+        }
+      ]
+    }
+  ],
+  "housingUpgrades": [
+    {
+      "sequence": 3131,
+      "actorId": "resident-004",
+      "event": {
+        "commandId": "open-34359cc1cc1ab43ed4076eac0dc56178",
+        "id": "open-34359cc1cc1ab43ed4076eac0dc56178:event:0",
+        "occurredAt": 364100000,
+        "payload": {
+          "agentId": "resident-004",
+          "consumedInventory": {
+            "Sushi": 1
+          },
+          "currencyCost": 300,
+          "nextResidentialTier": 3,
+          "previousResidentialTier": 2,
+          "publicHousingRevision": 1
+        },
+        "sequence": 65868,
+        "simulationId": "open-town",
+        "type": "ResidentialTierUpgraded"
+      }
+    },
+    {
+      "sequence": 3136,
+      "actorId": "resident-004",
+      "event": {
+        "commandId": "open-ed29616542664762fde38c4b05e3f09c",
+        "id": "open-ed29616542664762fde38c4b05e3f09c:event:0",
+        "occurredAt": 364160000,
+        "payload": {
+          "agentId": "resident-004",
+          "consumedInventory": {
+            "Pure Silicon": 1
+          },
+          "currencyCost": 400,
+          "nextResidentialTier": 4,
+          "previousResidentialTier": 3,
+          "publicHousingRevision": 1
+        },
+        "sequence": 65889,
+        "simulationId": "open-town",
+        "type": "ResidentialTierUpgraded"
+      }
+    },
+    {
+      "sequence": 3179,
+      "actorId": "resident-001",
+      "event": {
+        "commandId": "open-bdb41bd0bdb8fdd242530d6b88992c2c",
+        "id": "open-bdb41bd0bdb8fdd242530d6b88992c2c:event:0",
+        "occurredAt": 382761000,
+        "payload": {
+          "agentId": "resident-001",
+          "consumedInventory": {
+            "Sushi": 1
+          },
+          "currencyCost": 300,
+          "nextResidentialTier": 3,
+          "previousResidentialTier": 2,
+          "publicHousingRevision": 1
+        },
+        "sequence": 69125,
+        "simulationId": "open-town",
+        "type": "ResidentialTierUpgraded"
+      }
+    },
+    {
+      "sequence": 3206,
+      "actorId": "resident-003",
+      "event": {
+        "commandId": "open-f921d655b6a1fa461f38c93a720fe1c3",
+        "id": "open-f921d655b6a1fa461f38c93a720fe1c3:event:0",
+        "occurredAt": 384200000,
+        "payload": {
+          "agentId": "resident-003",
+          "consumedInventory": {
+            "Sushi": 1
+          },
+          "currencyCost": 300,
+          "nextResidentialTier": 3,
+          "previousResidentialTier": 2,
+          "publicHousingRevision": 1
+        },
+        "sequence": 69496,
+        "simulationId": "open-town",
+        "type": "ResidentialTierUpgraded"
+      }
+    },
+    {
+      "sequence": 3266,
+      "actorId": "resident-003",
+      "event": {
+        "commandId": "open-bddf8e60446fc232536f6a39b72445c5",
+        "id": "open-bddf8e60446fc232536f6a39b72445c5:event:0",
+        "occurredAt": 399500000,
+        "payload": {
+          "agentId": "resident-003",
+          "consumedInventory": {
+            "Pure Silicon": 1
+          },
+          "currencyCost": 400,
+          "nextResidentialTier": 4,
+          "previousResidentialTier": 3,
+          "publicHousingRevision": 1
+        },
+        "sequence": 73240,
+        "simulationId": "open-town",
+        "type": "ResidentialTierUpgraded"
+      }
+    }
+  ],
+  "residents": [
+    {
+      "agentId": "resident-001",
+      "educationScore": 186.00000000000017,
+      "educationLevel": 3,
+      "residentialTier": 3,
+      "job": "Stock Clerk",
+      "balance": 500,
+      "upkeepArrears": 1026.586235555342
+    },
+    {
+      "agentId": "resident-002",
+      "educationScore": 334.0000000000003,
+      "educationLevel": 4,
+      "residentialTier": 2,
+      "job": "Receptionist",
+      "balance": 517.4659572041213
+    },
+    {
+      "agentId": "resident-003",
+      "educationScore": 249.80666666700253,
+      "educationLevel": 3,
+      "residentialTier": 4,
+      "job": "Receptionist",
+      "balance": 500
+    },
+    {
+      "agentId": "resident-004",
+      "educationScore": 330.00000000000006,
+      "educationLevel": 4,
+      "residentialTier": 4,
+      "job": "Waiter",
+      "balance": 500
+    }
+  ],
+  "enterpriseIds": [],
+  "publicHousingRevisions": 1,
+  "providers": [
+    {
+      "path": "opencode/resident-002/turn-3114-resident-002.json",
+      "sha256": "c6925c44545df07b080debad027a4ca95da3be33fe3effe5f56e1fe7ca52c23f",
+      "actorId": "resident-002",
+      "turnId": "turn-3114-resident-002",
+      "status": "completed",
+      "elapsedMs": 37758,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-004/turn-3120-resident-004.json",
+      "sha256": "dc04ba0e06844a33018d441a090ad5a9ffb12c173e711e732effa90af812699a",
+      "actorId": "resident-004",
+      "turnId": "turn-3120-resident-004",
+      "status": "completed",
+      "elapsedMs": 86073,
+      "completedModelSteps": 9
+    },
+    {
+      "path": "opencode/resident-004/turn-3130-resident-004.json",
+      "sha256": "67389e8f93855411c3f281304ef1bc9669c97b9e9f5cb8fbbb59e64d15c2965f",
+      "actorId": "resident-004",
+      "turnId": "turn-3130-resident-004",
+      "status": "completed",
+      "elapsedMs": 31730,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-004/turn-3135-resident-004.json",
+      "sha256": "47703c73fe07508ed4561e7969bfc7a98cd5446d92196f8cacf9662e4fb3c1fd",
+      "actorId": "resident-004",
+      "turnId": "turn-3135-resident-004",
+      "status": "completed",
+      "elapsedMs": 43629,
+      "completedModelSteps": 5
+    },
+    {
+      "path": "opencode/resident-004/turn-3143-resident-004.json",
+      "sha256": "018713aba92ac59ba5f802dc5ce81cd9b9cc3a999fc65d8d88682ae77965d3d6",
+      "actorId": "resident-004",
+      "turnId": "turn-3143-resident-004",
+      "status": "completed",
+      "elapsedMs": 116640,
+      "completedModelSteps": 4
+    },
+    {
+      "path": "opencode/resident-003/turn-3150-resident-003.json",
+      "sha256": "dbd541211ea2828efbb5117babd7231649169c2f20da6f412d8c0a9c7fa5715f",
+      "actorId": "resident-003",
+      "turnId": "turn-3150-resident-003",
+      "status": "completed",
+      "elapsedMs": 30226,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-004/turn-3156-resident-004.json",
+      "sha256": "f6f7bc0a9fe78e921746b42151df70a8bc3c21b2e7256921c7178b3ee1c22f3a",
+      "actorId": "resident-004",
+      "turnId": "turn-3156-resident-004",
+      "status": "completed",
+      "elapsedMs": 27701,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-001/turn-3162-resident-001.json",
+      "sha256": "95a13b55f23fd425d70290d91a5d6145ec3194007ab0a2ba0968d9bdb943fe99",
+      "actorId": "resident-001",
+      "turnId": "turn-3162-resident-001",
+      "status": "completed",
+      "elapsedMs": 59855,
+      "completedModelSteps": 5
+    },
+    {
+      "path": "opencode/resident-001/turn-3172-resident-001.json",
+      "sha256": "ed82c129a8760e7325814bca6504f894e6c4781e705973f234a3261d0974e999",
+      "actorId": "resident-001",
+      "turnId": "turn-3172-resident-001",
+      "status": "completed",
+      "elapsedMs": 27407,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-001/turn-3178-resident-001.json",
+      "sha256": "47d295472fc5be0895edd9290c4f866d3a5be689c29c0567c971012f8a09c5a7",
+      "actorId": "resident-001",
+      "turnId": "turn-3178-resident-001",
+      "status": "completed",
+      "elapsedMs": 38576,
+      "completedModelSteps": 4
+    },
+    {
+      "path": "opencode/resident-004/turn-3185-resident-004.json",
+      "sha256": "54aca4524f3bad8a23b6020fef106b8aa02ca7a16c1016ce7a5f0c96db469fac",
+      "actorId": "resident-004",
+      "turnId": "turn-3185-resident-004",
+      "status": "completed",
+      "elapsedMs": 33886,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-001/turn-3191-resident-001.json",
+      "sha256": "54703370613ddc1facc1a387bdee4f83fa9b0e9422246689b3493af8438e5dd7",
+      "actorId": "resident-001",
+      "turnId": "turn-3191-resident-001",
+      "status": "provider-error",
+      "elapsedMs": 359503,
+      "completedModelSteps": 2
+    },
+    {
+      "path": "opencode/resident-004/turn-3197-resident-004.json",
+      "sha256": "83a465efc924158cbdb6c6f3188b067b6a0c905e15505b9ab448d6decb687b2d",
+      "actorId": "resident-004",
+      "turnId": "turn-3197-resident-004",
+      "status": "completed",
+      "elapsedMs": 44484,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-003/turn-3203-resident-003.json",
+      "sha256": "5873f77802888ce088300b331fdfb191a63ca4d7e1a1caa5a68ff9ff7cba0e05",
+      "actorId": "resident-003",
+      "turnId": "turn-3203-resident-003",
+      "status": "completed",
+      "elapsedMs": 67440,
+      "completedModelSteps": 6
+    },
+    {
+      "path": "opencode/resident-002/turn-3213-resident-002.json",
+      "sha256": "01ff8b909dc0ff94f59a97682ff07a932c9c0eacaa3346b0be5ab1c565d987ad",
+      "actorId": "resident-002",
+      "turnId": "turn-3213-resident-002",
+      "status": "completed",
+      "elapsedMs": 28544,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-002/turn-3219-resident-002.json",
+      "sha256": "9989a37b1db3e15a2395c94a923b5dd16218637c6ddc9ccec57d74878abd9084",
+      "actorId": "resident-002",
+      "turnId": "turn-3219-resident-002",
+      "status": "completed",
+      "elapsedMs": 30765,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-002/turn-3225-resident-002.json",
+      "sha256": "a65ab9bf66ddf15cb4b8b53dcd5b1428200938cd48358a4e809c9c61177a10ad",
+      "actorId": "resident-002",
+      "turnId": "turn-3225-resident-002",
+      "status": "completed",
+      "elapsedMs": 40896,
+      "completedModelSteps": 4
+    },
+    {
+      "path": "opencode/resident-002/turn-3232-resident-002.json",
+      "sha256": "3b2a30e1f5a048f5b96485550c2f249daf4cb5c3b076930e6cdb0857ac3fc709",
+      "actorId": "resident-002",
+      "turnId": "turn-3232-resident-002",
+      "status": "completed",
+      "elapsedMs": 34400,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-001/turn-3238-resident-001.json",
+      "sha256": "e871bde660924eb087d05c2c3cdaaad2f7d1385517b5222fc1dcb80e05a82a18",
+      "actorId": "resident-001",
+      "turnId": "turn-3238-resident-001",
+      "status": "completed",
+      "elapsedMs": 64176,
+      "completedModelSteps": 4
+    },
+    {
+      "path": "opencode/resident-001/turn-3245-resident-001.json",
+      "sha256": "e842c3f18436477ddc9a4456c57de3afdb14814fefae59e1f41dd9a7ac5ded3d",
+      "actorId": "resident-001",
+      "turnId": "turn-3245-resident-001",
+      "status": "completed",
+      "elapsedMs": 26164,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-001/turn-3251-resident-001.json",
+      "sha256": "00e2d9b4fe1bb8021eb5054cf4265e767f0b69edce2b25b26b10ae4097dca73f",
+      "actorId": "resident-001",
+      "turnId": "turn-3251-resident-001",
+      "status": "completed",
+      "elapsedMs": 44864,
+      "completedModelSteps": 5
+    },
+    {
+      "path": "opencode/resident-003/turn-3259-resident-003.json",
+      "sha256": "620c82d47f020a97d683b2ca051d99ca713fe00e34eb4605e90b586adc3be9fa",
+      "actorId": "resident-003",
+      "turnId": "turn-3259-resident-003",
+      "status": "completed",
+      "elapsedMs": 28436,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-003/turn-3265-resident-003.json",
+      "sha256": "64d00ef5da9717c7b8a87836cacec06a16f61b5b380e6df520603d0c59c0c347",
+      "actorId": "resident-003",
+      "turnId": "turn-3265-resident-003",
+      "status": "completed",
+      "elapsedMs": 47028,
+      "completedModelSteps": 5
+    },
+    {
+      "path": "opencode/resident-001/turn-3272-resident-001.json",
+      "sha256": "6f6462b3b7ffb1b29b843d7a3661d6b02568e74c6e4bfd8e876d19e9ce43e951",
+      "actorId": "resident-001",
+      "turnId": "turn-3272-resident-001",
+      "status": "completed",
+      "elapsedMs": 83343,
+      "completedModelSteps": 4
+    },
+    {
+      "path": "opencode/resident-003/turn-3278-resident-003.json",
+      "sha256": "eea92a5ceebd1cb0e8a6d26699de11a3f193acda769b0d2c2cd81906b000a244",
+      "actorId": "resident-003",
+      "turnId": "turn-3278-resident-003",
+      "status": "completed",
+      "elapsedMs": 27937,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-001/turn-3284-resident-001.json",
+      "sha256": "fdd5304632c0d1056967203ea6d8d46daf94d3136f57fcdbedbc81c433106cb4",
+      "actorId": "resident-001",
+      "turnId": "turn-3284-resident-001",
+      "status": "completed",
+      "elapsedMs": 30455,
+      "completedModelSteps": 5
+    },
+    {
+      "path": "opencode/resident-001/turn-3292-resident-001.json",
+      "sha256": "af16c52f9b0c61dc82c6e4bab191be2de17d97e12c57fef90bf286b9f5a1c2b1",
+      "actorId": "resident-001",
+      "turnId": "turn-3292-resident-001",
+      "status": "completed",
+      "elapsedMs": 12122,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-002/turn-3298-resident-002.json",
+      "sha256": "086c9770b9800850cb03541ab26af30cb12e385da72fc5a71bf5ab436acb246c",
+      "actorId": "resident-002",
+      "turnId": "turn-3298-resident-002",
+      "status": "completed",
+      "elapsedMs": 29636,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-002/turn-3305-resident-002.json",
+      "sha256": "87f97a92e0419751f9070540784076c9dbd2b8c5e98d561a4fb826081cef2f15",
+      "actorId": "resident-002",
+      "turnId": "turn-3305-resident-002",
+      "status": "completed",
+      "elapsedMs": 27279,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-003/turn-3311-resident-003.json",
+      "sha256": "c89cafcf872053933c6e16098b25d4e450424c9e1ed6db29e782fb14159d27a2",
+      "actorId": "resident-003",
+      "turnId": "turn-3311-resident-003",
+      "status": "completed",
+      "elapsedMs": 34239,
+      "completedModelSteps": 3
+    },
+    {
+      "path": "opencode/resident-004/turn-3317-resident-004.json",
+      "sha256": "413207fbd0add86f08133f93ebeefd5e95546c6ff573f2441cb587f8886259d1",
+      "actorId": "resident-004",
+      "turnId": "turn-3317-resident-004",
+      "status": "completed",
+      "elapsedMs": 53526,
+      "completedModelSteps": 4
+    },
+    {
+      "path": "opencode/resident-004/turn-3324-resident-004.json",
+      "sha256": "2e910937ad4c03d2a90aa3ccb31b5663681ae55174c089b33773987a004bd510",
+      "actorId": "resident-004",
+      "turnId": "turn-3324-resident-004",
+      "status": "completed",
+      "elapsedMs": 110271,
+      "completedModelSteps": 3
+    }
+  ],
+  "limitations": [
+    "An approved stale proposal remains blocked; it was not rejected by voting.",
+    "Housing tier upgrades are external service standard changes, not new physical buildings.",
+    "Old arrears persist; no enterprise or capital adoption is established.",
+    "One provider timeout persisted at 360 seconds; committed effects retained."
+  ]
+}

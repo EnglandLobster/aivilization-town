@@ -1,4 +1,13 @@
 import {
+  runCanonicalSocietyCutoverCli,
+  CANONICAL_SOCIETY_CUTOVER_HELP,
+} from './canonicalSocietyCutoverCli';
+import {
+  runCanonicalSocietyArchiveCli,
+  CANONICAL_SOCIETY_ARCHIVE_HELP,
+} from './canonicalSocietyArchiveCli';
+import { runResidentSocietyCli, RESIDENT_SOCIETY_CLI_HELP } from './residentSocietyCli';
+import {
   createLocalRuntimeTownCliHelp,
   hasLocalRuntimeTownCliHelpFlag,
   installLocalRuntimeTownShutdownHandlers,
@@ -8,8 +17,23 @@ import {
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
+  if (argv[0] === 'migrate-society') {
+    await runCanonicalSocietyCutoverCli(argv.slice(1));
+    return;
+  }
+  if (argv[0] === 'export-society-source') {
+    runCanonicalSocietyArchiveCli(argv.slice(1));
+    return;
+  }
+  if (argv[0] === 'resident-society') {
+    await runResidentSocietyCli(argv.slice(1));
+    return;
+  }
   if (hasLocalRuntimeTownCliHelpFlag(argv)) {
     console.log(createLocalRuntimeTownCliHelp());
+    console.log(RESIDENT_SOCIETY_CLI_HELP);
+    console.log(CANONICAL_SOCIETY_ARCHIVE_HELP);
+    console.log(CANONICAL_SOCIETY_CUTOVER_HELP);
     return;
   }
 

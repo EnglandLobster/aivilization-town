@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T14:30:41.420352+00:00",
+  "spec": "specs/SOCIETY_SUCCESSION_AND_EXIT_V1.md",
+  "status": "foundation-verified-not-exit-delivery",
+  "policies": {
+    "arrangements": "resident-succession-arrangements-v1",
+    "cash": "resident-estate-cash-v1",
+    "materials": "resident-estate-material-custody-v1",
+    "application": "resident-exit-preservation-v1",
+    "accountRead": "resident-physical-financial-account-v1"
+  },
+  "testsPassed": 3040,
+  "testsSkipped": 1,
+  "testFilesPassed": 450,
+  "focusedNewTests": 27,
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/resident-exit-full-lint.log"
+    },
+    "sortedTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/resident-exit-full-typecheck.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/resident-exit-full-tests.log"
+    },
+    "build": {
+      "exitCode": 0,
+      "command": "pnpm --filter @aivilization/residents... build",
+      "log": "/tmp/resident-exit-build.log"
+    },
+    "diffCheck": {
+      "exitCode": 0,
+      "log": "/tmp/resident-exit-diff-check.log"
+    }
+  },
+  "boundaries": [
+    "Independent exact-version executor and beneficiary consent does not transfer assets.",
+    "Cash and positive backpack quantities preserve actual pre-departure facts; unknown location remains null.",
+    "One population event carries custody effects and body removal; replay independently corroborates actual source, no money burn, fake resident or default heir.",
+    "Old events retain their old semantics; new optional state and event fields do not enable themselves.",
+    "Estate circulation appears in optional aggregate economic composition; no guessed living account revision.",
+    "Existing organizational account authority was retained separately from physical estate account lookup."
+  ],
+  "notDelivered": [
+    "Natural population scheduler and admission/capacity reservations.",
+    "Periodic promises, loans, leases, wages, capital, service/freight/trade refunds financial account settlement adapters.",
+    "Protected carried cargo, durable goods, personal activity termination and all original responsibilities.",
+    "Restricted inherited resource/capital disposition, all-assets liquidation and full 11-context clearance.",
+    "Resident CLI, manifest activation and bounded private query delivery.",
+    "Canonical/partition R01, whole original 25 capabilities and R02 condition comparisons."
+  ],
+  "freeExperiment": {
+    "enabled": false,
+    "note": "Original free world uses frozen verified periodic capability only; succession development is not enabled."
+  },
+  "preservedDevelopmentFailures": [
+    "/tmp/resident-financial-port-typecheck-2.log",
+    "/tmp/resident-exit-capture-typecheck.log",
+    "/tmp/resident-exit-capture-tests.log",
+    "/tmp/resident-exit-capture-lint.log",
+    "/tmp/periodic-estate-integration-tests.log",
+    "/tmp/periodic-estate-full-typecheck.log"
+  ],
+  "existingCompiledCLIRegression": {
+    "exitCode": 0,
+    "log": "/tmp/resident-exit-periodic-cli-regression.log",
+    "calls": 59,
+    "refusals": 19,
+    "newSuccessionCLI": false
+  },
+  "periodicCashContinuity": {
+    "status": "engineering-slice-verified-not-full-exit",
+    "recordedAt": "2026-10-06T14:43:55.707583+00:00",
+    "testsPassed": 3053,
+    "testsSkipped": 1,
+    "testFilesPassed": 453,
+    "focusedAdditionalTests": 13,
+    "newResidentCLI": false,
+    "freeWorldEnabled": false,
+    "checks": {
+      "lint": {
+        "exitCode": 0,
+        "log": "/tmp/periodic-estate-full-lint.log"
+      },
+      "sortedTypecheck": {
+        "exitCode": 0,
+        "log": "/tmp/periodic-estate-full-typecheck-2.log"
+      },
+      "fullTests": {
+        "exitCode": 0,
+        "log": "/tmp/periodic-estate-full-tests.log"
+      },
+      "build": {
+        "exitCode": 0,
+        "log": "/tmp/periodic-estate-build.log"
+      },
+      "prettier": {
+        "exitCode": 0,
+        "log": "/tmp/periodic-estate-format-check.log"
+      },
+      "diffCheck": {
+        "exitCode": 0,
+        "log": "/tmp/periodic-estate-diff-check.log"
+      }
+    },
+    "cases": [
+      "Exact original due pays from preserved actual cash without ghost resident.",
+      "Original creditor keeps actual revenue in preserved account.",
+      "Insufficient preserved cash leaves unpaid period and existing assets.",
+      "New promises and impersonated deceased actors remain rejected.",
+      "Actual consumer source and independent physical-cash proof are necessary.",
+      "Forged, omitted or reused cash receipts reject atomically."
+    ],
+    "remainingConsumers": [
+      "credit",
+      "leases",
+      "wages",
+      "capital",
+      "services",
+      "logistics",
+      "trade"
+    ],
+    "compiledCLIRegression": {
+      "exitCode": 0,
+      "log": "/tmp/periodic-estate-cli-regression.log",
+      "calls": 59,
+      "refusals": 19,
+      "newSuccessionCLI": false
+    }
+  }
+}

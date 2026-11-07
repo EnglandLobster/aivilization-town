@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T22:08:18.801361+00:00",
+  "spec": "specs/SOCIETY_CONSTRUCTION_MODEL_ACCEPTANCE_V1.md",
+  "status": "prompted-private-construction-order-model-use-verified-not-emergence",
+  "passed": true,
+  "model": "opencode-go/deepseek-v4.1-flash",
+  "turns": [
+    {
+      "actorId": "resident-003",
+      "providerStatus": "completed",
+      "elapsedMs": 96107,
+      "businessCalls": 8,
+      "refusals": [
+        {
+          "capability": "principals.operate",
+          "error": "invalid-construction-trade-command"
+        }
+      ],
+      "cliToolRecords": 24,
+      "artifact": ".local/open-residents/construction-trade-opencode-20261007/opencode/resident-003/turn-14-resident-003.json",
+      "sha256": "027f8874351c0218fc39382da94b0f95f0094ff6c9b604356f9b7d8bfe2eb64b"
+    },
+    {
+      "actorId": "resident-002",
+      "providerStatus": "completed",
+      "elapsedMs": 46992,
+      "businessCalls": 12,
+      "refusals": [
+        {
+          "capability": "orders.read",
+          "error": "record-not-found"
+        },
+        {
+          "capability": "rules.capability",
+          "error": "capability-not-found"
+        }
+      ],
+      "cliToolRecords": 29,
+      "artifact": ".local/open-residents/construction-trade-opencode-20261007/opencode/resident-002/turn-24-resident-002.json",
+      "sha256": "0f1055e55fbb75099bd0a87d30155ce3b11c8e8b7a18e600f44a979a99190452"
+    },
+    {
+      "actorId": "resident-003",
+      "providerStatus": "completed",
+      "elapsedMs": 20341,
+      "businessCalls": 6,
+      "refusals": [],
+      "cliToolRecords": 10,
+      "artifact": ".local/open-residents/construction-trade-opencode-20261007/opencode/resident-003/turn-38-resident-003.json",
+      "sha256": "80a8b741e82924baeb01b3ea2add8c08e414c43099cfb5709ab8d85680ab8c03"
+    },
+    {
+      "actorId": "resident-003",
+      "providerStatus": "completed",
+      "elapsedMs": 46136,
+      "businessCalls": 10,
+      "refusals": [],
+      "cliToolRecords": 19,
+      "artifact": ".local/open-residents/construction-trade-opencode-20261007/opencode/resident-003/turn-47-resident-003.json",
+      "sha256": "95a6a6d3bfa58a0b49d108a13030dd66ba9864463bd3346f556cdc72eb382c41"
+    }
+  ],
+  "businessCalls": 36,
+  "businessRefusals": 3,
+  "cliExitCodes": {
+    "0": 78,
+    "1": 3,
+    "2": 1
+  },
+  "providerElapsedMs": 209576,
+  "providerReportedUsage": {
+    "uniqueStepFinishes": 49,
+    "costRaw": 0.021507738,
+    "tokens": {
+      "total": 656756,
+      "input": 75267,
+      "output": 5363,
+      "reasoning": 8830
+    },
+    "cacheRead": 567296,
+    "interpretation": "provider reported telemetry, not independently verified billing; totals include cache"
+  },
+  "compiledJsCount": 267,
+  "compiledUnchanged": true,
+  "replayEqual": true,
+  "verificationArtifact": ".local/open-residents/construction-trade-opencode-20261007/verification.json",
+  "verificationSha256": "eaa0de2f6bc9306a184c356c12a5a82b3f5e372a30e390390eaa57530bf6fbfb",
+  "scriptSha256": "fd9a1eb752b9d655a349e8ade467be50d1ad38eaa64df8767e5836a0ecc1d855",
+  "checks": {
+    "scriptLint": {
+      "exitCode": 0,
+      "log": "/tmp/construction-model-lint.log"
+    },
+    "modelRun": {
+      "exitCode": 0,
+      "log": "/tmp/construction-model-run.log"
+    }
+  },
+  "limits": [
+    "explicit goal, parties, amount and engineering project setup; no spontaneous organization claim",
+    "private buyer and seller only; public and collective model procurement not exercised",
+    "new integrated profile v2 release occurs after model run; not a v2 model run",
+    "no permanent provider-session continuity claim",
+    "full canonical/partition, long-term obligations and all 25 capabilities remain incomplete"
+  ]
+}

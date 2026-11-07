@@ -1,0 +1,26 @@
+{
+  "version": "lease-exit-gap-audit-v1",
+  "acceptance": false,
+  "cases": [
+    {
+      "departed": "host",
+      "failure": "lease-settlement-failed:invalid-actor-or-time",
+      "leaseStatus": "active",
+      "depositHeld": 5,
+      "moneySupply": 40,
+      "preservedEstateCash": [
+        20
+      ]
+    },
+    {
+      "departed": "tenant",
+      "failure": "invalid-commerce-balance",
+      "leaseStatus": "active",
+      "depositHeld": 5,
+      "moneySupply": 40,
+      "preservedEstateCash": [
+        15
+      ]
+    }
+  ]
+}

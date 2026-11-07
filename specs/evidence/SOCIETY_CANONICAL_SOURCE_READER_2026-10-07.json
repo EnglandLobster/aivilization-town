@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "canonical-source-reader-evidence-v1",
+  "sourceSha256": {
+    "apps/server/src/canonicalSocietySource.ts": "e1d6bab2b3e94996093e7d980e35705daa93c9dfa9067de56cff228409b46e03",
+    "apps/server/src/canonicalSocietySource.test.ts": "8cc668a1afb446d37f3240efec96dcdc7a527328916729627a15c93aa3f2398a",
+    "apps/server/src/index.ts": "5af5e88a51948ff7116ffb16dd2fc315fc007ff8fadcfb85694fd08c3ac8558b",
+    "apps/server/scripts/verify-canonical-source-reader.mjs": "b2bb5871164cfbd2d83a92266a83ee079e3e3f25d4f4ca5abf2d8bfb015b5e1f"
+  },
+  "validation": {
+    "targeted": {
+      "passed": 4,
+      "log": "/tmp/canonical-source-reader-tests.log"
+    },
+    "typecheck": {
+      "passed": true,
+      "logs": [
+        "/tmp/canonical-source-reader-typecheck-all.log",
+        "/tmp/canonical-source-reader-final-typecheck.log"
+      ]
+    },
+    "lint": {
+      "passed": true,
+      "log": "/tmp/canonical-source-reader-lint-final-all.log"
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/canonical-source-reader-final-build.log"
+    },
+    "tests": {
+      "passed": 3261,
+      "skipped": 1,
+      "filesPassed": 494,
+      "log": "/tmp/canonical-source-reader-full-tests.log"
+    }
+  },
+  "realArchive": {
+    "passed": true,
+    "archiveRoot": "/home/dev/aivilization-town/.local/canonical-ownership-20261007/archive",
+    "sourceTreeSha256": "11d64a0e31404a5adf202597031a5a44519db57578f97ba85f3ea150068f221c",
+    "runManifestId": "resolved-run-manifest:sha256:4bf43f220ad70ff95d02760aa2e75bf866c3d4cbd3a88df6bf0cdd19cab939ae",
+    "sourceRevision": {
+      "commit": "9db83ccd1d37522ee278f882643d2a1ca53ac364",
+      "dirty": true,
+      "workspaceFingerprint": {
+        "policyVersion": "git-workspace-fingerprint-v1",
+        "sha256": "sha256:20ee360a782632eddc5799b30bf94d58eea266cffeb8ecb1cb80b57f2dfcceed",
+        "pathCount": 2471
+      }
+    },
+    "candidateManifestSha256": "a3c9d90ddf0debfc04e835c7866d241588e03d8fa26d1aebf8c8dff4fe3e8c40",
+    "matchedPriorCandidate": true,
+    "residents": 25,
+    "historicalIds": 126,
+    "completedOriginalTrips": 22,
+    "restartReplayMatched": true,
+    "limitations": [
+      "Read-only verified archive adapter with temporary runtime, no source retirement or target publication.",
+      "Explicit original manifest selection/default policy and recorded consumers; not proof every historical custom configuration has an adapter.",
+      "Current resident identities come from original scenario seeds; later or exited subjects require additional provenance mapping.",
+      "Full 25 capabilities remain unfinished."
+    ]
+  },
+  "initialFailures": [
+    "Actual archive contains valid legacy events without partitionKey. Reader initially rejected these; now source stream binds missing partition while explicit mismatches still reject, and legacy tail replay is tested.",
+    "ESLint identified Array.isArray JSON unions narrowing to any; source arrays now cross explicit unknown boundaries and test corruption fixtures use precise structural types. No lint rules weakened."
+  ],
+  "limitations": [
+    "Candidate reader only; full source retirement and target publication remain next.",
+    "Explicit run manifest selection preserves source revision but is not proof current code bytes match the original revision or that arbitrary custom policies are supported.",
+    "Full event history and a referenced snapshot required; source gaps and pending transactions reject rather than repair or fabricate.",
+    "Current residents must map to original scenario identities; later arrivals/exited subjects need additional provenance mapping.",
+    "Full 25 capability goal remains active."
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "mode": "prompted-model-integration-not-emergence",
+  "model": "opencode-go/deepseek-v4.1-flash",
+  "passed": true,
+  "turns": [
+    {
+      "stage": 1,
+      "actorId": "resident-001",
+      "status": "completed",
+      "calls": 2
+    },
+    {
+      "stage": 2,
+      "actorId": "resident-002",
+      "status": "completed",
+      "calls": 5
+    },
+    {
+      "stage": 3,
+      "actorId": "resident-001",
+      "status": "completed",
+      "calls": 8
+    }
+  ],
+  "checks": {
+    "independentConsent": true,
+    "exactlyTwoExecutions": true,
+    "actualTransfer": true,
+    "supplyPreserved": true,
+    "twoSharedRecords": true,
+    "delegatedMessages": true,
+    "scheduleFinished": true
+  },
+  "replayEqual": true,
+  "root": ".local/open-residents/society-kernel-20261005",
+  "providerTurns": [
+    {
+      "actorId": "resident-001",
+      "turnId": "turn-13-resident-001",
+      "openCodeVersion": "1.18.34",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "elapsedMs": 22681,
+      "exitCode": 0,
+      "status": "completed",
+      "sessionId": "ses_ef7b31786ffePw7dNPoBTQgoov",
+      "skillVersion": "town-resident-skill-v7",
+      "commandExecutions": 10
+    },
+    {
+      "actorId": "resident-001",
+      "turnId": "turn-2-resident-001",
+      "openCodeVersion": "1.18.34",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "elapsedMs": 28750,
+      "exitCode": 0,
+      "status": "completed",
+      "sessionId": "ses_ef7b31786ffePw7dNPoBTQgoov",
+      "skillVersion": "town-resident-skill-v7",
+      "commandExecutions": 13
+    },
+    {
+      "actorId": "resident-002",
+      "turnId": "turn-6-resident-002",
+      "openCodeVersion": "1.18.34",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "elapsedMs": 26007,
+      "exitCode": 0,
+      "status": "completed",
+      "sessionId": "ses_ef7b29e71ffeqFZy9veD2Oz8LS",
+      "skillVersion": "town-resident-skill-v7",
+      "commandExecutions": 14
+    }
+  ],
+  "commandExecutions": 37,
+  "nativeTools": ["bash"],
+  "allCommandsTown": true,
+  "commandExitCounts": {
+    "0": 37
+  },
+  "residentCapabilityCalls": 15,
+  "journalCommits": 23,
+  "journalTailHash": "1c782a1e287a55d36ce1c7575f64c58c16b400839b7a251ff03ec735f5484b4d",
+  "journalSha256": "71434328318897bf03b8f40ee07f7cfe473bb708d5b51112312d1577792fdfcc",
+  "originalRecordAndMessageContentsPreserved": true,
+  "validationScope": "Prompted integration, not spontaneous adoption or long-run emergence. The subsequent rulebook-only classification refinement is covered separately by final CLI and repository checks."
+}

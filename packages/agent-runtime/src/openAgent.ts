@@ -13,6 +13,45 @@ export type OpenAgentPolicy = {
   readonly freeActivityIntervalMs: number;
   /** Simulation time charged at opportunity boundaries; absent v1 manifests use 1000 ms. */
   readonly opportunityCadenceMs?: number;
+  /** Absent: every direct message wakes its recipient immediately (historical behavior). */
+  readonly messageWake?: OpenAgentMessageWakePolicy;
+  /** Absent: residents cannot queue their own actions; every step needs a new opportunity. */
+  readonly actionPlans?: OpenAgentActionPlansPolicy;
+};
+/**
+ * Residents may queue a short sequence of their own actions that the world carries out in order
+ * without a new model opportunity per step; they are woken when it finishes, a step is refused,
+ * or a paced message arrives. Each step is still an ordinary authorized capability call.
+ */
+export type OpenAgentActionPlansPolicy = {
+  readonly version: 'resident-action-plans-v1' | 'resident-action-plans-v2';
+  readonly maxSteps: number;
+};
+export const RESIDENT_ACTION_PLANS_POLICY: OpenAgentActionPlansPolicy = {
+  version: 'resident-action-plans-v1',
+  maxSteps: 8,
+};
+/** v1 plus using goods you own (`life consume`), which v1 left out. */
+export const RESIDENT_ACTION_PLANS_POLICY_V2: OpenAgentActionPlansPolicy = {
+  version: 'resident-action-plans-v2',
+  maxSteps: 8,
+};
+/**
+ * Attention pacing for direct messages. People notice messages when they finish what they are
+ * doing and do not answer every message the instant it arrives; residents can still choose a
+ * nearer `schedule wait` themselves when they want a reply sooner.
+ */
+export type OpenAgentMessageWakePolicy = {
+  readonly version: 'resident-message-pacing-v1';
+  /** A message-triggered wake is never sooner than this after the start of the last opportunity. */
+  readonly minIntervalMs: number;
+  /** Messages do not interrupt an ongoing activity or journey; they wait until it ends. */
+  readonly deferDuringActivity: boolean;
+};
+export const RESIDENT_MESSAGE_PACING_POLICY: OpenAgentMessageWakePolicy = {
+  version: 'resident-message-pacing-v1',
+  minIntervalMs: 1_800_000,
+  deferDuringActivity: true,
 };
 export const DEFAULT_OPEN_AGENT_POLICY: OpenAgentPolicy = {
   version: OPEN_AGENT_POLICY_VERSION,
@@ -41,7 +80,19 @@ export function assertOpenAgentPolicy(policy: OpenAgentPolicy): void {
       policy.maxResultChars,
       policy.freeActivityIntervalMs,
       policy.opportunityCadenceMs ?? 1000,
-    ].some((value) => typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)
+    ].some((value) => typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) ||
+    (policy.messageWake !== undefined &&
+      (policy.messageWake.version !== 'resident-message-pacing-v1' ||
+        !Number.isSafeInteger(policy.messageWake.minIntervalMs) ||
+        policy.messageWake.minIntervalMs < 0 ||
+        policy.messageWake.minIntervalMs > 86_400_000 ||
+        typeof policy.messageWake.deferDuringActivity !== 'boolean')) ||
+    (policy.actionPlans !== undefined &&
+      ((policy.actionPlans.version !== 'resident-action-plans-v1' &&
+        policy.actionPlans.version !== 'resident-action-plans-v2') ||
+        !Number.isSafeInteger(policy.actionPlans.maxSteps) ||
+        policy.actionPlans.maxSteps < 1 ||
+        policy.actionPlans.maxSteps > 16))
   )
     throw new Error('invalid-open-agent-policy');
 }
@@ -52,6 +103,8 @@ export type OpenToolProperty = {
   readonly minimum?: number;
   readonly maximum?: number;
   readonly maxLength?: number;
+  readonly minItems?: number;
+  readonly maxItems?: number;
   readonly items?: { readonly type: 'string' };
 };
 export type OpenToolDefinition = {
@@ -99,6 +152,8 @@ export function validateOpenToolArguments(
         item.some((entry: unknown) => typeof entry !== 'string')
       )
         return `invalid-array:${key}`;
+      if (item.length < (property.minItems ?? 0)) return `array-too-short:${key}`;
+      if (item.length > (property.maxItems ?? 100)) return `array-too-long:${key}`;
     } else if (type === 'object') {
       if (item === null || typeof item !== 'object' || Array.isArray(item))
         return `invalid-object:${key}`;

@@ -1,3 +1,5 @@
+import { tradeFactsEqual as equal } from '@aivilization/commerce';
+import { assertResidentEstateCreditSnapshot } from '../residentEstateCredit';
 import {
   assertMoneySupplyDelta,
   createMoneyTransfer,
@@ -10,6 +12,7 @@ import {
   normalizeBankState,
   TOWN_BANK_ACCOUNT_OWNER_ID,
   type CreditDomainEvent,
+  CREDIT_SHARED_CASH_BUDGET_POLICY,
 } from '@aivilization/credit';
 import type { AgentId } from '@aivilization/sim-core';
 import type { WorldEvent } from '../events';
@@ -21,14 +24,35 @@ import type { WorldAgentState, WorldProjection } from '../projection';
  * the counterpart agent cash accounts and checks that every movement is a
  * supply-neutral transfer between circulating accounts.
  */
-export function applyCreditProjectionEvent(
+function applyCreditProjectionEventUnchecked(
   projection: WorldProjection,
   event: WorldEvent,
 ): WorldProjection | undefined {
+  if (
+    (event.type === 'LoanRepaid' ||
+      event.type === 'LoanDefaulted' ||
+      event.type === 'DepositInterestPaid') &&
+    event.payload.collectionPolicyVersion !== undefined &&
+    (event.payload.collectionPolicyVersion !== CREDIT_SHARED_CASH_BUDGET_POLICY.version ||
+      projection.estateCredit?.policy.collectionPolicyVersion !==
+        event.payload.collectionPolicyVersion ||
+      projection.estateCredit.creditPolicy.policyVersion !== event.payload.policyVersion)
+  )
+    throw Error('credit-explicit-shared-budget-source-required');
   switch (event.type) {
     case 'TownBankSnapshotRecorded': {
       const bank = normalizeBankState(event.payload.bank);
       assertValidBankState(bank);
+      if (projection.estateCredit) {
+        assertResidentEstateCreditSnapshot({ ...projection, bank });
+        if (
+          !equal(bank, projection.bank) ||
+          event.payload.recordedAt !== event.occurredAt ||
+          event.occurredAt !== projection.clock.now ||
+          event.payload.policyVersion !== projection.estateCredit.creditPolicy.policyVersion
+        )
+          throw Error('estate-credit-bank-snapshot-import-not-supported');
+      }
       return { ...projection, bank };
     }
     case 'BankInterestCredited': {
@@ -205,4 +229,14 @@ function updateAgent(
     ...projection,
     agents: { ...projection.agents, [agentId]: update(current) },
   };
+}
+
+/** Cross-domain subject and reserved claim capacity are checked on the completed atomic bank effect. */
+export function applyCreditProjectionEvent(
+  projection: WorldProjection,
+  event: WorldEvent,
+): WorldProjection | undefined {
+  const next = applyCreditProjectionEventUnchecked(projection, event);
+  if (next) assertResidentEstateCreditSnapshot(next);
+  return next;
 }

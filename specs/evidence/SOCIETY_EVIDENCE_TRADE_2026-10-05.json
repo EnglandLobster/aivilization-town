@@ -1,0 +1,298 @@
+{
+  "capability": "W05-evidence-orders-foundation",
+  "mode": "real-compiled-cli-http-engineering-acceptance",
+  "modelInvoked": false,
+  "explicitTestSeed": {
+    "residents": 5,
+    "sourceWood": 10,
+    "otherWoodPerResident": 1,
+    "distinctRealLocations": [
+      "town-square",
+      "market"
+    ],
+    "worldPolicyRecordedAfterSeed": true
+  },
+  "cliCalls": 50,
+  "results": [
+    {
+      "route": "trades.rules",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "rules.read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials.reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.fund",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "trade-order-not-found"
+    },
+    {
+      "route": "trades.ledger",
+      "exitCode": 1,
+      "ok": false,
+      "error": "trade-order-not-found"
+    },
+    {
+      "route": "freight.load",
+      "exitCode": 1,
+      "ok": false,
+      "error": "trade-payment-or-offer-release-required"
+    },
+    {
+      "route": "trades.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.observe",
+      "exitCode": 2,
+      "ok": false,
+      "error": "unknown-flag:--evidence"
+    },
+    {
+      "route": "freight.load",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel.go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.withdraw",
+      "exitCode": 1,
+      "ok": false,
+      "error": "trade-unfunded-offer-required"
+    },
+    {
+      "route": "freight.deliver",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.dispute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.propose-settlement",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.respond-settlement",
+      "exitCode": 1,
+      "ok": false,
+      "error": "trade-independent-current-settlement-required"
+    },
+    {
+      "route": "trades.respond-settlement",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.ledger",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel.go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials.reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.fund",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.load",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel.go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.cancel",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel.go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.return",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements.offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements.fund",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements.start",
+      "exitCode": 1,
+      "ok": false,
+      "error": "trade-payment-or-offer-release-required"
+    },
+    {
+      "route": "trades.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements.start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements.start",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "engagements.leave",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.confirm",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.confirm",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.list",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.ledger",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "buyerIndependentAcceptance": true,
+  "unfundedPhysicalStartRefused": true,
+  "noResidentProofInjection": true,
+  "actualFreightBeforeOrderFulfillment": true,
+  "carrierNotAutomaticallyGoodsParty": true,
+  "originalDisputeAndIndependentSettlement": true,
+  "inTransitCancellationPreservesEscrow": true,
+  "actualReturnRefundsOrder": true,
+  "carrierFeesSeparateFromGoodsPrice": true,
+  "actualPartialServiceAndRefund": true,
+  "sponsorSeparateFromPhysicalParticipants": true,
+  "noImplicitDoubleServiceCharge": true,
+  "duplicateConfirmationPaidOnce": true,
+  "outsiderPrivacy": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true,
+  "remainingScope": [
+    "property-and-use-right-transfer",
+    "long-term-obligations",
+    "enterprise-and-public-procurement",
+    "all-runtime-modes",
+    "real-model-and-free-emergence-acceptance"
+  ]
+}

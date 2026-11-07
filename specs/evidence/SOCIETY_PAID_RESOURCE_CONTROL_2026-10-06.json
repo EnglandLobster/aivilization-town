@@ -1,0 +1,190 @@
+{
+  "schemaVersion": "society-paid-resource-control-evidence-v1",
+  "date": "2026-10-06",
+  "policy": "resident-resource-sales-v1",
+  "publicAuthority": "public-paid-resource-control-v1",
+  "enterpriseAccounting": "enterprise-resource-sales-cash-accounting-v1",
+  "catalog": 60,
+  "skill": 59,
+  "rulebook": 49,
+  "entrypoints": [
+    "principals control",
+    "principals read --kind premises",
+    "principals read --kind resource-sale",
+    "principals operate",
+    "collectives propose/vote/decide/execute",
+    "governance propose/vote/close/execute",
+    "enable-resource-sales"
+  ],
+  "fullGate": {
+    "command": "pnpm check",
+    "lintPassed": true,
+    "sortedRepositoryTypecheckPassed": true,
+    "testsPassed": 2957,
+    "testsSkipped": 1,
+    "note": "First full regression caught expiry orchestration before the existing capability-effects boundary. The ordering was fixed, boundary tests unchanged, and complete pnpm check exited zero. CLI-only changes then received full lint and actual compiled acceptance."
+  },
+  "build": {
+    "command": "pnpm build",
+    "passed": true
+  },
+  "compiledCli": {
+    "ok": true,
+    "validation": "compiled-authenticated-HTTP-CLI-not-emergence",
+    "policy": "resident-resource-sales-v1",
+    "calls": 20,
+    "refusals": 4,
+    "checks": [
+      "real-materials-and-own-labor",
+      "explicit-fiscal-control-scope",
+      "independent-public-price-vote",
+      "atomic-payment-and-control",
+      "manager-not-private-payee",
+      "no-free-price-bypass",
+      "old-author-assets-position-and-obligations",
+      "one-time-execution",
+      "identity-binding",
+      "full-journal-replay"
+    ],
+    "results": [
+      {
+        "route": "stocks.create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks.deposit",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "materials.reserve",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "construction.create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "construction.start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 1,
+        "ok": false,
+        "error": "paid-resource-sale-acceptance-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-sale-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 1,
+        "ok": false,
+        "error": "public-proposal-revision-conflict"
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 2,
+        "ok": false,
+        "error": "unknown-flag:--actor-id"
+      }
+    ]
+  },
+  "formatting": {
+    "passed": true,
+    "scope": "new implementation files"
+  },
+  "verifiedBehavior": [
+    "actual built source, finite materials and own labor",
+    "independent exact buyer price approval; real account owner separate from executor",
+    "resident/enterprise/collective/public account and control combinations",
+    "public acquisition distinct fiscal-plus-control grant",
+    "same price/control-version binding bars free bypass after decline",
+    "seller withdrawal atomically cancels corresponding actual handover",
+    "balance/source/physical wear/scope/version/refusal cannot half-settle",
+    "synchronous two balanced transfers clearing to zero",
+    "enterprise own event accounting and collective actual receipts",
+    "parent exact vote consumed once; derived child cannot run independently",
+    "old author/permissions/obligations/physical location and materials retained",
+    "full journal replay and old manifest activation preservation",
+    "on-demand party visibility; old quote does not reveal new private handover"
+  ],
+  "logs": {
+    "/tmp/resource-sale-full-check-final.log": "96d7c356eeb9fbf9f115c348e9ffbab8ddb6e0019fa4b334306fcf33618f3b3a",
+    "/tmp/resource-sale-build.log": "1acc8256dd089903753530ca7d052b0d48949f49abf96c437edc9dfcf76e9fca",
+    "/tmp/resource-sale-cli.log": "5d29d7495e7a24e8a2d9f764c2cca674d01f07e51b2e6d13cde56446ce1a78f4",
+    "/tmp/resource-sale-lint-final.log": "5916ffad0518ced5d03a10f2db745faa61fd5dcdef8fb1a738e3a423b5e12e76",
+    "/tmp/resource-sale-prettier-check.log": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+  },
+  "limitations": [
+    "First paid resource path is already genuinely built premises, not all goods/vehicles or public in-progress construction",
+    "Current enterprise accounting is cash-surplus, not fixed-asset capitalization/depreciation or bankruptcy disposition",
+    "Only active enterprise authorization; no invented estate authority",
+    "Open resident journal only; canonical planner/partition R01 unfinished",
+    "Engineering acceptance does not prove autonomous institutions or resident adoption",
+    "Whole H3-H6/W05, long obligations/estate and all25 contracts remain open"
+  ]
+}

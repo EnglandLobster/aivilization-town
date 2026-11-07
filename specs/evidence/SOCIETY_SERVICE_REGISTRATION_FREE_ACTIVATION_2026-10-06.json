@@ -1,0 +1,29 @@
+{
+  "kind": "explicit-service-registration-activation",
+  "afterOpportunities": 640,
+  "simulationTime": 755723000,
+  "commitsBefore": 4602,
+  "commitsAfter": 4603,
+  "implementation": {
+    "root": "/tmp/aivilization-service-registration-20261006",
+    "versions": {
+      "catalog": 56,
+      "skill": 55,
+      "rulebook": 45
+    },
+    "fingerprints": 81,
+    "validation": {
+      "command": "pnpm check",
+      "testsPassed": 2906,
+      "testsSkipped": 1,
+      "compiledCalls": 27,
+      "expectedRefusals": 7
+    }
+  },
+  "source": "operator-capability-migration",
+  "retainsOriginalManifest": true,
+  "prescribedSocialGoal": false,
+  "addsAssetsOrCatalogOrProviderShifts": false,
+  "replayMatches640FullState": true,
+  "originalDirectoryAndWorldUnchanged": true
+}

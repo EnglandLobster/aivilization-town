@@ -1,0 +1,121 @@
+{
+  "schemaVersion": "society-engineering-verification-v1",
+  "scope": "explicit-open-resident-elapsed-study-v1",
+  "fullCheck": {
+    "command": "pnpm check",
+    "passed": true,
+    "testsPassed": 2652,
+    "testsSkipped": 1,
+    "filesPassed": 368,
+    "filesSkipped": 1,
+    "log": "/tmp/elapsed-study-check-final.log"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... build",
+    "passed": true,
+    "log": "/tmp/elapsed-study-build-final.log"
+  },
+  "cli": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-http-cli-not-free-emergence",
+    "calls": 13,
+    "expectedRefusals": 4,
+    "results": [
+      {
+        "route": "city observe",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "education study",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "city observe",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "city observe",
+        "exitCode": 1,
+        "ok": false,
+        "error": "own-study-not-found"
+      },
+      {
+        "route": "education stop",
+        "exitCode": 1,
+        "ok": false,
+        "error": "study-stop-authority-required"
+      },
+      {
+        "route": "education study",
+        "exitCode": 1,
+        "ok": false,
+        "error": "agent is busy with education until simulation time 3600000 (now 0)"
+      },
+      {
+        "route": "city observe",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "education stop",
+        "exitCode": 1,
+        "ok": false,
+        "error": "study-revision-conflict"
+      },
+      {
+        "route": "education stop",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "city observe",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "education study",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "education stop",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "city observe",
+        "exitCode": 0,
+        "ok": true
+      }
+    ],
+    "noPrepaidKnowledge": true,
+    "actualPartialLearning": true,
+    "unusedTuitionRefundsOriginalPayers": true,
+    "ownHistoryOnly": true,
+    "replayEqual": true,
+    "journalBytesUnchanged": true
+  },
+  "targetedTests": 13,
+  "regression": {
+    "reproduced": "off-grid extra time request promoted a formal level before the equivalent single advance",
+    "beforeLog": "/tmp/elapsed-study-promotion-before.log",
+    "afterLog": "/tmp/elapsed-study-promotion-after.log",
+    "fix": "fixed institutional cadence after earned learning, only in explicit new mode"
+  },
+  "versions": {
+    "catalog": 35,
+    "skill": 34,
+    "rulebook": 24
+  },
+  "limitations": [
+    "Explicit independent open-resident runtime only; canonical planner and partition authority pending.",
+    "Only frozen no-consumable initial courses; source is scenario/external, not a resident teacher.",
+    "Initial compulsory education grant retained and identified; resident public procurement uses a different explicit approval path.",
+    "Resident guided-study service already has its own provider process; this does not prove an autonomous school emerged.",
+    "Remaining labor, medical and long-lived obligation paths are not completed by this stage.",
+    "CLI verification is directed, not autonomous adoption."
+  ]
+}

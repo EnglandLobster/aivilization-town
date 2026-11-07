@@ -1,0 +1,210 @@
+{
+  "date": "2026-10-07",
+  "scope": "Independent resource adapter integration without implicit public authority",
+  "status": "verified-slice-not-complete-society",
+  "policyVersion": "independent-resource-adapters-v1",
+  "residentToolsAdded": 0,
+  "skillVersion": "town-resident-skill-v68",
+  "rulebookVersion": "society-rulebook-v55",
+  "checks": {
+    "targeted": {
+      "passed": 36,
+      "files": 4,
+      "log": "/tmp/adapters-final-target.log"
+    },
+    "lint": "passed",
+    "typecheck": "passed",
+    "build": "passed",
+    "format": "passed",
+    "fullTests": {
+      "passed": 3298,
+      "skipped": 1,
+      "filesPassed": 500,
+      "filesSkipped": 1,
+      "log": "/tmp/adapters-full-tests.log"
+    }
+  },
+  "compiledCli": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-cli-not-emergence",
+    "calls": 10,
+    "expectedRefusals": 2,
+    "results": [
+      {
+        "route": "stocks.create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks.deposit",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-control-authority-required"
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-sale-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      }
+    ],
+    "adminMissingDomainAtomic": true,
+    "adminRetryIdempotent": true,
+    "noGovernmentBuildingsOrVehicles": true,
+    "actualGoodsPreserved": true,
+    "moneySupplyUnchanged": true,
+    "replayMatched": true
+  },
+  "activation": {
+    "ok": true,
+    "version": "canonical-independent-resource-adapter-verification-v1",
+    "result": {
+      "ok": true,
+      "data": {
+        "policy": {
+          "version": "independent-resource-adapters-v1",
+          "kinds": ["premises", "stock"]
+        }
+      },
+      "revision": 248,
+      "simulationTime": 3336000
+    },
+    "beforeRevision": 247,
+    "afterRevision": 248,
+    "oldAdapters": null,
+    "resourceAdapters": {
+      "kinds": ["premises", "stock"],
+      "version": "independent-resource-adapters-v1"
+    },
+    "previousSalesPolicy": "resident-resource-sales-v1",
+    "salesPolicy": "resident-resource-sales-v2",
+    "allOtherWorldFieldsUnchanged": true,
+    "publicGrantUnchanged": true,
+    "existingSalesUnchanged": true,
+    "noVehicleSeeded": true,
+    "manifestUnchanged": true,
+    "retryNoCommit": true,
+    "replayMatched": true,
+    "journalHash": "ace5c96397026b87ec937fca956b82a7c82a55494bf3560c16e19fa144061ec6"
+  },
+  "freeOpenCode": {
+    "evidenceKind": "unprompted-single-opportunity-not-stable-emergence",
+    "beforeRevision": 248,
+    "afterRevision": 259,
+    "clock": 3337000,
+    "run": {
+      "event": "resident-opportunity",
+      "actorId": "smoke-25-world-main-agent-010",
+      "turnId": "turn-249-smoke-25-world-main-agent-010",
+      "status": "completed",
+      "calls": 8
+    },
+    "finish": {
+      "event": "resident-society-finished",
+      "status": "limit-reached",
+      "opportunities": 1
+    },
+    "eventCounts": {
+      "ActionRejected": 1,
+      "ShortTermMemoryRecorded": 2,
+      "AgentTravelStarted": 1,
+      "AgentActivityTimeCommitted": 1,
+      "SimulationTimeAdvanced": 1,
+      "ResidentMaterialsCommitted": 3
+    },
+    "refusals": [
+      {
+        "sequence": 255,
+        "capability": "world.study",
+        "error": "actual-scenario-course-location-required"
+      }
+    ],
+    "capabilities": [
+      "turn.started",
+      "world.observe",
+      "world.observe",
+      "world.observe",
+      "production.recipes",
+      "sources.list",
+      "world.study",
+      "world.move",
+      "schedule.wait",
+      "turn.finished",
+      "system.advance-time"
+    ],
+    "travelEvents": [
+      {
+        "agentId": "smoke-25-world-main-agent-010",
+        "arrivesAt": 3782000,
+        "baseTravelDurationSeconds": 420,
+        "congestionMultiplier": 1.05984375,
+        "departedAt": 3336000,
+        "destinationCongestionMultiplier": 1.05,
+        "edgeCongestionMultiplier": 1.009375,
+        "fromLocationId": "workshop",
+        "reason": "去学校自习，准备升学考试",
+        "routeEdgeFlows": [
+          {
+            "activeTraversalCount": 1,
+            "congestionMultiplier": 1.009375,
+            "fromLocationId": "workshop",
+            "toLocationId": "school"
+          }
+        ],
+        "routeLocationIds": ["workshop", "school"],
+        "spatialPolicyVersion": "town-spatial-graph-v2",
+        "toLocationId": "school",
+        "travelDurationSeconds": 446
+      }
+    ],
+    "replayMatched": true,
+    "journalBytesUnchangedByReopen": true,
+    "writerReleased": true,
+    "journalHash": "690b9f438c15b7ec400b94c70514caf96b4d2f57f7c073086e9574c620954bcf",
+    "limitations": [
+      "No resource trade, collective decision or new organization observed.",
+      "Learning was rejected at the wrong actual location; a later trip start is not completed study.",
+      "A single opportunity cannot establish stable autonomous social behavior."
+    ]
+  },
+  "remaining": [
+    "Separate post-independent-activation public scope extension requires a later explicit policy; old public grant paths remain unchanged.",
+    "Complete 25 capability contracts, all runtime modes and partition writes remain unfinished.",
+    "Broader multi-resident continuous free running is needed, not just isolated opportunities."
+  ]
+}

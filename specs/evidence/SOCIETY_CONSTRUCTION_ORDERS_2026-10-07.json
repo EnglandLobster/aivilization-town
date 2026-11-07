@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T21:09:46.861479+00:00",
+  "spec": "specs/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md",
+  "status": "construction-order-domain-verified-not-runtime-procurement",
+  "newDomainTests": 6,
+  "newResidentCapabilities": 0,
+  "fullTests": {
+    "passed": 3184,
+    "skipped": 1,
+    "filesPassed": 475,
+    "filesSkipped": 1
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/construction-orders-lint.log"
+    },
+    "finalFilesLint": {
+      "exitCode": 0,
+      "log": "/tmp/construction-orders-final-lint.log"
+    },
+    "sortedFullTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/construction-orders-typecheck.log"
+    },
+    "finalCommerceTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/construction-orders-final-typecheck.log"
+    },
+    "commerceBuild": {
+      "exitCode": 0,
+      "log": "/tmp/construction-orders-build.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-orders-full-tests.log"
+    },
+    "targetedTests": {
+      "exitCode": 0,
+      "log": "/tmp/construction-orders-tests-final.log"
+    }
+  },
+  "sourceSha256": {
+    "packages/commerce/src/constructionTrade.ts": "0f9871fb725dd3b9615b067b768e7f878a3a60bf41854671a40bfb160c3a7e68",
+    "packages/commerce/src/constructionTradeModel.ts": "2a4f25bcd0baeded3b4c11b05e2c41e2556e40f09145ea3429062f9e1fe93308",
+    "packages/commerce/src/constructionTrade.test.ts": "b41c5e927a339585cda809321128cfedd5f98a63a9908d652295ff328aa13267",
+    "packages/commerce/src/index.ts": "06a256e14070fdae2519efeb747c2c19192bfb754a07d63ac8ad5974962fb881"
+  },
+  "verified": [
+    "exact independent principal authority and account subject binding",
+    "unstarted immutable project binding and duplicate rejection",
+    "balanced escrow funding, objective completion payment and independent split settlement",
+    "partial/cancelled work retains escrow and obligations",
+    "exact actor-command retry without repeated payment",
+    "unpaid offer expiry without clearing funded contracts",
+    "deterministic event replay and accounting mismatch rejection"
+  ],
+  "remaining": [
+    "owning premises fact adapter and canonical specification commitment",
+    "world atomic accounting, enterprise events, shared escrow composition and account reservations",
+    "public independent authorization consumption and construction start gating",
+    "manifest enablement and CLI/query/context delivery",
+    "runtime/old-state/replay integration, compiled CLI and real OpenCode combination",
+    "full 25 capabilities and canonical/partition integration"
+  ]
+}

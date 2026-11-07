@@ -1,0 +1,195 @@
+{
+  "phase": "declared-service-facilities-v1",
+  "status": "engineering-gates-and-single-free-opportunity-verified",
+  "boundary": "Explicit new endowments after service activation. Premises owns fixtures; world validates real location capacity; worker journals whole batch. No historic facilities inferred from names.",
+  "activation": {
+    "passed": true,
+    "previousRevision": 161,
+    "revision": 162,
+    "declaration": [
+      {
+        "locationId": "clinic",
+        "careStations": 2,
+        "teachingStations": 0,
+        "sourceId": "new-operator-service-facilities-20261007"
+      },
+      {
+        "locationId": "school",
+        "careStations": 0,
+        "teachingStations": 2,
+        "sourceId": "new-operator-service-facilities-20261007"
+      }
+    ],
+    "origin": "Explicit new operator endowment; not inferred from legacy clinic/school names or historical ownership.",
+    "existingPeopleFundsGoodsTimeWorkAndAgreementsUnchanged": true,
+    "manifestUnchanged": true,
+    "retryCreatedNoCommits": true,
+    "replayMatched": true,
+    "limitations": [
+      "No teacher, caregiver, organization or resident consent created.",
+      "No original building/title history inferred.",
+      "Actual effects still require valid personal service participation.",
+      "Complete original-mode and partition integration remain unfinished."
+    ]
+  },
+  "directedCli": {
+    "ok": true,
+    "declaredFacilities": true,
+    "evidenceKind": "directed-compiled-http-cli-not-free-emergence",
+    "calls": 13,
+    "expectedRefusals": 4,
+    "results": [
+      {
+        "route": "engagements models",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements offer",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements fund",
+        "ok": false,
+        "exitCode": 1,
+        "error": "service-engagement-not-accepted"
+      },
+      {
+        "route": "engagements accept",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements fund",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements start",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "life sleep",
+        "ok": false,
+        "exitCode": 1,
+        "error": "agent is busy with participation until simulation time 3600000 (now 60000)"
+      },
+      {
+        "route": "engagements start",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements read",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements read",
+        "ok": false,
+        "exitCode": 1,
+        "error": "service-engagement-not-found"
+      },
+      {
+        "route": "engagements leave",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements leave",
+        "ok": false,
+        "exitCode": 1,
+        "error": "service-engagement-revision-conflict"
+      },
+      {
+        "route": "engagements read",
+        "ok": true,
+        "exitCode": 0
+      }
+    ],
+    "independentPresence": true,
+    "waitingHasNoServiceCharge": true,
+    "actualBodyAndFeesTogether": true,
+    "oneBodyReservation": true,
+    "unusedFeesRefunded": true,
+    "privateRead": true,
+    "replayEqual": true,
+    "journalBytesUnchanged": true,
+    "serviceEmploymentStillPending": true
+  },
+  "targetedTests": {
+    "testsPassed": 21,
+    "filesPassed": 2,
+    "log": "/tmp/facility-target-tests.log"
+  },
+  "checks": {
+    "lint": "/tmp/facility-lint2.log",
+    "typecheck": "/tmp/facility-typecheck2.log",
+    "fullBuild": "/tmp/facility-build2.log",
+    "finalWorldBuild": "/tmp/facility-world-final-build.log",
+    "format": "/tmp/facility-format-check.log",
+    "fullTests": "/tmp/facility-full-tests.log"
+  },
+  "sourceSha256": {
+    "packages/world/src/serviceFacilityRegistration.ts": "80bae187eed459d4581672545c9d46f07ac9bf3dd8500a746412df334f5facaa",
+    "packages/world/src/residentServiceEngagements.ts": "8e166ef49155c35fac16eb13a22e9fc030a9afa5c1cbc2783687106468652b24",
+    "packages/world/src/projectionReducers/serviceEngagements.ts": "2b05e7a6f5af36a18e588222a67462ec5faee0b4d4deb52067f4b8320e01bcf5",
+    "apps/worker/src/openSociety/serviceFacilityRegistration.test.ts": "2ea71217b8f8580b72f55acf343416e8c5c6f1a93ab5fa0e59b2b3f4e432e5ae",
+    "apps/residents/scripts/verify-service-time.mjs": "ba5263a357717b261bdcf8a03945414a65ade1b1b7a0fce3f96dce46a2dbadbe",
+    "apps/server/scripts/verify-canonical-service-facilities.mjs": "17a685da57815e655c313a5284295e656de3f5a7f8f2a18ab35bc1bfaf684239",
+    "apps/residents/scripts/verify-premises-rights-activation.mjs": "31d38482479c84d1b0d2abbae7a040a2079b77e749b57ec4fc139b22e81196ec"
+  },
+  "limitations": [
+    "Declared resources are new, not reconstructed old physical assets or title.",
+    "No teachers, care providers, service agreement or consent created by registration.",
+    "Actual guided teaching still needs its existing material/time/consent rules; no new medical effect models added.",
+    "Complete original runtime/partition and full 25-capability delivery remain unfinished."
+  ],
+  "fullRegression": {
+    "filesPassed": 499,
+    "filesSkipped": 1,
+    "testsPassed": 3291,
+    "testsSkipped": 1,
+    "durationSeconds": 62.57
+  },
+  "freeModel": {
+    "completed": true,
+    "status": "completed",
+    "exitCode": 0,
+    "termination": {
+      "exitSignal": null,
+      "aborted": false,
+      "abortReason": null,
+      "providerErrorEvent": false
+    },
+    "elapsedMs": 164292,
+    "model": "opencode-go/deepseek-v4.1-flash",
+    "opportunities": 1,
+    "calls": 31,
+    "previousRevision": 162,
+    "revision": 196,
+    "journalCommits": 196,
+    "journalSha256": "9fa07f92c9abf18f0ff5e4114c578c01b54c2aac779d182ecfb0044430f56f84",
+    "worldEventCounts": {
+      "ResidentMaterialsCommitted": 6,
+      "SimulationTimeAdvanced": 1
+    },
+    "materialOperations": {
+      "create-stock": 1,
+      "create-extraction": 1,
+      "start-production": 1,
+      "production-progress": 3
+    },
+    "rejections": [],
+    "replayMatched": true,
+    "reopenedWithoutNewCommits": true,
+    "writerReleased": true,
+    "limitations": [
+      "No care/teaching service engagement adopted in this opportunity.",
+      "Explicit declared fixtures are new supply, not inferred historical ownership.",
+      "One free opportunity is not stable social emergence."
+    ]
+  }
+}

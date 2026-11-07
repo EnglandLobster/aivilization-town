@@ -18,6 +18,7 @@ import type {
 } from './types';
 import { numberArg, pageItems, stringArg, stringArrayArg, ToolRefusal } from './arguments';
 import { digest } from './journal';
+import { messageWakeAt } from './attention';
 
 export type ToolExecution = { readonly data: unknown; readonly effects: OpenSocietyEffects };
 export function executeInformationTool(input: {
@@ -192,14 +193,27 @@ export function executeInformationTool(input: {
   if (sent?.type === 'MessageSent') {
     const message = sent.message;
     const receiver = state.residents[message.recipientId];
-    if (receiver !== undefined)
+    if (receiver !== undefined) {
+      const wakeAt = messageWakeAt(state, manifest.policy, receiver, at);
+      // Without pacing, wakeAt === at: the historical immediate wake. With pacing, a message only
+      // brings an existing wake forward, except during the recipient's own active opportunity,
+      // where it marks a pending message that finishTurn schedules.
+      const wakes =
+        state.communication?.preferences[message.recipientId]?.directWake !== false &&
+        (manifest.policy.messageWake === undefined ||
+          receiver.wakeReason === 'turn-active' ||
+          wakeAt < receiver.nextWakeAt);
       residents.push({
         ...receiver,
-        ...(state.communication?.preferences[message.recipientId]?.directWake === false
-          ? {}
-          : { nextWakeAt: at, wakeReason: `message:${message.id}` }),
+        ...(wakes
+          ? {
+              nextWakeAt: manifest.policy.messageWake ? Math.min(receiver.nextWakeAt, wakeAt) : at,
+              wakeReason: `message:${message.id}`,
+            }
+          : {}),
         unreadMessageIds: [...receiver.unreadMessageIds, message.id],
       });
+    }
     for (const ownerId of [...new Set([actorId, message.recipientId])])
       experiences.push({
         id: `experience-${message.id}-${ownerId}`,

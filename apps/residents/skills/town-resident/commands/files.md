@@ -14,7 +14,7 @@ Browse original document metadata only, without body summaries or ranking. Read 
 --offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
 --limit <integer> (optional) min=1 max=30 Page size
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## files create
@@ -26,11 +26,11 @@ Create your own document in a space allowing you to contribute. Writing a claim 
 --path <string> (required) maxLength=240 Relative document path
 --content <string> (required) maxLength=8000 Document content
 --title <string> (optional) maxLength=120 Your own title; never automatically summarized
---tags <array> (optional) repeat flag per item; omit for [] when required Up to 12 author-supplied tags, each at most 40 characters
+--tags <array> (optional) repeat flag per item; an empty quoted string is one item, not an empty list Up to 12 author-supplied tags, each at most 40 characters
 --related-to <string> (optional) maxLength=160 Author-supplied related location, enterprise or document ID; not verification
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
 --content-stdin Read original content from stdin instead of --content (terminal use).
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## files read
@@ -41,7 +41,7 @@ Read a visible document and its current revision.
 --space-id <string> (required) maxLength=96 Space ID
 --path <string> (required) maxLength=240 Relative document path
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## files list
@@ -53,7 +53,7 @@ List visible documents in a space. Deleted entries are omitted.
 --offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
 --limit <integer> (optional) min=1 max=30 Page size
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## files search
@@ -66,7 +66,7 @@ Search the contents and paths of documents you may read. It does not search priv
 --offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
 --limit <integer> (optional) min=1 max=30 Page size
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## files update
@@ -79,11 +79,11 @@ Revise your document using its current revision. Space ownership does not let yo
 --content <string> (required) maxLength=8000 Replacement content
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --title <string> (optional) maxLength=120 Your own title; never automatically summarized
---tags <array> (optional) repeat flag per item; omit for [] when required Up to 12 author-supplied tags, each at most 40 characters
+--tags <array> (optional) repeat flag per item; an empty quoted string is one item, not an empty list Up to 12 author-supplied tags, each at most 40 characters
 --related-to <string> (optional) maxLength=160 Author-supplied related location, enterprise or document ID; not verification
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
 --content-stdin Read original content from stdin instead of --content (terminal use).
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## files delete
@@ -95,7 +95,7 @@ Tombstone your document, or moderate a document in your space. History remains v
 --path <string> (required) maxLength=240 Relative document path
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## files history
@@ -108,7 +108,7 @@ Read version history, including deletions, of a visible document.
 --offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
 --limit <integer> (optional) min=1 max=30 Page size
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 [能力索引](../capabilities.md) · [执行规则](../execution.md)

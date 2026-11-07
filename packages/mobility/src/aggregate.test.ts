@@ -54,6 +54,87 @@ function fixture() {
   };
 }
 describe('mobility commitments', () => {
+  it('uses the same load and custody gate for solo driving, pickup travel and passenger departure', () => {
+    const f = fixture(),
+      blocked: MobilityPorts = { ...f.p, travelCapacity: () => 'physical-cargo-limit' };
+    expect(
+      decideMobility(
+        f.state,
+        'd',
+        0,
+        { type: 'vehicles.drive', id: 'car', destinationId: 'b', expectedRevision: 1 },
+        blocked,
+      ),
+    ).toMatchObject({ accepted: false, reason: 'physical-cargo-limit' });
+    f.locations.r = 'c';
+    f.setup();
+    f.call('r', { type: 'rides.book', id: 'ride', quoteId: 'quote', expectedRevision: 1 });
+    expect(
+      decideMobility(
+        f.state,
+        'd',
+        0,
+        { type: 'rides.pickup', id: 'ride', expectedRevision: 2 },
+        blocked,
+      ),
+    ).toMatchObject({ accepted: false, reason: 'physical-cargo-limit' });
+    const g = fixture();
+    g.setup();
+    g.call('r', { type: 'rides.book', id: 'ride', quoteId: 'quote', expectedRevision: 1 });
+    g.call('d', { type: 'rides.pickup', id: 'ride', expectedRevision: 2 });
+    expect(
+      decideMobility(
+        g.state,
+        'r',
+        0,
+        { type: 'rides.board', id: 'ride', expectedRevision: 3 },
+        { ...g.p, travelCapacity: () => 'physical-cargo-limit' },
+      ),
+    ).toMatchObject({ accepted: false, reason: 'physical-cargo-limit' });
+  });
+  it('cargo capacity is an explicit immutable asset fact; serialized key order does not change it', () => {
+    const original = {
+      id: 'car',
+      ownerId: 'd',
+      authorized: [],
+      seats: 2,
+      locationId: 'a',
+      revision: 1,
+      cargoCapacity: {
+        version: 'vehicle-cargo-capacity-v1' as const,
+        units: 40,
+        source: 'scenario-seed' as const,
+        sourceId: 'test-seed',
+      },
+    };
+    const s = emptyMobilityState([original]);
+    expect(() =>
+      applyMobilityEvent(s, {
+        type: 'VehicleChanged',
+        value: {
+          ...original,
+          revision: 2,
+          cargoCapacity: { ...original.cargoCapacity, units: 400 },
+        },
+      }),
+    ).toThrow('invalid-vehicle-cargo-endowment-change');
+    expect(
+      applyMobilityEvent(s, {
+        type: 'VehicleChanged',
+        value: {
+          ...original,
+          revision: 2,
+          cargoCapacity: {
+            sourceId: 'test-seed',
+            source: 'scenario-seed',
+            units: 40,
+            version: 'vehicle-cargo-capacity-v1',
+          },
+        },
+      }).vehicles.car!.cargoCapacity,
+    ).toEqual(original.cargoCapacity);
+    expect(fixture().state.vehicles.car!.cargoCapacity).toBeUndefined();
+  });
   it('requires real authorization, validates fare/deadlines and rejects stale revisions', () => {
     const f = fixture();
     expect(f.call('x', { type: 'drivers.register', vehicleId: 'car' })).toMatchObject({

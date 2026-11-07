@@ -10,7 +10,7 @@ Request an order against a fixed offer version; seller must accept.
 --offer-revision <integer> (required) min=0 max=9007199254740991 Offer revision
 --quantity <integer> (required) min=1 max=1000000 Units
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## orders accept
@@ -21,7 +21,7 @@ Act on your order. Seller accepts and reserves goods; buyer pays into escrow and
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## orders pay
@@ -32,7 +32,7 @@ Act on your order. Seller accepts and reserves goods; buyer pays into escrow and
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## orders confirm
@@ -43,7 +43,7 @@ Act on your order. Seller accepts and reserves goods; buyer pays into escrow and
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## orders cancel
@@ -54,7 +54,7 @@ Act on your order. Seller accepts and reserves goods; buyer pays into escrow and
 --id <string> (required) maxLength=96 Record ID
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## orders deliver
@@ -67,7 +67,7 @@ Deliver at a shared real location while both participants are idle. Service comp
 --content <string> (required) maxLength=8000 Delivery statement
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
 --content-stdin Read original content from stdin instead of --content (terminal use).
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## orders dispute
@@ -80,7 +80,7 @@ Record your exact dispute and suspend confirmation.
 --content <string> (required) maxLength=8000 Dispute statement
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
 --content-stdin Read original content from stdin instead of --content (terminal use).
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## orders refund
@@ -92,7 +92,7 @@ Seller authorizes a refund no greater than remaining paid amount.
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --amount <number> (required) min=0.000001 max=1000000 Positive currency amount
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## orders propose-settlement
@@ -106,7 +106,7 @@ Propose a split of remaining escrow: amount refunded to buyer, remainder paid to
 --content <string> (required) maxLength=8000 Exact agreement terms
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
 --content-stdin Read original content from stdin instead of --content (terminal use).
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## orders respond-settlement
@@ -118,7 +118,7 @@ Accept the exact current settlement proposed by the other participant, or declin
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --accept <boolean> (required)
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## orders list
@@ -129,7 +129,7 @@ List only records you participate in.
 --offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
 --limit <integer> (optional) min=1 max=30 Page size
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## orders read
@@ -139,7 +139,7 @@ town orders read [flags]
 Read your record and current revision.
 --id <string> (required) maxLength=96 Record ID
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 [能力索引](../capabilities.md) · [执行规则](../execution.md)

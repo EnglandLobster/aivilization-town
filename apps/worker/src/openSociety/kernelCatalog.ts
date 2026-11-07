@@ -1,0 +1,216 @@
+import { tool, text, integer, choice, strings, page } from './capabilitySchema';
+const id = text('Stable resident-chosen ID', 96),
+  revision = integer('Exact current revision');
+const json = (description: string) => ({ type: 'object' as const, description });
+const acl = { visibility: choice(['public', 'private']), readers: strings, editors: strings };
+export const KERNEL_TOOLS = [
+  tool(
+    'rules.list',
+    'Discover world assumptions, initial institutions and resident-controlled rules. No social scoring.',
+    false,
+    { ...page },
+    [],
+  ),
+  tool(
+    'rules.read',
+    'Read rule ownership, real capability entry points, version sources and limits.',
+    false,
+    { id },
+  ),
+  tool(
+    'rules.capabilities',
+    'List reviewed capability boundaries: which effects are real, which records are claims, and who may authorize them. Details are read on demand.',
+    false,
+    { category: text('Optional exact capability category', 96), ...page },
+    [],
+  ),
+  tool(
+    'rules.capability',
+    'Read one capability boundary, rule sources, change authority, personal participation, delegation limits and actual argument schema. This query grants no authority.',
+    false,
+    { name: text('Exact capability name, for example records.put or world.study', 96) },
+  ),
+  tool(
+    'registers.create',
+    'Create a shared record schema. Its entries are resident claims, never authoritative balances or ownership.',
+    true,
+    {
+      id,
+      title: text('Original title', 120),
+      ...acl,
+      fields: json('JSON object mapping field names to string, number or boolean'),
+    },
+  ),
+  tool(
+    'registers.configure',
+    'Owner changes current read/edit permissions; this does not make anyone join a social group.',
+    true,
+    { id, expectedRevision: revision, ...acl },
+  ),
+  tool(
+    'registers.nominate',
+    'Offer ownership to a resident; they must independently accept this exact revision.',
+    true,
+    { id, expectedRevision: revision, successorId: id },
+  ),
+  tool('registers.accept', 'Personally accept a nominated ownership handover.', true, {
+    id,
+    expectedRevision: revision,
+  }),
+  tool(
+    'registers.list',
+    'List visible register metadata, without record contents.',
+    false,
+    { ...page },
+    [],
+  ),
+  tool('registers.read', 'Read current schema and permissions; use records for contents.', false, {
+    id,
+  }),
+  tool(
+    'records.put',
+    'Create or replace an entry at its exact revision; 0 creates. Records remain attributed resident claims.',
+    true,
+    {
+      registerId: id,
+      key: id,
+      expectedRevision: revision,
+      values: json('Flat JSON matching every field of the register schema'),
+    },
+  ),
+  tool(
+    'records.append',
+    'Append an entry with a server-generated stable key; retries do not append twice.',
+    true,
+    { registerId: id, values: json('Flat JSON matching the register schema') },
+  ),
+  tool(
+    'records.delete',
+    'Tombstone a record at its current revision; retain historical originals.',
+    true,
+    { registerId: id, key: id, expectedRevision: revision },
+  ),
+  tool(
+    'records.list',
+    'List entry metadata only; open chosen entries with records read.',
+    false,
+    { registerId: id, ...page },
+    ['registerId'],
+  ),
+  tool(
+    'records.read',
+    'Read a current record as an attributed claim, not a verified world fact.',
+    false,
+    { registerId: id, key: id },
+  ),
+  tool(
+    'records.history',
+    'Read preserved record versions under current register permissions.',
+    false,
+    { registerId: id, key: id, ...page },
+    ['registerId', 'key'],
+  ),
+  ...(['publish', 'revise'] as const).map((op) =>
+    tool(
+      `programs.${op}`,
+      'Define an explicit finite procedure. Publishing is not consent or authorization. Revision invalidates previous mandates.',
+      true,
+      {
+        id,
+        ...(op === 'revise' ? { expectedRevision: revision } : {}),
+        title: text('Original title', 120),
+        purpose: text('Original purpose, not executable instructions', 2000),
+        runners: strings,
+        definition: json(
+          'JSON {steps:[{principalId,capability,arguments}], conditions?:[...], actionPolicyVersion?:"resident-program-actions-v2"|"resident-program-actions-v3"}; optional policies must be enabled. See town wiki society/programs.md and society/conditions.md',
+        ),
+      },
+    ),
+  ),
+  tool('programs.disable', 'Owner disables future execution without undoing past facts.', true, {
+    id,
+    expectedRevision: revision,
+  }),
+  tool(
+    'programs.list',
+    'List procedures you own, may run, or are asked to authorize.',
+    false,
+    { ...page },
+    [],
+  ),
+  tool(
+    'programs.read',
+    'Read the full exact procedure; its steps require separate mandates.',
+    false,
+    { id },
+  ),
+  tool(
+    'programs.history',
+    'Read only historical versions you are entitled to see.',
+    false,
+    { id, ...page },
+    ['id'],
+  ),
+  tool(
+    'programs.check',
+    'Authorized runner checks current source permissions and conditions without executing or consuming mandates. Running rechecks actual step availability.',
+    false,
+    { id, expectedRevision: revision },
+  ),
+  tool(
+    'programs.run',
+    'Run an exact version with every principal mandate; all steps succeed together or none take effect.',
+    true,
+    { id, expectedRevision: revision },
+  ),
+  tool(
+    'mandates.grant',
+    'Personally authorize your fixed steps for a named runner, exact program version, bounded uses and simulation-time expiry.',
+    true,
+    {
+      id,
+      programId: id,
+      programRevision: revision,
+      runnerId: id,
+      maxRuns: integer('Maximum successful runs', 100),
+      expiresAt: integer('Exclusive simulation-time expiry'),
+    },
+  ),
+  tool('mandates.revoke', 'Revoke your mandate for future execution; past facts remain.', true, {
+    id,
+    expectedRevision: revision,
+  }),
+  tool('mandates.list', 'List only mandates you issued or may execute.', false, { ...page }, []),
+  tool('mandates.read', 'Read your issued/received mandate and its remaining uses.', false, { id }),
+  tool(
+    'programs.schedule',
+    'Schedule a finite number of runs at simulation-time boundaries. Failure stops the schedule.',
+    true,
+    {
+      id,
+      programId: id,
+      programRevision: revision,
+      startAt: integer('Future simulation time'),
+      intervalMs: integer('At least 60000 simulation milliseconds'),
+      runs: integer('Finite number of attempts', 100),
+    },
+  ),
+  tool('programs.cancel', 'Cancel your schedule; completed effects remain.', true, {
+    id,
+    expectedRevision: revision,
+  }),
+  tool(
+    'programs.schedules',
+    'List schedules for your own runner identity.',
+    false,
+    { ...page },
+    [],
+  ),
+  tool(
+    'programs.runs',
+    'List results of procedures you participated in; no private account snapshots.',
+    false,
+    { programId: id, ...page },
+    [],
+  ),
+];

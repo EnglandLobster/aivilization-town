@@ -56,6 +56,19 @@ importers:
       '@aivilization/worker':
         specifier: workspace:*
         version: link:../worker
+      opencode-ai:
+        specifier: 1.18.31
+        version: 1.18.31
+    devDependencies:
+      '@aivilization/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../../packages/sim-core
+      '@aivilization/world':
+        specifier: workspace:*
+        version: link:../../packages/world
 
   apps/server:
     dependencies:
@@ -77,6 +90,9 @@ importers:
       '@aivilization/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@aivilization/residents':
+        specifier: workspace:*
+        version: link:../residents
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../../packages/sim-core
@@ -126,6 +142,9 @@ importers:
       '@aivilization/api':
         specifier: workspace:*
         version: link:../api
+      '@aivilization/authority':
+        specifier: workspace:*
+        version: link:../../packages/authority
       '@aivilization/collaboration':
         specifier: workspace:*
         version: link:../../packages/collaboration
@@ -141,9 +160,18 @@ importers:
       '@aivilization/enterprise':
         specifier: workspace:*
         version: link:../../packages/enterprise
+      '@aivilization/governance':
+        specifier: workspace:*
+        version: link:../../packages/governance
       '@aivilization/information':
         specifier: workspace:*
         version: link:../../packages/information
+      '@aivilization/logistics':
+        specifier: workspace:*
+        version: link:../../packages/logistics
+      '@aivilization/materials':
+        specifier: workspace:*
+        version: link:../../packages/materials
       '@aivilization/memory':
         specifier: workspace:*
         version: link:../../packages/memory
@@ -153,6 +181,9 @@ importers:
       '@aivilization/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@aivilization/premises':
+        specifier: workspace:*
+        version: link:../../packages/premises
       '@aivilization/services':
         specifier: workspace:*
         version: link:../../packages/services
@@ -181,10 +212,15 @@ importers:
         specifier: workspace:*
         version: link:../society
 
+  packages/authority: {}
+
   packages/collaboration: {}
 
   packages/commerce:
     dependencies:
+      '@aivilization/authority':
+        specifier: workspace:*
+        version: link:../authority
       '@aivilization/economy':
         specifier: workspace:*
         version: link:../economy
@@ -209,6 +245,9 @@ importers:
 
   packages/enterprise:
     dependencies:
+      '@aivilization/authority':
+        specifier: workspace:*
+        version: link:../authority
       '@aivilization/economy':
         specifier: workspace:*
         version: link:../economy
@@ -216,13 +255,47 @@ importers:
         specifier: workspace:*
         version: link:../sim-core
 
-  packages/information: {}
+  packages/governance:
+    dependencies:
+      '@aivilization/authority':
+        specifier: workspace:*
+        version: link:../authority
+      '@aivilization/society':
+        specifier: workspace:*
+        version: link:../society
+
+  packages/information:
+    dependencies:
+      '@aivilization/authority':
+        specifier: workspace:*
+        version: link:../authority
 
   packages/llm:
     dependencies:
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../sim-core
+
+  packages/logistics:
+    dependencies:
+      '@aivilization/authority':
+        specifier: workspace:*
+        version: link:../authority
+      '@aivilization/economy':
+        specifier: workspace:*
+        version: link:../economy
+      '@aivilization/materials':
+        specifier: workspace:*
+        version: link:../materials
+
+  packages/materials:
+    dependencies:
+      '@aivilization/authority':
+        specifier: workspace:*
+        version: link:../authority
+      '@aivilization/economy':
+        specifier: workspace:*
+        version: link:../economy
 
   packages/memory:
     dependencies:
@@ -233,7 +306,11 @@ importers:
         specifier: workspace:*
         version: link:../sim-core
 
-  packages/mobility: {}
+  packages/mobility:
+    dependencies:
+      '@aivilization/authority':
+        specifier: workspace:*
+        version: link:../authority
 
   packages/observability:
     dependencies:
@@ -241,7 +318,29 @@ importers:
         specifier: workspace:*
         version: link:../sim-core
 
-  packages/services: {}
+  packages/premises:
+    dependencies:
+      '@aivilization/authority':
+        specifier: workspace:*
+        version: link:../authority
+      '@aivilization/economy':
+        specifier: workspace:*
+        version: link:../economy
+      '@aivilization/materials':
+        specifier: workspace:*
+        version: link:../materials
+
+  packages/services:
+    dependencies:
+      '@aivilization/authority':
+        specifier: workspace:*
+        version: link:../authority
+      '@aivilization/economy':
+        specifier: workspace:*
+        version: link:../economy
+      '@aivilization/society':
+        specifier: workspace:*
+        version: link:../society
 
   packages/sim-core: {}
 
@@ -250,12 +349,18 @@ importers:
       '@aivilization/content':
         specifier: workspace:*
         version: link:../content
+      '@aivilization/economy':
+        specifier: workspace:*
+        version: link:../economy
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../sim-core
 
   packages/world:
     dependencies:
+      '@aivilization/authority':
+        specifier: workspace:*
+        version: link:../authority
       '@aivilization/commerce':
         specifier: workspace:*
         version: link:../commerce
@@ -268,12 +373,27 @@ importers:
       '@aivilization/enterprise':
         specifier: workspace:*
         version: link:../enterprise
+      '@aivilization/governance':
+        specifier: workspace:*
+        version: link:../governance
+      '@aivilization/logistics':
+        specifier: workspace:*
+        version: link:../logistics
+      '@aivilization/materials':
+        specifier: workspace:*
+        version: link:../materials
       '@aivilization/memory':
         specifier: workspace:*
         version: link:../memory
       '@aivilization/mobility':
         specifier: workspace:*
         version: link:../mobility
+      '@aivilization/premises':
+        specifier: workspace:*
+        version: link:../premises
+      '@aivilization/services':
+        specifier: workspace:*
+        version: link:../services
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../sim-core
@@ -1436,6 +1556,72 @@ packages:
   object-assign@4.1.1:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
     engines: {node: '>=0.10.0'}
+
+  opencode-ai@1.18.31:
+    resolution: {integrity: sha512-J95feefeWwtIaw3irx76WjzWcgQXxmuHmDVphvs5ep9X30fBJ6T6bFhw50i9Kx50MG/xPn5w2pafXIfNtdry9w==}
+    cpu: [arm64, x64]
+    os: [darwin, linux, win32]
+    hasBin: true
+
+  opencode-darwin-arm64@1.18.31:
+    resolution: {integrity: sha512-IN642oFENleWVDNqMnXi8NQLsZnA8hMswJ6X+GWz+CfBFuCpotjDb5OHgE2HBdC6r5wjG6v0mATb+Mn8xXCp1A==}
+    cpu: [arm64]
+    os: [darwin]
+
+  opencode-darwin-x64-baseline@1.18.31:
+    resolution: {integrity: sha512-4/4UMyPhsIeHln3AT3bxBvrWC+cmbOcdGOeBfoeOQIWcNZ3ycSvFnoJdLX969p9CtR6oNtroaQoNKZHgzSqg6A==}
+    cpu: [x64]
+    os: [darwin]
+
+  opencode-darwin-x64@1.18.31:
+    resolution: {integrity: sha512-xrw512dou9Drxs/1yH4CHEt/kvrSl8j1Ulez0wTOsW0lWZaATJMnlfHBjagWzv+QWIC4nz/cBgYzjn3JvxS7zQ==}
+    cpu: [x64]
+    os: [darwin]
+
+  opencode-linux-arm64-musl@1.18.31:
+    resolution: {integrity: sha512-qeEg7HsYupDeLkFqr+QNIgcE4kVRPycb/7ymyYUffSg+z2A6fU065pvU6uaZ+LjIzdJaZHUe1wDQvrSP/EJAqg==}
+    cpu: [arm64]
+    os: [linux]
+
+  opencode-linux-arm64@1.18.31:
+    resolution: {integrity: sha512-tLTZlOeWz4u48WQWg7PhKTn4gIXPHf7xaiWSHcmci1O3qKXEDLv/TaMzmqIuMChdwtflu2PSNIC00W+Hij/IkA==}
+    cpu: [arm64]
+    os: [linux]
+
+  opencode-linux-x64-baseline-musl@1.18.31:
+    resolution: {integrity: sha512-gZ9TkeoIkckNZjDRreHj0sQk91uRQTgeuMCIZgSKewHN1fq/jjQHMzSAI0HevPEov9O2cDRRzPBF4cppzc+AYg==}
+    cpu: [x64]
+    os: [linux]
+
+  opencode-linux-x64-baseline@1.18.31:
+    resolution: {integrity: sha512-T/hyCHb7gSCuJzLDXs8YfEhjelUes2zkWFPTGEdBPqV/eKrKbEo9U1YdA/WvntjXv0I6k+blZEID54QIcF7Djw==}
+    cpu: [x64]
+    os: [linux]
+
+  opencode-linux-x64-musl@1.18.31:
+    resolution: {integrity: sha512-TxKfcJII53MZ17NSrJ0p51wx0dJtZrX8By60N5O5/M+eP0oO4jCXKIkdBpP/Bku44gm8QZkTNLBWpPc2OTJweg==}
+    cpu: [x64]
+    os: [linux]
+
+  opencode-linux-x64@1.18.31:
+    resolution: {integrity: sha512-gTJ5nGNq+KJblwmeusEdz8YFwvkV7a3xTOV9EKKEmsv0Lkbajq/oQO9jEC0sMiS66mjHDOrhLgIUxSVqfLBM8g==}
+    cpu: [x64]
+    os: [linux]
+
+  opencode-windows-arm64@1.18.31:
+    resolution: {integrity: sha512-K+Dh5r5yLQJ6Maeo1+JhQr27Un6lzUIWEp3LGoeXSfLkcSqi7ueTecGbg7HAbtEIY5a9j3yNCS3//AjgTcZa+w==}
+    cpu: [arm64]
+    os: [win32]
+
+  opencode-windows-x64-baseline@1.18.31:
+    resolution: {integrity: sha512-wz5K8SpL+GTKez4BpYX1AbhRwBY7AVt+95ijWZrow84ibLTDoZ1skEsN5UUcQJ8LYeC+o1Vq0xi4A5kLGfvQ0w==}
+    cpu: [x64]
+    os: [win32]
+
+  opencode-windows-x64@1.18.31:
+    resolution: {integrity: sha512-1Za7uKeGLonNUkUIGHD7xfV5omi7ju/7z2WYfS5YvDLTr1iU/W1PPVHzHXiwiyV4gMxsWGwHHLubWdH99D7pSA==}
+    cpu: [x64]
+    os: [win32]
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -2862,6 +3048,57 @@ snapshots:
   natural-compare@1.4.0: {}
 
   object-assign@4.1.1: {}
+
+  opencode-ai@1.18.31:
+    optionalDependencies:
+      opencode-darwin-arm64: 1.18.31
+      opencode-darwin-x64: 1.18.31
+      opencode-darwin-x64-baseline: 1.18.31
+      opencode-linux-arm64: 1.18.31
+      opencode-linux-arm64-musl: 1.18.31
+      opencode-linux-x64: 1.18.31
+      opencode-linux-x64-baseline: 1.18.31
+      opencode-linux-x64-baseline-musl: 1.18.31
+      opencode-linux-x64-musl: 1.18.31
+      opencode-windows-arm64: 1.18.31
+      opencode-windows-x64: 1.18.31
+      opencode-windows-x64-baseline: 1.18.31
+
+  opencode-darwin-arm64@1.18.31:
+    optional: true
+
+  opencode-darwin-x64-baseline@1.18.31:
+    optional: true
+
+  opencode-darwin-x64@1.18.31:
+    optional: true
+
+  opencode-linux-arm64-musl@1.18.31:
+    optional: true
+
+  opencode-linux-arm64@1.18.31:
+    optional: true
+
+  opencode-linux-x64-baseline-musl@1.18.31:
+    optional: true
+
+  opencode-linux-x64-baseline@1.18.31:
+    optional: true
+
+  opencode-linux-x64-musl@1.18.31:
+    optional: true
+
+  opencode-linux-x64@1.18.31:
+    optional: true
+
+  opencode-windows-arm64@1.18.31:
+    optional: true
+
+  opencode-windows-x64-baseline@1.18.31:
+    optional: true
+
+  opencode-windows-x64@1.18.31:
+    optional: true
 
   optionator@0.9.4:
     dependencies:

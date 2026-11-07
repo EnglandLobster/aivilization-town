@@ -1,3 +1,4 @@
+import { recognizeInitialQualification } from './educationAuthority';
 import { describe, expect, test } from 'vitest';
 import {
   applyStudyEfficiency,
@@ -549,4 +550,32 @@ describe('evaluateEffectiveEducationScoreForOccupation', () => {
     ).toThrow(/positive integer/);
     expect(() => validateEducationSystemPolicy(v3Policy)).not.toThrow();
   });
+});
+
+test('one-time qualification recognition separates explicit grades from legacy score inference and registration', () => {
+  const base = { educationScore: 200, at: 100, mode: 'legacy' as const, policy };
+  expect(recognizeInitialQualification(base)).toMatchObject({
+    level: 3,
+    source: 'legacy-score-derived-qualification-preserved',
+    recordedAt: 100,
+  });
+  expect(recognizeInitialQualification({ ...base, educationLevel: 2 })).toMatchObject({
+    level: 2,
+    source: 'existing-formal-record',
+  });
+  expect(recognizeInitialQualification({ ...base, at: 0, mode: 'scenario' })).toMatchObject({
+    level: 3,
+    source: 'scenario-initial-qualification',
+  });
+  expect(
+    recognizeInitialQualification({ ...base, educationScore: 0, mode: 'registration' }),
+  ).toMatchObject({ level: 0, source: 'registration-initial-qualification' });
+  expect(() => recognizeInitialQualification({ ...base, mode: 'registration' })).toThrow(
+    'registration-cannot-invent-qualification',
+  );
+  for (const educationScore of [-1, NaN, Infinity])
+    expect(() => recognizeInitialQualification({ ...base, educationScore })).toThrow();
+  expect(() =>
+    recognizeInitialQualification({ ...base, policy: { ...policy, enabled: false } }),
+  ).toThrow();
 });

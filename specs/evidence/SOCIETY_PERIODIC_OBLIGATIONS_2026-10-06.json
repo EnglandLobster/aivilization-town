@@ -1,0 +1,416 @@
+{
+  "schemaVersion": "society-capability-verification-v1",
+  "recordedAt": "2026-10-06T13:35:32.582807+00:00",
+  "spec": "specs/SOCIETY_PERIODIC_OBLIGATIONS_V1.md",
+  "status": "engineering-slice-verified-not-full-society",
+  "policies": {
+    "commerce": "resident-periodic-obligations-v1",
+    "public": "public-finite-periodic-commitments-v1",
+    "enterpriseAccounting": "enterprise-periodic-obligations-cash-v1"
+  },
+  "catalog": 62,
+  "skill": 61,
+  "rulebook": 51,
+  "routes": 384,
+  "testsPassed": 3013,
+  "testsSkipped": 1,
+  "testFilesPassed": 445,
+  "compiledCLI": {
+    "ok": true,
+    "validation": "compiled-authenticated-HTTP-CLI-not-emergence",
+    "policy": "resident-periodic-obligations-v1",
+    "calls": 59,
+    "refusals": 19,
+    "checks": [
+      "four-actual-payer-accounts",
+      "independent-acceptance",
+      "whole-finite-public-and-collective-approval",
+      "identity-binding",
+      "once-only-due",
+      "unpaid-preserved",
+      "creditor-waiver-not-cash",
+      "future-stop",
+      "unchanged-legacy-manifest",
+      "full-journal-replay"
+    ],
+    "results": [
+      {
+        "route": "obligations.list",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-obligations-not-enabled"
+      },
+      {
+        "route": "business.found",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.respond",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "funds.open",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "funds.contribute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "obligations.prepare",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-payer-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "obligations.read",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-obligation-not-readable"
+      },
+      {
+        "route": "obligations.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-original-party-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "invalid-principal-operation-request"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-revision-conflict"
+      },
+      {
+        "route": "obligations.prepare",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-payer-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "obligations.read",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-obligation-not-readable"
+      },
+      {
+        "route": "obligations.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-original-party-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "invalid-principal-operation-request"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-revision-conflict"
+      },
+      {
+        "route": "obligations.prepare",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-payer-authority-required"
+      },
+      {
+        "route": "collectives.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.decide",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "obligations.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "obligations.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-original-party-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "invalid-principal-operation-request"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-revision-conflict"
+      },
+      {
+        "route": "obligations.prepare",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-payer-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "obligations.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "obligations.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-original-party-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "invalid-principal-operation-request"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "periodic-revision-conflict"
+      },
+      {
+        "route": "obligations.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "obligations.prepare",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "obligations.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "obligations.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      }
+    ]
+  },
+  "checks": {
+    "lint": {
+      "exitCode": 0,
+      "log": "/tmp/periodic-lint-gate.log"
+    },
+    "sortedTypecheck": {
+      "exitCode": 0,
+      "log": "/tmp/periodic-typecheck-gate.log"
+    },
+    "fullTests": {
+      "exitCode": 0,
+      "log": "/tmp/periodic-tests-final-quiet.log"
+    },
+    "build": {
+      "exitCode": 0,
+      "log": "/tmp/periodic-build-gate.log",
+      "command": "pnpm --filter @aivilization/residents... build"
+    },
+    "prettier": {
+      "exitCode": 0,
+      "log": "/tmp/periodic-prettier-check.log"
+    },
+    "diffCheck": {
+      "exitCode": 0,
+      "log": "/tmp/periodic-diff-check.log"
+    }
+  },
+  "preservedFailedRuns": [
+    {
+      "log": "/tmp/periodic-full-tests.log",
+      "reasons": [
+        "old CLI route count",
+        "money range test hit capacity first",
+        "two load-sensitive existing tests timed out"
+      ]
+    },
+    {
+      "log": "/tmp/periodic-tests-gate.log",
+      "reasons": [
+        "two existing long replay tests timed out under simultaneous builds and typechecks"
+      ]
+    }
+  ],
+  "limits": [
+    "Only finite no-interest financial promises, no implied housing/membership/service/education/loan principal.",
+    "Canonical and partition time coordinator not yet completed.",
+    "Natural-person estate, specialized distressed enterprise disposition and full assets liquidation remain required.",
+    "Explicitly enabled after strict free 864; no resident contracts or prescribed goals were seeded.",
+    "Engineering fixtures are not autonomous social adoption or comparisons across initial conditions."
+  ],
+  "frozenImplementation": {
+    "root": "/tmp/aivilization-periodic-obligations-20261006",
+    "firstPartyPackages": 24,
+    "hardlinksRemaining": 0,
+    "fingerprints": 58,
+    "versions": {
+      "catalog": 62,
+      "skill": 61,
+      "rulebook": 51
+    },
+    "notYetActivated": false,
+    "activationEvidence": "specs/evidence/SOCIETY_PERIODIC_OBLIGATIONS_FREE_ACTIVATION_2026-10-06.json"
+  }
+}

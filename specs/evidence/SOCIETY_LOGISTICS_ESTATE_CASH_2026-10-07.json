@@ -1,0 +1,40 @@
+{
+  "ok": true,
+  "scope": "original-freight-escrow-refund-after-payer-exit",
+  "version": "resident-estate-gross-settlement-v1",
+  "diagnostic": {
+    "before": "invalid-escrow-agent-balance",
+    "cases": 2,
+    "log": "/tmp/logistics-estate-diagnostic.log"
+  },
+  "quality": {
+    "targetedTestsPassed": 9,
+    "newTestCases": 3,
+    "testsPassed": 3350,
+    "testsSkipped": 1,
+    "lint": true,
+    "typecheck": true,
+    "build": "worker-and-dependencies-passed"
+  },
+  "assertions": [
+    "funded cancellation returns original payer escrow",
+    "loaded cancellation retains custody and escrow until actual return",
+    "return fee paid to living carrier and remainder to original payer estate",
+    "deadline refund attributed to system expire",
+    "dead actor commands refused",
+    "missing or altered estate source and replay rejected",
+    "material and cash conservation with immutable input"
+  ],
+  "limitations": [
+    "Carrier death and in-transit interruption pending",
+    "Full emigration combinations and natural population journal integration pending",
+    "No CLI or OpenCode experiment and no canonical migration"
+  ],
+  "logs": {
+    "target": "/tmp/logistics-estate-target.log",
+    "lint": "/tmp/logistics-estate-lint.log",
+    "typecheck": "/tmp/logistics-estate-typecheck.log",
+    "tests": "/tmp/logistics-estate-tests.log",
+    "build": "/tmp/logistics-estate-build.log"
+  }
+}

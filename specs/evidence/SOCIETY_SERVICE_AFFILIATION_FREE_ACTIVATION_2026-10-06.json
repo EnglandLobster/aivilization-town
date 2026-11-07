@@ -1,0 +1,29 @@
+{
+  "kind": "explicit-service-affiliation-activation",
+  "afterOpportunities": 672,
+  "simulationTime": 802320000,
+  "commitsBefore": 4802,
+  "commitsAfter": 4803,
+  "implementation": {
+    "root": "/tmp/aivilization-service-affiliation-20261006",
+    "versions": {
+      "catalog": 57,
+      "skill": 56,
+      "rulebook": 46
+    },
+    "fingerprints": 81,
+    "validation": {
+      "command": "pnpm check",
+      "testsPassed": 2916,
+      "testsSkipped": 1,
+      "compiledCalls": 36,
+      "expectedRefusals": 9
+    }
+  },
+  "source": "operator-capability-migration",
+  "retainsOriginalManifest": true,
+  "prescribedSocialGoal": false,
+  "addsAssetsOrCatalogOrProviderShifts": false,
+  "replayMatches672FullState": true,
+  "originalDirectoryAndWorldUnchanged": true
+}

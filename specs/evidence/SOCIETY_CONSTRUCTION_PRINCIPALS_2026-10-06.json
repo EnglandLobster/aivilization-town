@@ -1,0 +1,226 @@
+{
+  "schemaVersion": "society-construction-principals-engineering-v1",
+  "date": "2026-10-06",
+  "baselineTestsPassed": 2835,
+  "gate": {
+    "command": "pnpm check",
+    "passed": true,
+    "testsPassed": 2849,
+    "testsSkipped": 1,
+    "filesPassed": 418,
+    "filesSkipped": 1,
+    "logSha256": "bbab66b75a733980cac231fd63db7600b49518c71fe7bcac12923499b66cd50e"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... --sort build",
+    "passed": true,
+    "supplement": "pnpm --filter @aivilization/premises --filter @aivilization/governance --sort build after boundary hardening"
+  },
+  "compiledCli": {
+    "ok": true,
+    "validation": "compiled-authenticated-construction-principal-CLI-not-emergence",
+    "calls": 35,
+    "refusals": 9,
+    "results": [
+      {
+        "route": "principals.read",
+        "exitCode": 1,
+        "ok": false,
+        "error": "premises-principals-not-enabled"
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks.create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "stocks.deposit",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "business.found",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.control",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "construction-controller-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 2,
+        "ok": false,
+        "error": "unknown-flag:--actor-id"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "construction.start",
+        "exitCode": 1,
+        "ok": false,
+        "error": "construction-worker-not-authorized"
+      },
+      {
+        "route": "construction.start",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 1,
+        "ok": false,
+        "error": "principal-premises-not-readable"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "resource-controller-authority-required"
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "business.close",
+        "exitCode": 1,
+        "ok": false,
+        "error": "enterprise-resource-estate-unsettled"
+      },
+      {
+        "route": "principals.read",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.list",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "principals.operate",
+        "exitCode": 1,
+        "ok": false,
+        "error": "construction-controller-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "construction.cancel",
+        "exitCode": 1,
+        "ok": false,
+        "error": "construction-controller-authority-required"
+      },
+      {
+        "route": "governance.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.close",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "governance.execute",
+        "exitCode": 0,
+        "ok": true
+      }
+    ]
+  },
+  "additionalLint": "Touched final files passed ESLint after boundary hardening",
+  "facts": [
+    "Independent current firm/public/collective authority binds real material reservations and exact construction projects.",
+    "Only independently authorized workers start; actual work and committed allocations create buildings.",
+    "Completion principal is project principal; historical creator and last worker do not acquire management.",
+    "Cancel retains work and physical body effects, returns unconsumed materials to original stock and preserves stock control.",
+    "Unsettled firm projects/buildings protect cash-only closure; physical custody and accepted obligations remain single-source.",
+    "Public and collective authority consumption occurs in same journal transaction; stale decisions do not consume.",
+    "Explicit activation preserves old manifest bytes and initial assets. Bounded query pointers and paginated metadata."
+  ],
+  "limitations": [
+    "Engineering fixtures are not evidence of autonomous emergence.",
+    "Full principal building transfer, permits/fees, other resources, in-kind liquidation, long-term obligations, canonical and partition authority still require integration.",
+    "Frozen free experiment remains H1/H2 and does not contain these capabilities."
+  ]
+}

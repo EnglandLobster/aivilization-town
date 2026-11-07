@@ -1,4 +1,26 @@
+import { assertPhysicalHousingTimeInterval } from '../physicalHousingRest';
+import { advanceEstateCreditTime } from './estateCreditTime';
+import { assertPeriodicTimeInterval, advancePeriodicObligations } from '../periodicObligations';
+import { publicHousingSource } from '../publicHousing';
+import { advanceResidentCapital } from '../capitalLifecycle';
+import { publicEmploymentAtCycle, publicRecruitmentPolicy } from '@aivilization/society';
+import {
+  settlePublicLaborInterval,
+  stopUnavailablePublicLabor,
+  assertPublicLaborTimePolicy,
+} from '../publicLabor';
+import { stopUnavailableServiceWork } from '../serviceEmploymentLifecycle';
+import { settleServiceElapsedInterval, assertServiceTimePolicy } from '../serviceTime';
 import { advanceClock, createSeededRandom, rollProbabilityPercent } from '@aivilization/sim-core';
+import { progressResidentStudyEvents, residentStudyPromotionEvents } from '../residentStudy';
+import { progressResidentLaborEvents, stopUnavailableResidentLabor } from '../residentLabor';
+import { settleProductiveMaterialInterval } from '../productiveMaterialTime';
+import { stopUnavailableProductiveWork } from '../productiveEmploymentLifecycle';
+import {
+  assertResidentRestTimeCompatibility,
+  splitRestIntervals,
+  settleElapsedBodyInterval,
+} from '../residentRestTime';
 import {
   calculateNetWorth,
   decayExternalTradeBalance,
@@ -11,6 +33,7 @@ import type { AgentId, CommandEnvelope, LoanId } from '@aivilization/sim-core';
 import type { EnterprisePolicy } from '@aivilization/enterprise';
 import {
   applyCreditDomainEvent,
+  CREDIT_SHARED_CASH_BUDGET_POLICY,
   decideLiquidateDeceasedCustomer,
   type BankState,
 } from '@aivilization/credit';
@@ -109,7 +132,7 @@ import { isMatterExpiryWithoutBreach } from '../matters';
 import { resolveRegionalServiceQualitySummary } from '../serviceQuality';
 import { makeEvent, makeMemoryEvent } from './shared';
 
-export function handleAdvanceSimulationTimeCommand(input: {
+export type AdvanceSimulationTimeInput = {
   readonly command: CommandEnvelope<'AdvanceSimulationTime', unknown>;
   readonly projection: WorldProjection;
   readonly randomSeed?: string;
@@ -196,13 +219,23 @@ export function handleAdvanceSimulationTimeCommand(input: {
   readonly wellbeing?: WellbeingPolicy;
   readonly timeSettlementAmortization?: { readonly buckets: number };
   readonly nextSequence: number;
-}): WorldEvent[] {
+};
+export function handleAdvanceSimulationTimeCommand(
+  input: AdvanceSimulationTimeInput,
+): WorldEvent[] {
+  return input.projection.estateCredit
+    ? advanceEstateCreditTime(input, handleAdvanceSimulationTimeInterval)
+    : handleAdvanceSimulationTimeInterval(input);
+}
+function handleAdvanceSimulationTimeInterval(input: AdvanceSimulationTimeInput): WorldEvent[] {
   if (input.stochasticIllness !== undefined) {
     assertValidStochasticIllnessPolicy(input.stochasticIllness);
   }
   const payload = assertAdvanceSimulationTimePayload(input.command.payload);
   const previous = input.projection.clock;
   const next = advanceClock(previous, payload.deltaMs);
+  assertPhysicalHousingTimeInterval(input.projection, previous.now, next.now);
+  assertPeriodicTimeInterval(input.projection, next.now);
   const events: WorldEvent[] = [
     makeEvent(input, 0, 'SimulationTimeAdvanced', {
       previous: { ...previous },
@@ -263,19 +296,40 @@ export function handleAdvanceSimulationTimeCommand(input: {
   // precede them in this command (most importantly PublicBudgetSpent). Keeping
   // the command's original projection here lets a later tax payload resurrect
   // a stale treasury value even though replay applies the budget event first.
+  const beforePeriodic = events.reduce(applyWorldEvent, input.projection);
+  events.push(
+    ...advancePeriodicObligations({
+      projection: beforePeriodic,
+      simulationId: input.command.simulationId,
+      requestId: `periodic-tick-${input.nextSequence + events.length}`,
+      nextSequence: input.nextSequence + events.length,
+    }),
+  );
+  const beforeCapital = events.reduce(applyWorldEvent, input.projection);
+  events.push(
+    ...advanceResidentCapital({
+      projection: beforeCapital,
+      at: next.now,
+      simulationId: input.command.simulationId,
+      requestId: `capital-expiry-${input.nextSequence + events.length}`,
+      nextSequence: input.nextSequence + events.length,
+    }),
+  );
   const projectionBeforeEnterprise = events.reduce(applyWorldEvent, input.projection);
-  appendEnterpriseLifecycleEvents({
-    command: input.command,
-    projection: projectionBeforeEnterprise,
-    nextSequence: input.nextSequence,
-    events,
-    previousSimulationTime: previous.now,
-    nextSimulationTime: next.now,
-    ...(input.enterprise === undefined ? {} : { policy: input.enterprise }),
-    ...(input.tax === undefined ? {} : { tax: input.tax }),
-  });
+  if (!input.projection.residentLabor)
+    appendEnterpriseLifecycleEvents({
+      command: input.command,
+      projection: projectionBeforeEnterprise,
+      nextSequence: input.nextSequence,
+      events,
+      previousSimulationTime: previous.now,
+      nextSimulationTime: next.now,
+      ...(input.enterprise === undefined ? {} : { policy: input.enterprise }),
+      ...(input.tax === undefined ? {} : { tax: input.tax }),
+    });
 
   if (
+    input.projection.residentRest === undefined &&
     input.sleepDeprivation === undefined &&
     input.starvation === undefined &&
     input.stochasticIllness === undefined &&
@@ -310,7 +364,13 @@ export function handleAdvanceSimulationTimeCommand(input: {
     }),
   );
   const allAgents = Object.values(intervalStartAgents).sort((left, right) =>
-    left.agentId.localeCompare(right.agentId),
+    input.projection.residentLabor
+      ? left.agentId < right.agentId
+        ? -1
+        : left.agentId > right.agentId
+          ? 1
+          : 0
+      : left.agentId.localeCompare(right.agentId),
   );
   const physiologyByAgent = new Map<AgentId, WorldAgentState['physiology']>();
   const balanceByAgent = new Map<AgentId, number>();
@@ -329,6 +389,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
   // stable bucket matches the current tick. Missed cadences are replayed one by
   // one so probabilistic and stateful effects retain their per-tick semantics.
   const amortization = input.timeSettlementAmortization;
+  if (input.projection.residentRest) assertResidentRestTimeCompatibility(input);
   if (amortization !== undefined) {
     if (!Number.isInteger(amortization.buckets) || amortization.buckets < 1) {
       throw new Error('timeSettlementAmortization.buckets must be a positive integer');
@@ -351,7 +412,32 @@ export function handleAdvanceSimulationTimeCommand(input: {
   // multiply daily lifecycle and migration rolls. Exact v1 policies retain
   // the historical shared-minimum grid, while v2+ policies are gated to their
   // own boundaries below.
+  assertServiceTimePolicy(input.projection, input);
+  assertPublicLaborTimePolicy(input.projection, input);
   const turnoverSettlementCadencesMs = [
+    ...(input.projection.publicLabor
+      ? [
+          input.projection.publicLabor.configuration.policy.cadenceMs,
+          ...(input.recruitmentCycle ? [input.recruitmentCycle.cycleDurationMs] : []),
+        ]
+      : []),
+    ...(input.projection.serviceTime && input.projection.serviceEngagements
+      ? [input.projection.serviceEngagements.policy.cadenceMs]
+      : []),
+    ...(input.projection.productiveEmployment && input.projection.materials
+      ? [input.projection.materials.policy.settlementIntervalMs]
+      : []),
+    ...(input.projection.residentLabor
+      ? [
+          input.projection.residentLabor.configuration.policy.cadenceMs,
+          ...(input.enterprise?.solvency ? [input.enterprise.solvency.evaluationCadenceMs] : []),
+          ...(input.enterprise?.dividend ? [input.enterprise.dividend.paymentCadenceMs] : []),
+        ]
+      : []),
+    ...(input.projection.residentStudy
+      ? [input.projection.residentStudy.configuration.source.formalPromotionCadenceMs]
+      : []),
+    ...(input.projection.residentRest ? [input.projection.residentRest.policy.cadenceMs] : []),
     ...(input.lifecycle === undefined ? [] : [input.lifecycle.settlementCadenceMs]),
     ...(input.migration === undefined ? [] : [input.migration.settlementCadenceMs]),
     ...(input.starvation === undefined ? [] : [input.starvation.settlementCadenceMs]),
@@ -393,6 +479,51 @@ export function handleAdvanceSimulationTimeCommand(input: {
         : [],
     ]),
   );
+  if (input.projection.residentRest) {
+    for (const [actorId, intervals] of settlementIntervalsByAgent) {
+      const id = input.projection.residentRest.activeByActor[actorId];
+      const session = id ? input.projection.residentRest.sessions[id] : undefined;
+      settlementIntervalsByAgent.set(actorId, splitRestIntervals(intervals, session?.until));
+      const studyId = input.projection.residentStudy?.process.activeByActor[actorId];
+      const study = studyId ? input.projection.residentStudy?.process.sessions[studyId] : undefined;
+      settlementIntervalsByAgent.set(
+        actorId,
+        splitRestIntervals(settlementIntervalsByAgent.get(actorId)!, study?.until),
+      );
+      const laborId = input.projection.residentLabor?.process.activeByActor[actorId];
+      const labor = laborId ? input.projection.residentLabor?.process.sessions[laborId] : undefined;
+      settlementIntervalsByAgent.set(
+        actorId,
+        splitRestIntervals(settlementIntervalsByAgent.get(actorId)!, labor?.until),
+      );
+      const publicWorkId = input.projection.publicLabor?.process.activeByActor[actorId];
+      const publicWork = publicWorkId
+        ? input.projection.publicLabor?.process.sessions[publicWorkId]
+        : undefined;
+      settlementIntervalsByAgent.set(
+        actorId,
+        splitRestIntervals(settlementIntervalsByAgent.get(actorId)!, publicWork?.until),
+      );
+      if (input.projection.serviceTime)
+        for (const service of Object.values(input.projection.serviceEngagements?.engagements ?? {}))
+          for (const boundary of [
+            service.endAt,
+            service.providerPresence?.until,
+            service.recipientPresence?.until,
+          ])
+            settlementIntervalsByAgent.set(
+              actorId,
+              splitRestIntervals(settlementIntervalsByAgent.get(actorId)!, boundary),
+            );
+      if (input.projection.productiveEmployment)
+        for (const job of Object.values(input.projection.materials?.productions ?? {}))
+          for (const boundary of [job.session?.until, job.sourceExpiresAt])
+            settlementIntervalsByAgent.set(
+              actorId,
+              splitRestIntervals(settlementIntervalsByAgent.get(actorId)!, boundary),
+            );
+    }
+  }
   const settlementTimes = [
     ...new Set(
       [...settlementIntervalsByAgent.values()].flatMap((intervals) =>
@@ -443,7 +574,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
   let creditBank = preSettlementProjection.bank;
 
   for (const currentSettlementTime of settlementTimes) {
-    const eventStart = events.length;
+    let eventStart = events.length;
     const agents = allAgents
       .filter(
         (agent) =>
@@ -467,7 +598,132 @@ export function handleAdvanceSimulationTimeCommand(input: {
       return (interval.currentSimulationTime - interval.previousSimulationTime) / 1000;
     };
 
-    if (input.sleepDeprivation !== undefined) {
+    const composedBodyActors = new Set<string>();
+    if (settlementProjection.productiveEmployment) {
+      for (const agent of agents) {
+        const interval = currentInterval(agent);
+        const materialEvents = settleProductiveMaterialInterval({
+          projection: settlementProjection,
+          actorId: agent.agentId,
+          from: interval.previousSimulationTime,
+          until: interval.currentSimulationTime,
+          policies: input,
+          simulationId: input.command.simulationId,
+          requestId: `${input.command.id}:productive:${agent.agentId}:${currentSettlementTime}`,
+          nextSequence: input.nextSequence + events.length,
+        });
+        if (!materialEvents.length) continue;
+        composedBodyActors.add(agent.agentId);
+        events.push(...materialEvents);
+        settlementProjection = materialEvents.reduce(applyWorldEvent, settlementProjection);
+        physiologyByAgent.set(
+          agent.agentId,
+          settlementProjection.agents[agent.agentId]!.physiology,
+        );
+        balanceByAgent.set(agent.agentId, settlementProjection.agents[agent.agentId]!.balance);
+      }
+      // Early composites are already folded; later physical/household events must not apply them twice.
+      eventStart = events.length;
+    }
+
+    if (settlementProjection.serviceTime) {
+      for (const service of Object.values(
+        settlementProjection.serviceEngagements?.engagements ?? {},
+      ).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+        if (
+          !service.providerPresence ||
+          (!service.recipientPresence && !settlementProjection.serviceEmployment)
+        )
+          continue;
+        const provider = settlementProjection.agents[service.providerId];
+        if (!provider) throw Error('service-provider-missing');
+        const interval = currentInterval(provider);
+        const serviceEvents = settleServiceElapsedInterval({
+          projection: settlementProjection,
+          id: service.id,
+          from: interval.previousSimulationTime,
+          until: interval.currentSimulationTime,
+          simulationId: input.command.simulationId,
+          // Automatic settlement also creates bounded domain receipt IDs. The durable
+          // sequence is unique within this world; arbitrary command/service IDs are not
+          // valid domain IDs and must not be concatenated into those receipts.
+          requestId: `service-time-${input.nextSequence + events.length}`,
+          nextSequence: input.nextSequence + events.length,
+        });
+        if (!serviceEvents.length) continue;
+        for (const actorId of service.recipientPresence
+          ? [service.providerId, service.recipientId]
+          : [service.providerId]) {
+          if (composedBodyActors.has(actorId)) throw Error('duplicate-service-body-reservation');
+          composedBodyActors.add(actorId);
+        }
+        events.push(...serviceEvents);
+        settlementProjection = serviceEvents.reduce(applyWorldEvent, settlementProjection);
+        for (const agent of Object.values(settlementProjection.agents)) {
+          physiologyByAgent.set(agent.agentId, agent.physiology);
+          balanceByAgent.set(agent.agentId, agent.balance);
+        }
+      }
+      eventStart = events.length;
+    }
+
+    if (settlementProjection.publicLabor) {
+      for (const agent of agents) {
+        const interval = currentInterval(agent);
+        const publicEvents = settlePublicLaborInterval({
+          projection: settlementProjection,
+          actorId: agent.agentId,
+          from: interval.previousSimulationTime,
+          until: interval.currentSimulationTime,
+          simulationId: input.command.simulationId,
+          requestId: `public-work-time-${input.nextSequence + events.length}`,
+          nextSequence: input.nextSequence + events.length,
+        });
+        if (!publicEvents.length) continue;
+        if (composedBodyActors.has(agent.agentId))
+          throw Error('duplicate-public-labor-body-reservation');
+        composedBodyActors.add(agent.agentId);
+        events.push(...publicEvents);
+        settlementProjection = publicEvents.reduce(applyWorldEvent, settlementProjection);
+        physiologyByAgent.set(
+          agent.agentId,
+          settlementProjection.agents[agent.agentId]!.physiology,
+        );
+        balanceByAgent.set(agent.agentId, settlementProjection.agents[agent.agentId]!.balance);
+      }
+      eventStart = events.length;
+    }
+
+    if (settlementProjection.residentRest) {
+      for (const agent of agents) {
+        if (composedBodyActors.has(agent.agentId)) continue;
+        const settled = settleElapsedBodyInterval({
+          projection: settlementProjection,
+          actorId: agent.agentId,
+          previous: getCurrentPhysiology(physiologyByAgent, agent),
+          interval: currentInterval(agent),
+          decay: input.calendar?.physiologicalDecay ?? { energyPerHour: 0, satietyPerHour: 0 },
+          ...(input.sleepDeprivation ? { deprivation: input.sleepDeprivation } : {}),
+        });
+        appendPhysiologyTimeEffect({
+          input,
+          events,
+          physiologyByAgent,
+          agent,
+          reason: 'elapsed-physiology',
+          nextPhysiology: settled.next,
+          elapsed: settled.evidence,
+        });
+        for (const e of settled.events)
+          events.push(
+            makeEvent(input, events.length, 'ResidentRestSessionChanged', {
+              previousRevision: e.previousRevision,
+              session: e.session,
+            }),
+          );
+      }
+    }
+    if (input.sleepDeprivation !== undefined && !settlementProjection.residentRest) {
       for (const agent of agents) {
         if (!shouldSettleAgent(agent)) {
           continue;
@@ -551,7 +807,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
     // reads the decayed energy/satiety. The decay is linear and floored at
     // zero — strictly additive — yet it still replays interval by interval so
     // amortized catch-up matches the per-cadence event sequence.
-    if (input.calendar !== undefined) {
+    if (input.calendar !== undefined && !settlementProjection.residentRest) {
       for (const agent of agents) {
         if (!shouldSettleAgent(agent)) {
           continue;
@@ -617,7 +873,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
     // read the promoted state from the settlement projection. Agents without a
     // recorded level climb from 0 (catch-up, one level per tick, capped at the
     // compulsory stage — exam-gated levels never auto-advance).
-    if (input.educationSystem?.enabled === true) {
+    if (input.educationSystem?.enabled === true && !settlementProjection.residentStudy) {
       const educationPolicy = input.educationSystem;
       for (const agent of agents) {
         if (!shouldSettleAgent(agent)) {
@@ -703,6 +959,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
           }
           events.push(
             makeEvent(input, events.length, 'ResidentialUpkeepCharged', {
+              ...publicHousingSource(input.projection),
               agentId: agent.agentId,
               residentialTier: decision.residentialTier,
               amount: decision.amount,
@@ -766,6 +1023,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
           } else {
             events.push(
               makeEvent(input, events.length, 'ResidentialUpkeepArrearsUpdated', {
+                ...publicHousingSource(input.projection),
                 agentId: agent.agentId,
                 previousArrears,
                 nextArrears,
@@ -857,6 +1115,9 @@ export function handleAdvanceSimulationTimeCommand(input: {
         nextSequence: input.nextSequence,
         events,
         policy: input.credit,
+        ...(input.projection.estateCredit
+          ? { collectionPolicy: CREDIT_SHARED_CASH_BUDGET_POLICY }
+          : {}),
         bank: creditBank,
         agents,
         balanceOf: (agentId) => {
@@ -873,6 +1134,92 @@ export function handleAdvanceSimulationTimeCommand(input: {
     }
 
     settlementProjection = events.slice(eventStart).reduce(applyWorldEvent, settlementProjection);
+
+    // The study domain owns the earned portion. All prior physical/time facts are now folded;
+    // each actor's money and learning event is atomically applied before the next interval.
+    if (settlementProjection.residentStudy) {
+      for (const agent of agents) {
+        const studyEvents = progressResidentStudyEvents({
+          projection: settlementProjection,
+          actorId: agent.agentId,
+          settledAt: currentSettlementTime,
+          simulationId: input.command.simulationId,
+          requestId: `${input.command.id}:study:${agent.agentId}:${currentSettlementTime}`,
+          nextSequence: input.nextSequence + events.length,
+        });
+        events.push(...studyEvents);
+        settlementProjection = studyEvents.reduce(applyWorldEvent, settlementProjection);
+        balanceByAgent.set(agent.agentId, settlementProjection.agents[agent.agentId]!.balance);
+        const promotionEvents = residentStudyPromotionEvents({
+          projection: settlementProjection,
+          actorId: agent.agentId,
+          settledAt: currentSettlementTime,
+          simulationId: input.command.simulationId,
+          requestId: `${input.command.id}:study-promotion:${agent.agentId}:${currentSettlementTime}`,
+          nextSequence: input.nextSequence + events.length,
+        });
+        events.push(...promotionEvents);
+        settlementProjection = promotionEvents.reduce(applyWorldEvent, settlementProjection);
+      }
+    }
+
+    if (settlementProjection.residentLabor) {
+      const laborStart = events.length;
+      for (const agent of agents) {
+        const laborEvents = progressResidentLaborEvents({
+          projection: settlementProjection,
+          actorId: agent.agentId,
+          settledAt: currentSettlementTime,
+          simulationId: input.command.simulationId,
+          requestId: `${input.command.id}:labor:${agent.agentId}:${currentSettlementTime}`,
+          nextSequence: input.nextSequence + events.length,
+        });
+        events.push(...laborEvents);
+        settlementProjection = laborEvents.reduce(applyWorldEvent, settlementProjection);
+      }
+      // Debt and real wages precede this boundary's solvency/dividend decision. No future-span distributions.
+      const lifecycleStart = events.length;
+      appendEnterpriseLifecycleEvents({
+        command: input.command,
+        projection: settlementProjection,
+        nextSequence: input.nextSequence,
+        events,
+        previousSimulationTime: currentSettlementTime - 1,
+        nextSimulationTime: currentSettlementTime,
+        ...(input.enterprise ? { policy: input.enterprise } : {}),
+        ...(input.tax ? { tax: input.tax } : {}),
+      });
+      settlementProjection = events
+        .slice(lifecycleStart)
+        .reduce(applyWorldEvent, settlementProjection);
+      const stopped = stopUnavailableResidentLabor({
+        projection: settlementProjection,
+        simulationId: input.command.simulationId,
+        requestId: `${input.command.id}:labor-boundary:${currentSettlementTime}`,
+        nextSequence: input.nextSequence + events.length,
+      });
+      events.push(...stopped);
+      settlementProjection = stopped.reduce(applyWorldEvent, settlementProjection);
+      const productiveStops = stopUnavailableProductiveWork({
+        projection: settlementProjection,
+        at: currentSettlementTime,
+        simulationId: input.command.simulationId,
+        nextSequence: input.nextSequence + events.length,
+      });
+      events.push(...productiveStops);
+      settlementProjection = productiveStops.reduce(applyWorldEvent, settlementProjection);
+      const serviceStops = stopUnavailableServiceWork({
+        projection: settlementProjection,
+        at: currentSettlementTime,
+        simulationId: input.command.simulationId,
+        nextSequence: input.nextSequence + events.length,
+      });
+      events.push(...serviceStops);
+      settlementProjection = serviceStops.reduce(applyWorldEvent, settlementProjection);
+      if (events.length !== laborStart)
+        for (const agent of agents)
+          balanceByAgent.set(agent.agentId, settlementProjection.agents[agent.agentId]!.balance);
+    }
 
     // Lifecycle settles at the END of each interval: the agent was alive for
     // this interval's charges and benefits, and aging/retirement/death take
@@ -925,6 +1272,34 @@ export function handleAdvanceSimulationTimeCommand(input: {
         .slice(lifecycleStart)
         .reduce(applyWorldEvent, settlementProjection);
     }
+    if (settlementProjection.publicLabor) {
+      if (input.recruitmentCycle) {
+        const recruitmentStart = events.length;
+        appendRecruitmentCycleEvents({
+          input,
+          projection: settlementProjection,
+          events,
+          previousSimulationTime: currentSettlementTime - 1,
+          nextSimulationTime: currentSettlementTime,
+          policy: input.recruitmentCycle,
+          excludeAgentIds: excludeFromApplicationSettlement(deceasedAgentIds, retiredAgentIds),
+        });
+        settlementProjection = events
+          .slice(recruitmentStart)
+          .reduce(applyWorldEvent, settlementProjection);
+      }
+      const publicStops = stopUnavailablePublicLabor({
+        projection: settlementProjection,
+        at: currentSettlementTime,
+        simulationId: input.command.simulationId,
+        requestId: `public-work-boundary-${input.nextSequence + events.length}`,
+        nextSequence: input.nextSequence + events.length,
+      });
+      events.push(...publicStops);
+      settlementProjection = publicStops.reduce(applyWorldEvent, settlementProjection);
+      for (const agent of Object.values(settlementProjection.agents))
+        balanceByAgent.set(agent.agentId, agent.balance);
+    }
   }
 
   if (amortization !== undefined) {
@@ -942,7 +1317,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
     }
   }
 
-  if (input.recruitmentCycle !== undefined) {
+  if (input.recruitmentCycle !== undefined && !input.projection.publicLabor) {
     appendRecruitmentCycleEvents({
       input,
       projection: settlementProjection,
@@ -1101,7 +1476,10 @@ function appendPublicBudgetEvents(input: {
   readonly nextSimulationTime: number;
 }): void {
   const policy = input.input.publicBudget;
-  if (policy === undefined) {
+  if (
+    policy === undefined ||
+    input.input.projection.publicGovernance?.authority.grant.procurement
+  ) {
     return;
   }
   const cycles = calculateCompletedRecruitmentCycleNumbers({
@@ -2387,6 +2765,19 @@ function appendRecruitmentCycleEvents(input: {
   );
 
   for (const cycleNumber of cycleNumbers) {
+    // New actual-labor mode resolves at the actual cadence boundary; legacy events
+    // retain their previous recorded timing. Never timestamp a future assignment
+    // at the beginning of the command that happened to cross its boundary.
+    const eventInput =
+      input.projection.publicLabor || input.projection.publicEmployment
+        ? {
+            ...input.input,
+            command: {
+              ...input.input.command,
+              issuedAt: (cycleNumber + 1) * input.policy.cycleDurationMs,
+            },
+          }
+        : input.input;
     const applications = input.input.projection.jobApplications
       .filter(
         (application) =>
@@ -2404,7 +2795,13 @@ function appendRecruitmentCycleEvents(input: {
         residentialTier: application.residentialTier,
         submittedAt: application.submittedAt,
       }));
-    const decision = resolveRecruitmentCycle({ applications, policy: input.policy });
+    const employment = input.projection.publicEmployment
+      ? publicEmploymentAtCycle(input.projection.publicEmployment, cycleNumber)
+      : undefined;
+    const policy = input.projection.publicEmployment
+      ? (publicRecruitmentPolicy(input.projection.publicEmployment, cycleNumber) ?? input.policy)
+      : input.policy;
+    const decision = resolveRecruitmentCycle({ applications, policy });
     const acceptedByApplicationId = new Map(
       decision.acceptedApplications.map((application) => [application.applicationId, application]),
     );
@@ -2412,9 +2809,10 @@ function appendRecruitmentCycleEvents(input: {
     for (const resolution of decision.resolutions) {
       const resolutionOffset = input.events.length;
       input.events.push(
-        makeEvent(input.input, resolutionOffset, 'JobApplicationResolved', {
+        makeEvent(eventInput, resolutionOffset, 'JobApplicationResolved', {
           applicationId: resolution.applicationId,
           cycleNumber,
+          ...(employment ? { publicEmploymentRevision: employment.revision } : {}),
           agentId: resolution.agentId as AgentId,
           occupationName: resolution.occupationName,
           status: resolution.status,
@@ -2427,7 +2825,7 @@ function appendRecruitmentCycleEvents(input: {
       if (accepted !== undefined) {
         const assignmentOffset = input.events.length;
         input.events.push(
-          makeEvent(input.input, assignmentOffset, 'JobAssigned', {
+          makeEvent(eventInput, assignmentOffset, 'JobAssigned', {
             applicationId: accepted.applicationId,
             cycleNumber,
             agentId: accepted.agentId as AgentId,
@@ -2440,7 +2838,7 @@ function appendRecruitmentCycleEvents(input: {
       }
 
       input.events.push(
-        makeMemoryEvent(input.input, input.events.length, {
+        makeMemoryEvent(eventInput, input.events.length, {
           agentId: resolution.agentId as AgentId,
           summary:
             resolution.status === 'accepted'
@@ -2471,11 +2869,12 @@ function appendRecruitmentCycleEvents(input: {
     }
 
     input.events.push(
-      makeEvent(input.input, input.events.length, 'RecruitmentCycleCompleted', {
+      makeEvent(eventInput, input.events.length, 'RecruitmentCycleCompleted', {
         cycleNumber,
         cycleStartedAt: cycleNumber * input.policy.cycleDurationMs,
         cycleEndedAt: (cycleNumber + 1) * input.policy.cycleDurationMs,
-        policyVersion: input.policy.policyVersion,
+        policyVersion: policy.policyVersion,
+        ...(employment ? { publicEmploymentRevision: employment.revision } : {}),
         applicationCount: decision.resolutions.length,
         acceptedCount: decision.acceptedApplications.length,
         rejectedCount: decision.resolutions.length - decision.acceptedApplications.length,
@@ -2630,6 +3029,7 @@ export function appendPhysiologyTimeEffect(input: {
   readonly agent: WorldAgentState;
   readonly reason: string;
   readonly nextPhysiology: WorldAgentState['physiology'];
+  readonly elapsed?: Extract<WorldEvent, { type: 'PhysiologyChanged' }>['payload']['elapsed'];
 }): void {
   const previousPhysiology = getCurrentPhysiology(input.physiologyByAgent, input.agent);
   if (isSamePhysiology(previousPhysiology, input.nextPhysiology)) {
@@ -2642,6 +3042,7 @@ export function appendPhysiologyTimeEffect(input: {
       previous: previousPhysiology,
       next: input.nextPhysiology,
       reason: input.reason,
+      ...(input.elapsed ? { elapsed: input.elapsed } : {}),
     }),
   );
   input.physiologyByAgent.set(input.agent.agentId, input.nextPhysiology);

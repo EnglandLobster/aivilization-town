@@ -1,0 +1,143 @@
+{
+  "stage": "shared-capital",
+  "scope": "engineering-not-autonomous-emergence",
+  "date": "2026-10-06",
+  "versions": {
+    "catalog": 45,
+    "skill": 44,
+    "rulebook": 34,
+    "routes": 372
+  },
+  "validation": {
+    "command": "pnpm check",
+    "testsPassed": 2791,
+    "testsSkipped": 1,
+    "filesPassed": 398,
+    "filesSkipped": 1,
+    "targetedCapitalTests": 20,
+    "build": "residents and transitive packages; final worker and residents rebuild"
+  },
+  "cli": {
+    "ok": true,
+    "validation": "compiled-authenticated-HTTP-CLI-not-emergence",
+    "calls": 21,
+    "refusals": 4,
+    "results": [
+      {
+        "route": "business.found",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "capital.initialize",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.create",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.respond",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "funds.open",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "funds.contribute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "capital.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "capital.accept",
+        "exitCode": 1,
+        "ok": false,
+        "error": "capital-authority-required"
+      },
+      {
+        "route": "collectives.propose",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.vote",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.decide",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "collectives.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "capital.accept",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "capital.execute",
+        "exitCode": 1,
+        "ok": false,
+        "error": "capital-current-management-consent-required"
+      },
+      {
+        "route": "capital.authorize",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "capital.execute",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "capital.execute",
+        "exitCode": 1,
+        "ok": false,
+        "error": "capital-agreement-not-open"
+      },
+      {
+        "route": "capital.rights",
+        "exitCode": 0,
+        "ok": true
+      },
+      {
+        "route": "capital.close",
+        "exitCode": 1,
+        "ok": false,
+        "error": "capital-authority-required"
+      },
+      {
+        "route": "capital.close",
+        "exitCode": 0,
+        "ok": true
+      }
+    ]
+  },
+  "limitations": [
+    "cash-only closure requires real inventory disposition and protected obligations settled",
+    "full in-kind liquidation, long-term debt/default, succession and population exit incomplete",
+    "open resident experimental mode only; canonical and partition authority not connected",
+    "no autonomous capital adoption evidence"
+  ]
+}

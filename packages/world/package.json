@@ -23,6 +23,12 @@
     "@aivilization/sim-core": "workspace:*",
     "@aivilization/society": "workspace:*",
     "@aivilization/commerce": "workspace:*",
-    "@aivilization/mobility": "workspace:*"
+    "@aivilization/mobility": "workspace:*",
+    "@aivilization/materials": "workspace:*",
+    "@aivilization/logistics": "workspace:*",
+    "@aivilization/premises": "workspace:*",
+    "@aivilization/services": "workspace:*",
+    "@aivilization/governance": "workspace:*",
+    "@aivilization/authority": "workspace:*"
   }
 }

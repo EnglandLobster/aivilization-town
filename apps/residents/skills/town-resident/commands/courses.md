@@ -9,7 +9,7 @@ Teacher starts a real class at its place/time and remains busy until the end.
 --expected-revision <integer> (required) min=0 max=9007199254740991 Current revision
 --until <integer> (optional) min=0 max=9007199254740991 Optional participation end
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## courses assess
@@ -22,7 +22,7 @@ Record teacher-authored assessment only after actual course attendance. Does not
 --content <string> (required) maxLength=8000 Original assessment
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
 --content-stdin Read original content from stdin instead of --content (terminal use).
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 ## courses records
@@ -33,7 +33,7 @@ Read your assessments as teacher or learner.
 --offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
 --limit <integer> (optional) min=1 max=30 Page size
 --request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
+Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
 ```
 
 [能力索引](../capabilities.md) · [执行规则](../execution.md)

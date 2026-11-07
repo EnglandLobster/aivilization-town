@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "canonical-retained-history-evidence-v1",
+  "sourceSha256": {
+    "packages/memory/src/fileRepositories.ts": "33d2d559558a924b04b8035b9ab1a2c6c0fdafbcb6d03ca63c0ca20977536a10",
+    "packages/agent-runtime/src/branchPlanRepository.ts": "a431ea6f0233dc89a46ea206080a1e7db4c9ccc576b709a8729c1e43184beb30",
+    "packages/agent-runtime/src/planProgressRepository.ts": "85cc8c8b5f122a9e982d6ec10407daecfbc4b2e963769a42ee00a04ec40cf486",
+    "apps/worker/src/canonicalCognitiveDocuments.ts": "e30e820a8f0f10419afcc404f2869777513cee5a2d24e265c3c8c05219d68870",
+    "apps/worker/src/openSociety/canonicalCognition.ts": "9c9ed0cd7402f8b21125540226d1ceb46d45ea30a694e2ebd6d7fad2a795b158",
+    "apps/worker/src/canonicalSocietyCandidate.ts": "8ece5877878cc44aec14b6be94dc2ff2cbb1b498317ff6f6c019de8856fe4251",
+    "apps/worker/src/canonicalCognitiveHistory.test.ts": "4eac89b33c2f37cb4e3a291d88ab2aef19c3aa535777dbb9ee48a79204b6c067",
+    "apps/residents/scripts/verify-canonical-history-candidate.mjs": "6db47fe7516e692ce62da2f1efd9216fd49e9f95a7c12062e42112f329e474f7"
+  },
+  "validation": {
+    "targeted": {
+      "passed": 1,
+      "log": "/tmp/canonical-history-tests2.log",
+      "scope": "Retained old/new snapshots, original intention operations plus legacy snapshot, orphan progress, personal access, restart replay, all four incomplete tails rejected."
+    },
+    "lint": {
+      "passed": true,
+      "log": "/tmp/canonical-history-lint.log",
+      "focusedLog": "/tmp/canonical-history-final-focused-lint.log",
+      "scriptLog": "/tmp/canonical-history-script-lint.log"
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/canonical-history-typecheck.log"
+    },
+    "build": {
+      "passed": true,
+      "logs": [
+        "/tmp/canonical-history-memory-build.log",
+        "/tmp/canonical-history-agent-build.log",
+        "/tmp/canonical-history-worker-build.log"
+      ]
+    },
+    "tests": {
+      "passed": 3252,
+      "skipped": 1,
+      "filesPassed": 493,
+      "log": "/tmp/canonical-history-full-tests.log"
+    }
+  },
+  "realArchive": {
+    "passed": true,
+    "archive": "/home/dev/aivilization-town/.local/canonical-ownership-20261007/archive",
+    "residents": 25,
+    "completedOriginalTrips": 22,
+    "retainedMoves": 22,
+    "jobApplications": 3,
+    "retainedRevisions": 153,
+    "historicalRecords": 278,
+    "moneySupply": 257500,
+    "sourceTime": 7000,
+    "isolatedValidationTime": 2728000,
+    "restartReplayMatched": true,
+    "archiveUnchanged": true,
+    "candidateManifestSha256": "d519c2b8fc626c290491d9959fce6cb99bc8d9028386ca733a958924a89d9d2b",
+    "limitations": [
+      "Isolated temporary runtime only; no production activation, retirement or model run.",
+      "Explicit known source profile/default policy fixture; retained cognitive revisions included; earlier compacted history, exited subjects and authority operation deduplication remain separate.",
+      "New social policies are not implicitly enabled; complete 25-capability delivery remains unfinished."
+    ]
+  },
+  "realArchiveLog": "/tmp/canonical-history-archive.log",
+  "retainedFailure": {
+    "log": "/tmp/canonical-history-tests.log",
+    "reason": "Fixture supplied empty objective affinityTags; changed fixture to valid study tag, no rule weakening."
+  },
+  "limits": [
+    "All currently retained source cognitive rows for current residents; deleted pre-archive compaction history cannot be reconstructed.",
+    "Historical source ordinals are scoped to this captured file, not global pre-compaction sequence.",
+    "No actual activation/retirement; authority operation deduplication and departed subjects remain.",
+    "All25 goal active; no model or emergence claim."
+  ]
+}

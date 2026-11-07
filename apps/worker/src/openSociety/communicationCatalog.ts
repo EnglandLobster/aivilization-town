@@ -4,6 +4,18 @@ const groupId = text('Group ID', 96),
   expectedRevision = integer('Current group revision');
 export const COMMUNICATION_TOOLS = [
   tool(
+    'groups.withdraw-request',
+    'Personally withdraw your pending join request before it is accepted.',
+    true,
+    { id, expectedRevision },
+  ),
+  tool(
+    'groups.withdraw-invitation',
+    'Current personal controller withdraws an unaccepted invitation; collective controllers use an exact resources decision.',
+    true,
+    { id, expectedRevision },
+  ),
+  tool(
     'notifications.settings',
     'Read your current message wake and subscription context preferences.',
     false,
@@ -32,11 +44,16 @@ export const COMMUNICATION_TOOLS = [
       expectedRevision,
     }),
   ),
-  tool('groups.transfer', 'Transfer ownership to an existing member.', true, {
-    groupId,
-    targetId: text('Member ID', 96),
-    expectedRevision,
-  }),
+  tool(
+    'groups.transfer',
+    'Legacy unconverted groups only: transfer to an existing member. Controlled groups use resources offer/accept for independent agreement.',
+    true,
+    {
+      groupId,
+      targetId: text('Member ID', 96),
+      expectedRevision,
+    },
+  ),
   ...['leave', 'close'].map((op) =>
     tool(
       `groups.${op}`,

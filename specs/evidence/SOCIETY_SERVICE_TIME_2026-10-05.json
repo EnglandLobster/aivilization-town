@@ -1,0 +1,163 @@
+{
+  "date": "2026-10-05",
+  "scope": "W03/W07 actual service body and fees",
+  "versions": {
+    "catalog": 39,
+    "skill": 38,
+    "rulebook": 28,
+    "routes": 356
+  },
+  "validation": {
+    "command": "pnpm check",
+    "testsPassed": 2697,
+    "testsSkipped": 1,
+    "filesPassed": 380,
+    "filesSkipped": 1,
+    "log": "/tmp/service-time-check.log",
+    "buildLog": "/tmp/service-time-build.log"
+  },
+  "oldSequenceReproduction": {
+    "evidenceKind": "pure-reproduction-of-current-world-decay-before-service-order",
+    "one": {
+      "provider": {
+        "energy": 10.05,
+        "satiety": 44,
+        "health": 50,
+        "educationScore": 20
+      },
+      "recipient": {
+        "energy": 17,
+        "satiety": 49,
+        "health": 81.4,
+        "educationScore": 10
+      },
+      "progress": 3600000
+    },
+    "minute": {
+      "provider": {
+        "energy": 10.050000002,
+        "satiety": 43.999999998,
+        "health": 26.360000005039936,
+        "educationScore": 20
+      },
+      "recipient": {
+        "energy": 17.000000002,
+        "satiety": 48.999999998,
+        "health": 80.8000000058,
+        "educationScore": 10
+      },
+      "progress": 3600000
+    },
+    "halfMinute": {
+      "provider": {
+        "energy": 10.049999996,
+        "satiety": 44.000000004,
+        "health": 26.300000000000157,
+        "educationScore": 20
+      },
+      "recipient": {
+        "energy": 16.999999996,
+        "satiety": 49.000000004,
+        "health": 80.8,
+        "educationScore": 10
+      },
+      "progress": 3600000
+    },
+    "expectedSimultaneous": {
+      "providerHealth": 26.12,
+      "recipientHealth": 80.8
+    }
+  },
+  "cli": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-http-cli-not-free-emergence",
+    "calls": 13,
+    "expectedRefusals": 4,
+    "results": [
+      {
+        "route": "engagements models",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements offer",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements fund",
+        "ok": false,
+        "exitCode": 1,
+        "error": "service-engagement-not-accepted"
+      },
+      {
+        "route": "engagements accept",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements fund",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements start",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "life sleep",
+        "ok": false,
+        "exitCode": 1,
+        "error": "agent is busy with participation until simulation time 3600000 (now 60000)"
+      },
+      {
+        "route": "engagements start",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements read",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements read",
+        "ok": false,
+        "exitCode": 1,
+        "error": "service-engagement-not-found"
+      },
+      {
+        "route": "engagements leave",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "engagements leave",
+        "ok": false,
+        "exitCode": 1,
+        "error": "service-engagement-revision-conflict"
+      },
+      {
+        "route": "engagements read",
+        "ok": true,
+        "exitCode": 0
+      }
+    ],
+    "independentPresence": true,
+    "waitingHasNoServiceCharge": true,
+    "actualBodyAndFeesTogether": true,
+    "oneBodyReservation": true,
+    "unusedFeesRefunded": true,
+    "privateRead": true,
+    "replayEqual": true,
+    "journalBytesUnchanged": true,
+    "serviceEmploymentStillPending": true
+  },
+  "limitations": [
+    "enterprise service accounting and employment pending",
+    "not enabled in free-160 experiment",
+    "canonical and partitions pending",
+    "all 25 capability contracts retained"
+  ]
+}

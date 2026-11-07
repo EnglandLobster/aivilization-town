@@ -20,6 +20,13 @@ import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDec
 
 export type AgentActionCommandType = Exclude<
   CoreCommandType,
+  | 'AgentStopRest' // Explicit elapsed-rest experiment only; canonical planner integration is pending.
+  | 'AgentStopStudy' // Explicit actual-study mode; canonical planner integration remains pending.
+  | 'AgentStopWork'
+  | 'AgentClaimWage' // Explicit actual enterprise labor; canonical integration pending.
+  | 'ResidentConstructionWork'
+  | 'ResidentServiceWork'
+  | 'ResidentMaterialWork' // Internal personally authorized materials application port.
   | 'ResidentParticipate' // Internal booking application port; not a canonical LLM action.
   | 'SetLongHorizonObjective'
   | 'IssueReactiveCommand'

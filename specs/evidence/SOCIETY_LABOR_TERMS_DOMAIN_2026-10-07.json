@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "enterprise-labor-terms-domain-evidence-v1",
+  "stage": "domain-only-not-resident-delivery",
+  "sourceSha256": {
+    "packages/enterprise/src/laborTerms.ts": "2e84e290d32c6b0f9d6e767d1723c61bf984931194153a7884a2314ad4498173",
+    "packages/enterprise/src/laborTerms.test.ts": "1790e045aab10fe1a79846445b453be7ffdd7a4ce2c2ff0fa684dba1aebfb699",
+    "packages/enterprise/src/model.ts": "fb9dc7f041dd8a7b64c4b14f466bf6b0df05a76f3ad33c757509410e4699a349",
+    "packages/enterprise/src/control.ts": "24bc216890490c935cff7fed1e6ff7200e4229fe68a0c7e1cc7ba9ea46a263bb",
+    "packages/enterprise/src/aggregate.ts": "8d3f4abe6bf11590ede2470beb43a41379cf34b79cc27778688a017eae424138",
+    "packages/enterprise/src/index.ts": "abf765fe33800056f05cd45f3f09c9c8c158f3d48b2c7099fd69e9e00f31447e"
+  },
+  "validation": {
+    "targeted": {
+      "passed": 16,
+      "log": "/tmp/labor-terms-tests2.log"
+    },
+    "tests": {
+      "passed": 3282,
+      "skipped": 1,
+      "filesPassed": 497,
+      "filesSkipped": 1,
+      "log": "/tmp/labor-terms-full-tests.log"
+    },
+    "lint": {
+      "passed": true,
+      "logs": ["/tmp/labor-terms-lint.log", "/tmp/labor-terms-final-lint.log"]
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/labor-terms-final-typecheck.log"
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/labor-terms-build.log"
+    },
+    "format": {
+      "passed": true,
+      "log": "/tmp/labor-terms-final-format.log"
+    }
+  },
+  "verified": [
+    "Employer authority and independent employee response bind exact immutable terms.",
+    "Acceptance creates no cash transfer, earned payroll or labor participation.",
+    "Leaving and rejoining cannot reuse old acceptance or pending offers.",
+    "Management handover blocks accepting old pending offers, preserves accepted enterprise terms.",
+    "Expiry of latest accepted terms cannot revive older accepted quotes.",
+    "Bounds, stale revisions, reused ids and replay tested; old snapshots stay disabled."
+  ],
+  "limitations": [
+    "World envelopes and authorization/collective consumption remain to integrate.",
+    "Resident CLI and on-demand terms views remain to implement.",
+    "Ordinary labor, production and service payroll must be wired to the same accepted rate source.",
+    "Canonical actual labor remains disabled; previous model rejection has not yet been fixed.",
+    "No real model experiment in this domain-only phase; overall 25 capability objective remains active."
+  ]
+}

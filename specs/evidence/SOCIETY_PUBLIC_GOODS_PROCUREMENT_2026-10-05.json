@@ -1,0 +1,302 @@
+{
+  "ok": true,
+  "evidenceKind": "directed-compiled-http-cli-acceptance-not-free-emergence",
+  "calls": 51,
+  "expectedRefusals": 6,
+  "results": [
+    {
+      "route": "governance.status",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.rules",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.create",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "stocks.deposit",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials.reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.fund",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.read",
+      "exitCode": 1,
+      "ok": false,
+      "error": "freight-not-found"
+    },
+    {
+      "route": "trades.offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.read",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.accept",
+      "exitCode": 1,
+      "ok": false,
+      "error": "trade-party-authority-required"
+    },
+    {
+      "route": "trades.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.load",
+      "exitCode": 1,
+      "ok": false,
+      "error": "trade-payment-or-offer-release-required"
+    },
+    {
+      "route": "governance.propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.close",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.execute",
+      "exitCode": 1,
+      "ok": false,
+      "error": "public-decision-not-approved"
+    },
+    {
+      "route": "freight.load",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel.go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.deliver",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.confirm",
+      "exitCode": 1,
+      "ok": false,
+      "error": "trade-party-authority-required"
+    },
+    {
+      "route": "trades.confirm",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.ledger",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.ledger",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel.go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "materials.reserve",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.fund",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.offer",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "trades.accept",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.propose",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.vote",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.close",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.execute",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "governance.execute",
+      "exitCode": 1,
+      "ok": false,
+      "error": "public-decision-not-approved"
+    },
+    {
+      "route": "freight.load",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel.go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.cancel",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "travel.go",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "route": "freight.return",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "independentBuyerConsent": true,
+  "exactPublicApproval": true,
+  "duplicateExecutionDebitedOnce": true,
+  "actualFreightDelivery": true,
+  "originalTreasuryRefundAfterPhysicalReturn": true,
+  "namedRecipientOwnership": true,
+  "privateFreightRemainedPrivateUntilPublicContract": true,
+  "publicLedger": true,
+  "moneySupplyUnchanged": true,
+  "replayEqual": true,
+  "journalBytesUnchanged": true,
+  "checkpoint": "2026-10-05-public-goods-procurement",
+  "repositoryValidation": {
+    "command": "pnpm check",
+    "passed": 2624,
+    "skipped": 1,
+    "testFilesPassed": 362,
+    "lint": true,
+    "typecheck": true
+  },
+  "build": "pnpm --filter @aivilization/residents... build",
+  "versions": {
+    "catalog": "open-capabilities-v32",
+    "skill": "town-resident-skill-v31",
+    "rulebook": "society-rulebook-v22"
+  },
+  "remainingScope": [
+    "public-property-control",
+    "public-facility-permit-and-construction-procurement",
+    "long-term-remedy-and-succession",
+    "canonical-and-partition-integration",
+    "unprompted-adoption"
+  ]
+}

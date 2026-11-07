@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "society-vehicle-principals-evidence-v1",
+  "date": "2026-10-06",
+  "policy": "resident-vehicle-principals-v2",
+  "entrypoints": [
+    "principals.list/read/control/operate",
+    "enable-vehicle-principals",
+    "drivers/vehicles/rides personal labor"
+  ],
+  "catalog": 54,
+  "skill": 53,
+  "rulebook": 43,
+  "fullGate": {
+    "command": "pnpm check",
+    "testsPassed": 2889,
+    "testsSkipped": 1,
+    "filesPassed": 425,
+    "filesSkipped": 1,
+    "lintPassed": true,
+    "sortedRepositoryTypecheckPassed": true,
+    "logSha256": "3d432bf26683e1dce3e83b53bc245ed6f43af3758c27e00102d001b3fe5300ed"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... --sort build",
+    "passed": true
+  },
+  "compiledCli": {
+    "passed": true,
+    "commands": 45,
+    "expectedRefusals": 11,
+    "vehiclePrincipalsPolicy": "resident-vehicle-principals-v2",
+    "policy": "resident-mobility-v1",
+    "checks": [
+      "compiled-cli",
+      "explicit-migration-no-new-vehicles",
+      "enterprise-current-management-and-named-driving",
+      "old-owner-backdoor-refused",
+      "actual-driver-fare-preserved",
+      "booked-vehicle-control-blocked",
+      "public-approval-and-vehicle-effect-atomic",
+      "identity-bound-authorization",
+      "voluntary-quotation",
+      "escrow-bypass-rejected",
+      "actual-shared-travel",
+      "arrival-settlement",
+      "predeparture-refund",
+      "money-supply-conserved",
+      "exact-journal-replay"
+    ]
+  },
+  "invariants": [
+    "No new vehicles or rewritten manifest from explicit activation",
+    "Manager/member/public executor not automatically driver",
+    "Original owner self-use becomes revocable named permission; owner metadata not authority",
+    "Enterprise/collective/public exact current control; collective/public decision consumed atomically",
+    "Actual booking/journey blocks control/permission change",
+    "Actual cargo blocks revocation; parked transfer preserves cargo/fees/carrier",
+    "Original actual driver fare preserved and shared movement/escrow conserved",
+    "Replay verifies target registry, actual source, exact versions, immutable capacity",
+    "No cash-only enterprise closure while holding vehicle",
+    "Exact full journal replay and unchanged bytes"
+  ],
+  "limitations": [
+    "Open society journal only; canonical and partition authority still require R01 integration",
+    "Transport business prices, driver employment/wages, public vehicle procurement and whole resource estate not completed",
+    "No freely emerging fleet/company claimed; compiled engineering scenarios are separate from original free world",
+    "Original free world currently frozen permit-fee engine; new vehicle engine prepared but not activated"
+  ]
+}

@@ -1,15 +1,25 @@
+import { currentServiceEnterprise } from '@aivilization/services';
+import { enterpriseManagementAuthority } from '@aivilization/enterprise';
 import { isEnterpriseOperational } from '@aivilization/enterprise';
 import { executeOpenWorldTool } from './worldTools';
 import { openWorldPolicies } from './manifest';
 import {
   decideServices,
   serviceSupply,
-  personalProviderOverlap,
+  canReadServiceBooking,
+  personallyAdministersService,
+  personalServiceAdministrator,
   type ServicesCommand,
   type ServiceKind,
   type ServicesPorts,
+  type Service,
 } from '@aivilization/services';
-import { reserveResidentParticipation, endResidentParticipation } from '@aivilization/world';
+import {
+  reserveResidentParticipation,
+  endResidentParticipation,
+  mayOperateWorldPremises,
+  premisesAtLocation,
+} from '@aivilization/world';
 import { stringArg, numberArg, pageItems, ToolRefusal } from './arguments';
 import type { OpenSocietyState, OpenSocietyManifest } from './types';
 import type { ToolExecution } from './informationTools';
@@ -28,7 +38,12 @@ export function executeServicesTool(
     exists: (id) => Object.hasOwn(state.residents, id),
     locationCapacity: (id) => {
       const l = state.world.locations[id];
-      return l === undefined ? undefined : (l.capacity ?? s.policy.maxCapacity);
+      const b = premisesAtLocation(state.world, id);
+      return l === undefined
+        ? undefined
+        : b && (b.status !== 'operational' || b.condition <= 0)
+          ? 0
+          : (l.capacity ?? s.policy.maxCapacity);
     },
     presentAndIdle: (id, location) =>
       state.world.agents[id]?.locationId === location &&
@@ -36,7 +51,11 @@ export function executeServicesTool(
       (state.world.activityTimeByAgent[id]?.availableAt ?? 0) <= state.world.clock.now,
     controlsEnterprise: (actor, id) => {
       const e = state.world.enterprises[id];
-      return e !== undefined && isEnterpriseOperational(e) && e.ownerAgentId === actor;
+      return (
+        e !== undefined &&
+        isEnterpriseOperational(e) &&
+        !!enterpriseManagementAuthority(e, actor, 'authorize-service')
+      );
     },
     employedBy: (actor, id) => {
       const e = state.world.enterprises[id];
@@ -48,10 +67,42 @@ export function executeServicesTool(
   const id = stringArg(args, 'id'),
     expectedRevision = numberArg(args, 'expectedRevision');
   const result = (data: unknown): ToolExecution => ({ data, effects: {} });
+  const publicDescription = (v: Service) => {
+    const {
+      control: _control,
+      namedProviders: _providers,
+      principalAt: _at,
+      supplyRelation: _relation,
+      ...text
+    } = v;
+    void _control;
+    void _providers;
+    void _at;
+    void _relation;
+    return {
+      ...text,
+      policyVersion: s.policyTransition?.retiredServiceIds.includes(v.id)
+        ? s.policyTransition.previousPolicy.version
+        : s.policy.version,
+      retiredByPolicyUpgrade: s.policyTransition?.retiredServiceIds.includes(v.id) ?? false,
+      ...(s.relationPolicy
+        ? { currentEnterpriseAffiliation: currentServiceEnterprise(v) ?? null }
+        : {}),
+    };
+  };
+  // Organization membership grants metadata visibility, not private appointments.
+  const managesPersonally = (v: Service | undefined) =>
+    !!v &&
+    (personallyAdministersService(v, actorId) ||
+      (v.control?.policyVersion === 'resource-principals-v2' &&
+        v.control.controller.kind === 'enterprise' &&
+        ports.controlsEnterprise?.(actorId, v.control.controller.id) === true));
   if (name === 'services.list')
     return result(
       pageItems(
-        Object.values(s.services).filter((v) => v.active),
+        Object.values(s.services)
+          .filter((v) => v.active)
+          .map(publicDescription),
         args,
       ),
     );
@@ -59,7 +110,7 @@ export function executeServicesTool(
     const v = s.services[id];
     if (!v) throw new ToolRefusal('service-not-found');
     return result({
-      ...v,
+      ...publicDescription(v),
       slots: pageItems(
         Object.values(s.slots)
           .filter((t) => t.serviceId === id && t.end > state.world.clock.now)
@@ -75,19 +126,8 @@ export function executeServicesTool(
   if (name === 'bookings.list' || name === 'bookings.read') {
     const items = Object.values(s.bookings).filter(
       (b) =>
-        b.residentId === actorId ||
-        s.services[s.slots[b.slotId]!.serviceId]?.ownerId === actorId ||
-        (s.policy.version === 'resident-services-v3' &&
-          b.checkedInAt !== undefined &&
-          personalProviderOverlap(
-            s.slots[b.slotId]!,
-            actorId,
-            b.checkedInAt,
-            Math.min(
-              state.world.clock.now,
-              b.endedAt ?? b.attendingUntil ?? s.slots[b.slotId]!.end,
-            ),
-          ) > 0),
+        canReadServiceBooking(s, b, actorId, state.world.clock.now) ||
+        managesPersonally(s.services[s.slots[b.slotId]?.serviceId ?? '']),
     );
     if (name === 'bookings.list') return result(pageItems(items, args));
     const b = items.find((b) => b.id === id);
@@ -97,7 +137,7 @@ export function executeServicesTool(
     return result({
       ...b,
       slot: { ...slot, supply: serviceSupply(s, s.slots[b.slotId]!, state.world.clock.now, ports) },
-      service: s.services[s.slots[b.slotId]!.serviceId],
+      service: publicDescription(s.services[s.slots[b.slotId]!.serviceId]!),
       note: 'ended means attendance ended; measured duration and provider overlap do not certify satisfaction or full contractual performance.',
     });
   }
@@ -105,11 +145,21 @@ export function executeServicesTool(
     return result(
       pageItems(
         Object.values(s.queues).filter(
-          (q) => q.residentId === actorId || s.services[q.serviceId]?.ownerId === actorId,
+          (q) => q.residentId === actorId || managesPersonally(s.services[q.serviceId]),
         ),
         args,
       ),
     );
+  const operationLocation =
+    name === 'services.publish'
+      ? stringArg(args, 'locationId')
+      : name === 'services.schedule'
+        ? s.services[stringArg(args, 'serviceId')]?.locationId
+        : name === 'services.start' || name === 'courses.start'
+          ? s.services[s.slots[id]?.serviceId ?? '']?.locationId
+          : undefined;
+  if (operationLocation && !mayOperateWorldPremises(state.world, actorId, operationLocation))
+    throw new ToolRefusal('premises-operation-not-authorized');
   let c: ServicesCommand;
   switch (name) {
     case 'services.publish':
@@ -216,7 +266,11 @@ export function executeServicesTool(
       if (event.type !== 'BookingChanged') return [];
       const slot = s.slots[event.booking.slotId]!;
       const service = s.services[slot.serviceId]!;
-      return [...new Set([event.booking.residentId, service.ownerId])].map((ownerId) => ({
+      const administrator = personalServiceAdministrator(service);
+      const people = [
+        ...new Set([event.booking.residentId, ...(administrator ? [administrator] : [])]),
+      ];
+      return people.map((ownerId) => ({
         id: `experience-booking-${event.booking.id}-${event.booking.revision}-${ownerId}`,
         ownerId,
         at: state.world.clock.now,
@@ -228,7 +282,7 @@ export function executeServicesTool(
           locationId: service.locationId,
         }),
         sourceIds: [event.booking.id, slot.id, service.id],
-        people: [event.booking.residentId, service.ownerId],
+        people,
         locationIds: [service.locationId],
         provenance: 'firsthand' as const,
       }));
@@ -253,7 +307,12 @@ export function executeServicesTool(
     const journey = executeOpenWorldTool({
       state,
       manifest,
-      policies: openWorldPolicies(manifest.seed, state.world, manifest.rhythm),
+      policies: openWorldPolicies(
+        manifest.seed,
+        state.world,
+        manifest.rhythm,
+        manifest.canonicalPolicyContinuation,
+      ),
       actorId,
       requestId,
       name: 'world.move',

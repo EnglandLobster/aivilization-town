@@ -96,6 +96,7 @@ function createHost(input: {
     runOnce: input.runOnce,
     start: input.start,
     stop: input.stop,
+    shutdown: () => Promise.resolve(),
     getStatus: input.getStatus,
   };
 }

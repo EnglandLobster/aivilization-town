@@ -1,0 +1,193 @@
+{
+  "stage": "enterprise-management-control-v1",
+  "evidenceKind": "engineering-not-free-emergence",
+  "gate": {
+    "command": "pnpm check",
+    "passed": 2753,
+    "skipped": 1,
+    "filesPassed": 391,
+    "filesSkipped": 1,
+    "log": "/tmp/enterprise-control-check-2.log"
+  },
+  "build": {
+    "command": "pnpm --filter @aivilization/residents... build",
+    "passed": true,
+    "log": "/tmp/enterprise-control-build.log"
+  },
+  "httpCli": {
+    "ok": true,
+    "evidenceKind": "directed-compiled-http-cli-not-free-emergence",
+    "calls": 29,
+    "expectedRefusals": 4,
+    "independentGroupAcceptance": true,
+    "noFounderOrMemberBypass": true,
+    "independentEmployeeJoining": true,
+    "failedDecisionRemainsUsable": true,
+    "capitalAndManagementSeparate": true,
+    "moneySupplyConserved": true,
+    "replayEqual": true,
+    "journalBytesUnchanged": true,
+    "results": [
+      {
+        "route": "business found",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives create",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives respond",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "resources offer",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "resources accept",
+        "ok": false,
+        "exitCode": 1,
+        "error": "resource-controller-authority-required"
+      },
+      {
+        "route": "collectives propose",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives vote",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives vote",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives decide",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives execute",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "resources read",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business post-job",
+        "ok": false,
+        "exitCode": 1,
+        "error": "enterprise-management-authority-required"
+      },
+      {
+        "route": "business post-job",
+        "ok": false,
+        "exitCode": 1,
+        "error": "enterprise-management-authority-required"
+      },
+      {
+        "route": "collectives propose",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives vote",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives vote",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives decide",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives execute",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "business join",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives propose",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives vote",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives vote",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives decide",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives execute",
+        "ok": false,
+        "exitCode": 1,
+        "error": "cannot buy entire pool reserve"
+      },
+      {
+        "route": "collectives propose",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives vote",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives vote",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives decide",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "route": "collectives execute",
+        "ok": true,
+        "exitCode": 0
+      }
+    ]
+  },
+  "catalog": "open-capabilities-v42",
+  "skill": "town-resident-skill-v41",
+  "rulebook": "society-rulebook-v31",
+  "routes": 360,
+  "limitations": [
+    "capital issuance and transfer",
+    "long obligations and permanent liquidation/succession",
+    "enterprise resource.control paid atomic exchange",
+    "canonical and partition authority integration",
+    "autonomous enterprise adoption unobserved"
+  ]
+}

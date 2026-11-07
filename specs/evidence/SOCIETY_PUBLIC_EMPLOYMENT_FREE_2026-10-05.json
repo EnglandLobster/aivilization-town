@@ -1,0 +1,178 @@
+{
+  "stage": "public-employment-free-288",
+  "kind": "continued-free-resident-evidence-no-assigned-reform",
+  "root": "/home/dev/aivilization-town/.local/open-residents/society-elapsed-study-20261005",
+  "checkpoint": "/home/dev/aivilization-town/.local/open-residents/society-elapsed-study-20261005/checkpoints/free-288",
+  "frozenEngine": "/tmp/aivilization-public-employment-20261005",
+  "fingerprintsVerified": 81,
+  "baseline": {
+    "opportunities": 256,
+    "commits": 1987,
+    "capabilityCalls": 1085
+  },
+  "total": {
+    "opportunities": 288,
+    "commits": 2221,
+    "capabilityCalls": 1200,
+    "simulationTime": 173590000
+  },
+  "phase": {
+    "opportunities": 32,
+    "providerStatus": {
+      "completed": 32
+    },
+    "calls": 115,
+    "elapsedMs": 1074888,
+    "modelSteps": 132,
+    "reportedCost": 0.271262328,
+    "refusals": []
+  },
+  "verification": {
+    "replayMatchesSavedReport": true,
+    "replayLeavesJournalBytesUnchanged": true
+  },
+  "actualState": {
+    "at": 173590000,
+    "commits": 2221,
+    "enterpriseIds": [],
+    "publicEmployment": {
+      "cycleDurationMs": 86400000,
+      "revisions": [
+        {
+          "revision": 1,
+          "recordedAt": 135820000,
+          "effectiveCycle": 1,
+          "source": {
+            "kind": "inherited-scenario",
+            "version": "recruitment-cycle-v1"
+          },
+          "quota": [
+            1,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "ranking": [
+            "knowledge",
+            "housing",
+            "submitted"
+          ]
+        },
+        {
+          "revision": 2,
+          "recordedAt": 145000000,
+          "effectiveCycle": 2,
+          "source": {
+            "actorId": "resident-001",
+            "kind": "public-decision",
+            "procedureRevision": 1,
+            "proposalId": "proposal-001-employment-quota"
+          },
+          "quota": [
+            2,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "ranking": [
+            "knowledge",
+            "housing",
+            "submitted"
+          ]
+        }
+      ]
+    },
+    "proposals": [
+      {
+        "id": "proposal-001-employment-quota",
+        "status": "executed",
+        "actionKind": "set-employment",
+        "createdAt": 138387000,
+        "closesAt": 145000000,
+        "executedAt": 145000000,
+        "votes": [
+          {
+            "actorId": "resident-001",
+            "choice": "yes"
+          },
+          {
+            "actorId": "resident-003",
+            "choice": "yes"
+          },
+          {
+            "actorId": "resident-004",
+            "choice": "yes"
+          },
+          {
+            "actorId": "resident-002",
+            "choice": "yes"
+          }
+        ]
+      }
+    ],
+    "residents": [
+      {
+        "agentId": "resident-001",
+        "educationScore": 180,
+        "educationLevel": 3,
+        "residentialTier": 2,
+        "job": null,
+        "balance": 0,
+        "upkeepArrears": 434.06798008120677
+      },
+      {
+        "agentId": "resident-002",
+        "educationScore": 324.99999999999994,
+        "educationLevel": 3,
+        "residentialTier": 1,
+        "job": "Cleaner",
+        "balance": 295.89724209533654
+      },
+      {
+        "agentId": "resident-003",
+        "educationScore": 181.66666666700002,
+        "educationLevel": 3,
+        "residentialTier": 1,
+        "job": "Waiter",
+        "balance": 702.7681054579897
+      },
+      {
+        "agentId": "resident-004",
+        "educationScore": 330.00000000000006,
+        "educationLevel": 4,
+        "residentialTier": 1,
+        "job": "Waiter",
+        "balance": 125.12420330573035
+      }
+    ],
+    "jobApplications": [
+      {
+        "agentId": "resident-001",
+        "occupationName": "Stock Clerk",
+        "cycleNumber": 2,
+        "status": "pending",
+        "publicEmploymentRevision": 2,
+        "submittedAt": 172863000
+      },
+      {
+        "agentId": "resident-001",
+        "occupationName": "Waiter",
+        "cycleNumber": 2,
+        "status": "pending",
+        "publicEmploymentRevision": 2,
+        "submittedAt": 172863000
+      }
+    ]
+  },
+  "limits": [
+    "one trajectory with the existing four residents and an explicit initial majority procedure",
+    "autonomous quota reform, not evidence of all institutions or complete society",
+    "two revision-2 applications remain pending",
+    "resident-001 still unemployed with increasing housing arrears",
+    "no enterprise or collective adoption recorded"
+  ]
+}

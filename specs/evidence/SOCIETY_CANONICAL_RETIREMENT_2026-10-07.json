@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "canonical-source-retirement-evidence-v1",
+  "sourceSha256": {
+    "apps/server/src/canonicalRuntimeOwnership.ts": "5567460a964f7924436681b5cc75a653ade49a0ca9a40b8b1ce84422eac67c50",
+    "apps/server/src/canonicalRuntimeOwnership.test.ts": "7310e2657f0d7f69c2846f81ef7724fe1d0674c014beec90265dfa5a0bc6f35a",
+    "apps/server/src/localRuntimeTownCli.test.ts": "831afad33327f6dfb3a3f4d4b9707f5d85d39a4638c3b7c93477707d4a46834a",
+    "apps/server/src/index.ts": "be26fb4712b51e87d2d63fb81ffd238065522a5465a684a952a75500b40f1087",
+    "apps/server/scripts/verify-canonical-retirement.mjs": "9684497479fa26d593904268cc19817b4586dc01d523570f3ba4d1b9e54d1b79",
+    "eslint.config.js": "73e847aa330b18e4668723b5b8473e7bb013d03b13f4ddbfa5fdff48fea713d3"
+  },
+  "realProcess": {
+    "passed": true,
+    "retiredFormalRestartRefused": true,
+    "archiveAfterRetirementUnchanged": true,
+    "matchingRetirementRetryAccepted": true,
+    "root": "/home/dev/aivilization-town/.local/canonical-retirement-20261007",
+    "actualDaemonStarted": true,
+    "archiveRefusedWhileWriterActive": true,
+    "refusalCreatedNoTarget": true,
+    "daemonExit": {
+      "code": 0,
+      "signal": null
+    },
+    "archiveAcceptedAfterGracefulExit": true,
+    "repeatedArchiveUnchanged": true,
+    "archiveCliCalls": 4,
+    "sourceTreeSha256": "e98b54fcf9a6334048a819e4cc93a7be51617db244b3445d8ab1e112240e1566",
+    "limitations": [
+      "Controlled unpublished target hash: retirement admission verification only, not candidate validation or activation.",
+      "Deterministic engineering daemon, not OpenCode or free social emergence.",
+      "Cooperative same-filesystem admission; no legacy-writer, multi-host or forced-crash recovery claim."
+    ]
+  },
+  "validation": {
+    "targeted": {
+      "passed": 43,
+      "log": "/tmp/canonical-retirement-targeted.log"
+    },
+    "lint": {
+      "passed": true,
+      "logs": ["/tmp/canonical-retirement-lint.log", "/tmp/canonical-retirement-final-lint.log"]
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "/tmp/canonical-retirement-typecheck.log"
+    },
+    "build": {
+      "passed": true,
+      "log": "/tmp/canonical-retirement-build.log"
+    },
+    "tests": {
+      "passed": 3257,
+      "skipped": 1,
+      "filesPassed": 493,
+      "log": "/tmp/canonical-retirement-full-tests.log"
+    }
+  },
+  "initialFailures": [
+    "New server .mjs verifier was outside the existing JavaScript ESLint override and failed TypeScript project parsing. Added server/scripts to the existing JavaScript override; domain TypeScript checks unchanged."
+  ],
+  "limitations": [
+    "Retirement binding does not validate candidate completeness or activate target; final source-bound publication coordinator remains required.",
+    "Controlled verification uses an explicitly artificial unpublished target hash, not a completed migration.",
+    "Cooperative local-filesystem formal admission only; legacy/direct writers, copies moved to another path and multihost not fenced.",
+    "No automatic removal of partial retirement marker or stale ownership; no forced-crash recovery claim.",
+    "Full 25-capability goal remains active."
+  ]
+}

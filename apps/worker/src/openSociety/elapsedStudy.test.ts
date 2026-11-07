@@ -96,18 +96,3 @@ test('real study context/CLI shows own actual progress and source, stop refunds 
   });
   t.replay();
 });
-test('explicit runtime activation is idempotent, keeps old manifest bytes and exposes versioned source provenance in new manifests', () => {
-  const t = fixture(false);
-  const bytes = readFileSync(join(t.root, 'manifest.json'));
-  const enabled = t.r.enableElapsedStudy();
-  expect(enabled.ok).toBe(true);
-  expect(t.r.enableElapsedStudy()).toEqual(enabled);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(bytes);
-  t.replay();
-  const m = createOpenSocietyManifest({ continuity: true, elapsedRest: true, elapsedStudy: true });
-  expect(m.provenance.elapsedStudy).toBe('resident-elapsed-study-v1');
-  expect(m.provenance.studySource).toBe('scenario-education-course-v1');
-  expect(() => createOpenSocietyManifest({ continuity: true, elapsedStudy: true })).toThrow(
-    'invalid-elapsed-study-configuration',
-  );
-});

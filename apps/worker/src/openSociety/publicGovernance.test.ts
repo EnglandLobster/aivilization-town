@@ -72,21 +72,6 @@ function fixture(enabled = false) {
   };
   return { r, root, a, b, c, call, ok, rev, propose, vote, replay };
 }
-test('public authority requires explicit activation; legacy manifest bytes are preserved through upgrade and replay', () => {
-  const t = fixture();
-  const original = readFileSync(join(t.root, 'manifest.json'));
-  expect(t.call(t.a, 'governance.status', {}).error).toBe('public-governance-not-enabled');
-  const result = t.r.enablePublicGovernance();
-  expect(result.ok).toBe(true);
-  expect(t.r.enablePublicGovernance()).toEqual(result);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(original);
-  expect(t.ok(t.a, 'governance.status', {})).toMatchObject({
-    grant: { source: { kind: 'explicit-scenario-grant' } },
-    procedureRevision: 1,
-    currentPolicyRevision: 0,
-  });
-  expect(t.replay().enablePublicGovernance()).toEqual(result);
-});
 test('independent exact ballots change authoritative taxes, actual pay and conserved treasury; old revision cannot execute twice', () => {
   const t = fixture(true);
   t.propose();

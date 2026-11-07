@@ -4,6 +4,27 @@ import { pageItems, stringArg, ToolRefusal } from './arguments';
 import type { ToolExecution } from './informationTools';
 import { SOCIETY_RULEBOOK_VERSION, SOCIETY_RULES, capabilityRuleIds } from './ruleDefinitions';
 import { capabilityBoundary, boundaryAvailability } from './capabilityBoundaries';
+/** Rules that apply only when their mechanism exists in this town; all others always apply. */
+const RULE_AVAILABILITY: Readonly<Record<string, (state: OpenSocietyState) => boolean>> = {
+  'resource-principals': (s) => !!s.world.materials?.resourcePrincipals,
+  'public-employment': (s) => !!s.world.publicEmployment,
+  'public-procedures': (s) => !!s.world.publicGovernance,
+  'physical-facility-use': (s) => !!s.world.premises?.facilityUsePolicy,
+  'physical-premises': (s) => !!s.world.premises,
+  'public-construction-use': (s) => !!s.world.premises,
+  'material-production': (s) => !!s.world.materials,
+  'group-control': (s) => !!s.communication?.groupControlPolicy,
+  'resource-control': (s) => !!s.resourceControlPolicy,
+  'enterprise-management-control': (s) => !!s.resourceControlPolicy,
+  'resident-program-actions': (s) => !!s.coordination?.actionsPolicy,
+  'resident-program-conditions': (s) => !!s.coordination?.conditionsPolicy,
+  'common-accounts': (s) => !!s.world.commonAccounts,
+  'resident-collectives': (s) => !!s.collectives,
+  'shared-records': (s) => !!s.sharedRecords,
+  'resident-programs': (s) => !!s.coordination,
+  agreements: (s) => !!s.collaboration,
+  exchange: (s) => !!s.world.residentCommerce,
+};
 export { SOCIETY_RULEBOOK_VERSION, SOCIETY_RULES, capabilityRuleIds } from './ruleDefinitions';
 
 export function executeRulebookTool(
@@ -67,65 +88,7 @@ export function executeRulebookTool(
     };
   const r = SOCIETY_RULES.find((r) => r.id === stringArg(args, 'id'));
   if (!r) throw new ToolRefusal('rule-not-found');
-  const enabled =
-    r.id === 'agreed-labor'
-      ? state.world.residentLabor?.configuration.compensationSource ===
-        'accepted-enterprise-labor-terms-v1'
-      : r.id === 'construction-procurement'
-        ? !!state.world.residentTrade?.constructionOrders
-        : r.id === 'resource-principals'
-          ? !!state.world.materials?.resourcePrincipals
-          : r.id === 'capital-agreements'
-            ? !!state.world.capitalAgreements
-            : r.id === 'public-employment'
-              ? !!state.world.publicEmployment
-              : r.id === 'public-procedures'
-                ? !!state.world.publicGovernance
-                : r.id === 'evidence-trade'
-                  ? !!state.world.residentTrade
-                  : r.id === 'physical-freight'
-                    ? !!state.world.logistics
-                    : r.id === 'physical-service-delivery'
-                      ? !!state.world.serviceEngagements
-                      : r.id === 'physical-facility-use'
-                        ? !!state.world.premises?.facilityUsePolicy
-                        : ['physical-premises', 'public-construction-use'].includes(r.id)
-                          ? !!state.world.premises
-                          : r.id === 'material-production'
-                            ? !!state.world.materials
-                            : r.id === 'group-control'
-                              ? !!state.communication?.groupControlPolicy
-                              : ['resource-control', 'enterprise-management-control'].includes(r.id)
-                                ? !!state.resourceControlPolicy
-                                : r.id === 'service-control'
-                                  ? !!state.services?.controlPolicy
-                                  : r.id === 'resident-program-actions'
-                                    ? !!state.coordination?.actionsPolicy
-                                    : r.id === 'resident-program-reactions'
-                                      ? !!state.coordination?.reactions
-                                      : r.id === 'resident-program-conditions'
-                                        ? !!state.coordination?.conditionsPolicy
-                                        : r.id === 'common-accounts'
-                                          ? !!state.world.commonAccounts
-                                          : r.id === 'resident-collectives'
-                                            ? !!state.collectives
-                                            : r.id === 'resident-data-views'
-                                              ? !!state.recordViews
-                                              : r.id === 'shared-records'
-                                                ? !!state.sharedRecords
-                                                : r.id === 'resident-programs'
-                                                  ? !!state.coordination
-                                                  : r.id === 'mobility'
-                                                    ? !!state.world.residentMobility
-                                                    : r.id === 'agreements'
-                                                      ? !!state.collaboration
-                                                      : r.id === 'services'
-                                                        ? !!state.services
-                                                        : r.id === 'exchange'
-                                                          ? !!state.world.residentCommerce
-                                                          : r.id === 'personal-life'
-                                                            ? !!state.life
-                                                            : true;
+  const enabled = RULE_AVAILABILITY[r.id]?.(state) ?? true;
   return {
     data: {
       ...r,

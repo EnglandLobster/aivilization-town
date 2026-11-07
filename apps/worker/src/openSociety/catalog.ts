@@ -1,4 +1,3 @@
-import { LABOR_TERMS_TOOLS } from './laborTermsCatalog';
 import { RESOURCE_PRINCIPAL_TOOLS } from './resourcePrincipalCatalog';
 import { HOUSING_OCCUPANCY_TOOLS } from './housingOccupancyCatalog';
 import { HOUSING_CHOICE_TOOLS } from './housingChoiceCatalog';
@@ -516,7 +515,6 @@ export const OPEN_SOCIETY_TOOLS: readonly OpenToolDefinition[] = [
   ...RESOURCE_PRINCIPAL_TOOLS,
   ...MATERIAL_TOOLS,
   ...PREMISES_TOOLS,
-  ...LABOR_TERMS_TOOLS,
   ...KERNEL_TOOLS,
   ...RESOURCE_CONTROL_TOOLS,
   ...COLLECTIVE_TOOLS,

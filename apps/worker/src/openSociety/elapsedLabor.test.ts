@@ -123,19 +123,3 @@ test('resident-owned firm, independent hire, actual work and personal claims are
   });
   t.replay();
 });
-test('labor activation is explicit, idempotent and leaves historical manifest bytes unchanged', () => {
-  const t = fixture(false),
-    bytes = readFileSync(join(t.root, 'manifest.json'));
-  const enabled = t.r.enableElapsedLabor();
-  expect(enabled.ok).toBe(true);
-  expect(t.r.enableElapsedLabor()).toEqual(enabled);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(bytes);
-  t.replay();
-  const m = createOpenSocietyManifest({ continuity: true, elapsedRest: true, elapsedLabor: true });
-  expect(m.provenance.elapsedLabor).toBe('resident-enterprise-labor-v1');
-  expect(m.provenance.earnedPayroll).toBe('enterprise-earned-payroll-v1');
-  expect(m.provenance.withholding).toBe('labor-reference-period-withholding-v1');
-  expect(() => createOpenSocietyManifest({ continuity: true, elapsedLabor: true })).toThrow(
-    'invalid-resident-labor-configuration',
-  );
-});

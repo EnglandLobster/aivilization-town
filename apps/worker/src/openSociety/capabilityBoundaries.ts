@@ -153,14 +153,6 @@ const declarations: readonly Declaration[] = [
       'Only the authenticated resident selects a lower supported personal service standard. Existing debt, assets, body, residence, jobs and private contracts remain unchanged.',
   }),
   declare(
-    'business.labor-terms',
-    query('enterprise/world', 'agreed-labor', ['world-fact', 'consent']),
-  ),
-  declare(
-    'business.change-labor-terms',
-    authority('enterprise/world', 'agreed-labor', ['worldEvents']),
-  ),
-  declare(
     'governance.employment',
     query('governance/society/world', 'public-employment', ['world-fact', 'authority']),
   ),

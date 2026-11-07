@@ -14,8 +14,6 @@ import {
 import { materialOperationRequest } from '@aivilization/materials';
 import {
   enableResourcePrincipalsEvent,
-  residentLaborTermsEvent,
-  laborTermsOperationRequest,
   residentPrincipalControlEvent,
   residentMaterialEvent,
   applyWorldEvent,
@@ -341,68 +339,5 @@ test('collective enterprise managers need the same exact independent decision, a
     id: 'firm',
   });
   expect(t.state.world.enterprises.firm!.ownershipShares).toEqual({ [t.a]: 1 });
-  t.replay();
-});
-
-test('collective employer terms require exact approval and atomic consumption, employee signs independently', () => {
-  const t = fixture(true, true);
-  const command = {
-    type: 'offer' as const,
-    id: 'pay',
-    employeeId: t.c,
-    wageMicros: 60_000_000,
-    referenceMs: 3_600_000,
-    validUntil: 86_400_000,
-  };
-  const request = laborTermsOperationRequest(t.state.world.enterprises.firm!, command);
-  const operate = (decisionId?: string) =>
-    residentLaborTermsEvent({
-      ...t.context(t.b),
-      enterpriseId: 'firm',
-      command,
-      expectedRequest: request,
-      collective: principalCollectiveAuthority(t.state, decisionId ? { decisionId } : {}),
-    });
-  expect(operate().accepted).toBe(false);
-  const consumed = t.approve(request);
-  const d = operate('d');
-  if (!d.accepted) throw Error(d.reason);
-  const before = t.state;
-  expect(() => t.apply({ worldEvents: d.events })).toThrow();
-  expect(t.state).toEqual(before);
-  const forged = structuredClone(d.events);
-  const event = forged[0]!;
-  if (event.type !== 'ResidentLaborTermsCommitted') throw Error('wrong-event');
-  const changed = event.payload.events.find((e) => e.type === 'EnterpriseLaborTermsChanged');
-  if (!changed || changed.type !== 'EnterpriseLaborTermsChanged') throw Error('missing-offer');
-  const forgedEvent = {
-    ...event,
-    payload: {
-      ...event.payload,
-      events: event.payload.events.map((e) =>
-        e === changed
-          ? {
-              ...e,
-              offer: {
-                ...e.offer,
-                authority: { ...e.offer.authority, decisionId: 'different-approval' },
-              },
-            }
-          : e,
-      ),
-    },
-  };
-  expect(() => t.apply({ worldEvents: [forgedEvent], collectiveEvents: [consumed] })).toThrow(
-    'labor-terms-management-proof-mismatch',
-  );
-  expect(t.state).toEqual(before);
-  t.apply({ worldEvents: d.events, collectiveEvents: [consumed] });
-  const response = { type: 'accept' as const, id: 'pay', expectedRevision: 1 };
-  expect(
-    residentLaborTermsEvent({ ...t.context(t.b), enterpriseId: 'firm', command: response })
-      .accepted,
-  ).toBe(false);
-  t.ok(residentLaborTermsEvent({ ...t.context(t.c), enterpriseId: 'firm', command: response }));
-  expect(t.state.world.enterprises.firm!.laborTerms!.offers.pay!.respondedBy).toBe(t.c);
   t.replay();
 });

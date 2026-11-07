@@ -34,7 +34,7 @@ export const CLI_GUIDE_AREAS: readonly CliGuideArea[] = [
     groups: [
       {
         group: 'business',
-        plain: '打工、领工资、求职；开公司、加入、注资、招人、裁人、关闭；约定工资',
+        plain: '打工、领工资、求职；开公司、加入、注资、招人（招聘时写明工资）、裁人、关闭',
       },
       { group: 'sources', plain: '查看哪里有可以采集的原料' },
       { group: 'production', plain: '采集原料、查配方、加工制作，可以和别人一起做' },

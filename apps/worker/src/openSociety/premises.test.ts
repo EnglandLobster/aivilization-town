@@ -85,22 +85,6 @@ test('unbound offers expire at a simulated boundary and return exactly once; sch
   ).toBe(false);
   expect(t.r.state.world.premises!.projects).toEqual({});
 });
-test('legacy manifests do not gain sites by enabling construction, while new site provenance stays separate from resident consensus', () => {
-  const t = fixture(false);
-  expect(t.r.state.world.premises).toBeUndefined();
-  expect(t.call(t.a, 'sites.list', {}).ok).toBe(false);
-  expect(t.r.enablePremises().ok).toBe(true);
-  expect(t.r.state.world.premises!.sites).toEqual({});
-  expect(t.r.state.world.materials!.reservations).toBeDefined();
-  const v = t.ok(t.a, 'sites.list', {}).data;
-  expect(v).toMatchObject({
-    total: 0,
-    landUsePolicy: { provenance: 'explicit-scenario-initial-institution-not-resident-consensus' },
-  });
-  const state = t.r.state;
-  expect(t.r.enablePremises().ok).toBe(true);
-  expect(t.r.state).toEqual(state);
-});
 test('a collective separately accepts stock control and authorizes exact material and building actions; its members still start personally', () => {
   const t = fixture();
   let n = 0;
@@ -234,30 +218,6 @@ test('a collective separately accepts stock control and authorizes exact materia
   );
   t.ok(t.b, 'world.move', { targetLocationId: 'premises-home' });
 });
-test('old-world geometry extension is explicit, bounded and idempotent, and does not pretend to be a resident capability', () => {
-  const t = fixture(false);
-  expect(t.r.enablePremises().ok).toBe(true);
-  const extension = {
-    id: 'new-site',
-    parentLocationId: t.location,
-    usableFloorArea: 16,
-    accessTravelMs: 60000,
-    sourceId: 'operator-approved-test-migration',
-  };
-  expect(t.r.registerConstructionSite(extension).ok).toBe(true);
-  const state = t.r.state;
-  expect(t.r.registerConstructionSite(extension).ok).toBe(true);
-  expect(t.r.state).toEqual(state);
-  expect(t.r.state.world.premises!.sites['new-site']).toMatchObject({
-    source: 'authorized-extension',
-    sourceId: extension.sourceId,
-    occupiedFloorArea: 0,
-  });
-  expect(
-    t.r.registerConstructionSite({ ...extension, id: 'invalid', usableFloorArea: -1 }).ok,
-  ).toBe(false);
-  expect(t.call(t.a, 'sites.create', extension).ok).toBe(false);
-});
 function factory(facilityUse = true) {
   const t = fixture(true, facilityUse, {
     primaryUse: 'production',
@@ -360,26 +320,6 @@ test('built storage limits aggregate all stocks and reserve future outputs; a re
   const reopened = new OpenSocietyRuntime(t.root);
   cleanup.push(() => reopened.close());
   expect(reopened.state).toEqual(expected);
-});
-test('explicit capacity activation rejects existing overfull storage and preserves old quantities until residents resolve them', () => {
-  const t = factory(false);
-  expect(t.r.state.world.premises!.facilityUsePolicy).toBeUndefined();
-  t.ok(t.b, 'stocks.deposit', { id: 's1', expectedRevision: 1, items: { Wood: 12 } });
-  const before = t.r.state;
-  expect(t.r.enableFacilityUse().error).toBe('premises-storage-over-capacity:home');
-  expect(t.r.state).toEqual(before);
-  t.ok(t.b, 'stocks.withdraw', {
-    id: 's1',
-    expectedRevision: 2,
-    recipientId: t.b,
-    items: { Wood: 2 },
-  });
-  expect(t.r.enableFacilityUse().ok).toBe(true);
-  expect(t.r.state.world.premises!.facilityUsePolicy?.version).toBe('premises-facility-use-v1');
-  expect(t.r.state.world.materials!.stocks.s1!.inventory.Wood).toBe(10);
-  expect(
-    t.call(t.c, 'stocks.deposit', { id: 's2', expectedRevision: 1, items: { Wood: 1 } }).error,
-  ).toBe('material-stock-capacity');
 });
 test('external material offers retain physical return space, and losing operating authority stops future work without taking the worker stock', () => {
   const t = factory();

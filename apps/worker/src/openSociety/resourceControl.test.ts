@@ -280,45 +280,6 @@ test('withdrawn or changed offer makes an old passed acceptance fail without con
   });
   t.replay();
 });
-test('old manifest enables control once without rewriting seed; unsupported actions cannot invent another resource domain', () => {
-  const t = fixture(false),
-    manifest = readFileSync(join(t.root, 'manifest.json'));
-  expect(t.call(t.a, 'resources.list', {}).error).toBe('resource-control-not-enabled');
-  expect(t.r.enableResourceControl().ok).toBe(true);
-  const count = t.r.journal.commits.length;
-  expect(t.r.enableResourceControl().ok).toBe(true);
-  expect(t.r.journal.commits).toHaveLength(count);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(manifest);
-  t.seed();
-  expect(
-    t.call(t.a, 'resources.manage', {
-      kind: 'register',
-      id: 'records',
-      expectedRevision: 1,
-      expectedControlVersion: 1,
-      operation: {
-        type: 'configure',
-        visibility: 'public',
-        readers: [],
-        editors: [],
-        balance: 100,
-      },
-    }).error,
-  ).toBe('invalid-resource-action');
-  expect(
-    t.call(t.a, 'resources.offer', {
-      kind: 'register',
-      id: 'records',
-      expectedRevision: 1,
-      expectedControlVersion: 1,
-      target: { kind: 'collective', id: 'missing' },
-      expiresAt: t.r.state.world.clock.now + 1000,
-      terms: '不存在',
-    }).error,
-  ).toBe('invalid-control-target');
-  t.replay();
-});
-
 test('collectively controlled groups keep membership and private history separate from administration', () => {
   const t = fixture();
   t.seed();
@@ -451,46 +412,6 @@ test('collective closure cancels pending requests with honest provenance and ret
     'group-closed',
   );
   t.replay();
-});
-
-test('group rules require explicit opt-in in an older control-enabled manifest and preserve existing groups', () => {
-  const root = mkdtempSync(join(tmpdir(), 'resident-group-policy-'));
-  clean.push(() => rmSync(root, { recursive: true, force: true }));
-  const r = new OpenSocietyRuntime(
-    root,
-    createOpenSocietyManifest({ count: 3, groupControl: false }),
-  );
-  clean.push(() => r.close());
-  const a = r.manifest.residents[0]!.id;
-  let n = 0;
-  const call = (name: string, args: Record<string, unknown>) => {
-    r.beginTurn(a);
-    const result = r.invoke(a, { name, arguments: args, requestId: `group-policy-${++n}` });
-    r.finishTurn(a, { summary: 'Verify explicit group upgrade' });
-    return result;
-  };
-  const originalManifest = readFileSync(join(root, 'manifest.json'));
-  expect(call('groups.create', { id: 'old', title: 'Old group' }).ok).toBe(true);
-  expect(r.state.communication!.groups.old!.control).toBeUndefined();
-  expect(call('resources.read', { kind: 'group', id: 'old' }).ok).toBe(false);
-  const oldGroup = r.state.communication!.groups.old;
-  expect(r.enableGroupControl().ok).toBe(true);
-  const count = r.journal.commits.length;
-  expect(r.enableGroupControl().ok).toBe(true);
-  expect(r.journal.commits).toHaveLength(count);
-  expect(r.state.communication!.groups.old).toEqual(oldGroup);
-  expect(call('resources.read', { kind: 'group', id: 'old' }).ok).toBe(true);
-  expect(call('groups.create', { id: 'new', title: 'New group' }).ok).toBe(true);
-  expect(r.state.communication!.groups.new!.control?.controller).toEqual({
-    kind: 'resident',
-    id: a,
-  });
-  expect(readFileSync(join(root, 'manifest.json'))).toEqual(originalManifest);
-  const state = r.state;
-  r.close();
-  const replay = new OpenSocietyRuntime(root);
-  clean.push(() => replay.close());
-  expect(replay.state).toEqual(state);
 });
 
 test('enterprise management rule availability reflects the actual resource controller adapter', () => {

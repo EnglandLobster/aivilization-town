@@ -8,5 +8,5 @@
 `proposals history` 保留所有原始版本，`proposals withdraw` 可撤回尚未接受的提议。
 `commitments list/read` 读取已接受的多方承诺；`commitments declare --kind fulfilled|disputed|released --content '原话'` 仅记录你自己的陈述。
 
-自由条款不会自动扣款，也不会把“我完成了”变成客观履约。既有对话承诺另由 `town civic list --kind commitments` 读取，保留其原有世界语义。
+自由条款不会自动扣款，也不会把“我完成了”变成客观履约。
 [提议](../commands/proposals.md) · [承诺](../commands/commitments.md) · [生活索引](../life/index.md)

@@ -1,5 +1,3 @@
-import { worldExperiences } from './worldTools';
-import { residentLaborTermsEvent, parseEnterpriseLaborCommand } from '@aivilization/world';
 import { premisesPrincipalRequest, premisesOperationPrincipal } from '@aivilization/premises';
 import {
   residentPrincipalPremisesOperation,
@@ -74,11 +72,7 @@ function execute(
   requestId: string,
   decisionId?: string,
 ): ToolExecution {
-  if (
-    !s.world.materials?.resourcePrincipals &&
-    !s.world.premises?.resourcePrincipals &&
-    s.world.residentLabor?.configuration.compensationSource !== 'accepted-enterprise-labor-terms-v1'
-  )
+  if (!s.world.materials?.resourcePrincipals && !s.world.premises?.resourcePrincipals)
     throw new ToolRefusal('resource-principals-not-enabled');
   const context = {
     projection: s.world,
@@ -88,26 +82,6 @@ function execute(
     nextSequence: s.worldSequence + 1,
     collective: principalCollectiveAuthority(s, decisionId ? { decisionId } : {}),
   };
-  if (
-    'operation' in r &&
-    r.resourceKind === 'enterprise-labor-terms' &&
-    r.operation.capability === 'business.change-labor-terms'
-  ) {
-    const command = parseEnterpriseLaborCommand(r.operation.arguments.command);
-    if (!['offer', 'withdraw'].includes(command.type))
-      throw new ToolRefusal('labor-terms-personal-consent-required');
-    const d = residentLaborTermsEvent({
-      ...context,
-      enterpriseId: r.resourceId,
-      command,
-      expectedRequest: r,
-    });
-    if (!d.accepted) throw new ToolRefusal(d.reason);
-    return {
-      data: { enterpriseId: r.resourceId, id: command.id },
-      effects: { worldEvents: d.events, experiences: worldExperiences(s, d.events) },
-    };
-  }
   if ('operation' in r && r.operation.capability.startsWith('premises.')) {
     const d = residentPrincipalPremisesOperation({
       ...context,

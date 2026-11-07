@@ -64,14 +64,10 @@ function fixture(enabled = false, atHome = false) {
   };
   return { r, root, a, b, c, call, ok, replay };
 }
-test('explicit housing extension preserves original manifest and all resident facts, gives paged rules with bounded context and replays', () => {
-  const t = fixture(),
+test('public housing gives paged rules with bounded context and replays', () => {
+  const t = fixture(true),
     bytes = readFileSync(join(t.root, 'manifest.json')),
     before = structuredClone(t.r.state.world);
-  expect(t.call(t.a, 'governance.housing').error).toBe('public-housing-not-enabled');
-  const activation = t.r.enablePublicHousing();
-  expect(activation.ok).toBe(true);
-  expect(t.r.enablePublicHousing()).toEqual(activation);
   expect(t.r.state.world.agents).toEqual(before.agents);
   expect(t.r.state.world.locations).toEqual(before.locations);
   expect(t.r.state.world.moneySupply).toBe(before.moneySupply);
@@ -94,7 +90,7 @@ test('explicit housing extension preserves original manifest and all resident fa
   expect(t.ok(t.a, 'rules.capability', { name: 'governance.housing' })).toMatchObject({
     availability: { adapterEnabled: true },
   });
-  expect(t.replay().enablePublicHousing()).toEqual(activation);
+  t.replay();
 });
 test('independent public execution changes actual resident price observations, retains history and rejects stale enactment', () => {
   const t = fixture(true),

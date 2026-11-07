@@ -5,18 +5,16 @@ import { OpenSocietyRuntime } from './runtime';
 import { openPremisesFixture, premisesCleanup } from './testFixtures/openPremises';
 import { dispatchWorldCommand } from '@aivilization/world';
 import { createCommandEnvelope } from '@aivilization/sim-core';
-import { openWorldPolicies, createOpenSocietyManifest } from './manifest';
+import { openWorldPolicies } from './manifest';
 
 function setup() {
-  const t = openPremisesFixture(true, true, {}, true, {
+  return openPremisesFixture(true, true, {}, true, {
     elapsedRest: true,
     initialEnergy: 30,
     wearIntervalMs: 600000,
     wearPerInterval: 250,
+    manifest: { housingOccupancy: true, physicalHousingRest: true },
   });
-  expect(t.r.enableHousingOccupancy().ok).toBe(true);
-  expect(t.r.enablePhysicalHousingRest().ok).toBe(true);
-  return t;
 }
 function build(t: ReturnType<typeof setup>) {
   t.reserve();
@@ -56,47 +54,6 @@ function replay(t: ReturnType<typeof setup>) {
   expect(r.state).toEqual(before);
   expect(readFileSync(join(t.root, 'journal.jsonl'))).toEqual(journal);
 }
-test('explicit migration preserves actual assets, bodies, old source and manifest; no automatic adoption and bounded active query', () => {
-  const t = openPremisesFixture(),
-    bytes = readFileSync(join(t.root, 'manifest.json'));
-  expect(t.r.enablePhysicalHousingRest().error).toBe(
-    'physical-housing-needs-elapsed-rest-premises-and-occupancy',
-  );
-  expect(t.r.enableElapsedRest().ok).toBe(true);
-  expect(t.r.enableHousingOccupancy().ok).toBe(true);
-  const before = structuredClone(t.r.state.world),
-    enabled = t.r.enablePhysicalHousingRest();
-  expect(enabled.ok).toBe(true);
-  expect(t.r.enablePhysicalHousingRest()).toEqual(enabled);
-  expect(t.r.state.world).toEqual({
-    ...before,
-    physicalHousingRest: {
-      version: 'resident-physical-housing-rest-v1',
-      outdoorMultiplier: 0.5,
-      initialResidenceMultiplier: 1,
-      conditionMaximum: 1000,
-    },
-  });
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(bytes);
-  expect(t.ok(t.c, 'housing.occupancy', {}).data).toMatchObject({
-    physicalRest: { source: { kind: 'unsheltered', locationId: t.location } },
-  });
-  expect(t.r.context(t.c).self).toMatchObject({ housingOccupancyWith: 'town housing occupancy' });
-  expect(
-    createOpenSocietyManifest({
-      count: 2,
-      continuity: true,
-      elapsedRest: true,
-      premises: true,
-      housingOccupancy: true,
-      physicalHousingRest: true,
-    }).provenance.physicalHousingRest,
-  ).toBe('resident-physical-housing-rest-v1');
-  expect(() =>
-    createOpenSocietyManifest({ count: 2, continuity: true, physicalHousingRest: true }),
-  ).toThrow('physical-housing-needs-elapsed-rest-premises-and-occupancy');
-  replay(t);
-});
 test('actual materials and labour create structure; only granted entry and real location produce elapsed recovery, a withdrawn grant does not erase the roof', () => {
   const t = setup();
   t.reserve();

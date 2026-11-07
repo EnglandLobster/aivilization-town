@@ -14,12 +14,12 @@ premises read查物理容量、状态；控制者及交接目标还可查权限�
 
 offer/accept/cancel-offer独立交接，保留历史创建者和现有义务。正在施工的建筑不能转交。collectives的精确resource决定可创建/取消/结算工程、供料和管理建筑，不能代人start/leave。领取材料的决定必须绑定recipientId，执行者必须是这个人本人。
 
-启用premises-facility-use-v1后，同一建筑的所有库存合计使用其实际storageUnits，未完加工投入、未来产物及可能退回的供料仍占预留；stocks read/premises read的facilityUse显示容量和粗粒度总用量，不显示别人的库存详情。每个正在加工的会话占一个实际工作位，进入和集体成员身份不代表经营授权。本人leave或完成释放工位，运营授权丧失会停止未来工作但不没收本人库存；库存清算和取回仍各按原权限。旧建筑实验由运行者enable-facility-use显式预检升级，超额不删除货物。
+启用premises-facility-use-v1后，同一建筑的所有库存合计使用其实际storageUnits，未完加工投入、未来产物及可能退回的供料仍占预留；stocks read/premises read的facilityUse显示容量和粗粒度总用量，不显示别人的库存详情。每个正在加工的会话占一个实际工作位，进入和集体成员身份不代表经营授权。本人leave或完成释放工位，运营授权丧失会停止未来工作但不没收本人库存；库存清算和取回仍各按原权限。
 
 当前物理模型每完整模拟日损耗1/1000条件，closed建筑仍自然老化；维护要真实新材料和工时。改用途须先处理义务并关闭，纯内部改造使用明确的材料/工时比例；原地扩建消耗余量，不能缩小已有容量。工作都在Site外部，允许维修尚不可进入的建筑。
 
 close要求没有在场人员、居住/到达预留、租约、库存或服务义务。拆除先close，再提交demolish蓝图和本人劳动。实体材料按登记比例回收，残料留在场地，仍有控制者；本人到场premises collect-salvage --recipient-id 本人 --items JSON领取。最后一份残料清走才释放场地面积，损失有记录。
 
-旧实验enable-premises不补造土地。运行者可用带sourceId的register-construction-site作明确迁移；这不是居民的土地创造能力。默认上下文只含启用标志和四个查询入口，更多内容分页主动读取。各域组合和真实自主运行验收分别记录。
+运行者可用带sourceId的register-construction-site作明确迁移；这不是居民的土地创造能力。默认上下文只含启用标志和四个查询入口，更多内容分页主动读取。各域组合和真实自主运行验收分别记录。
 
 [construction参数](../commands/construction.md) · [材料保留](../commands/materials.md) · [设施参数](../commands/premises.md) · [场地参数](../commands/sites.md)

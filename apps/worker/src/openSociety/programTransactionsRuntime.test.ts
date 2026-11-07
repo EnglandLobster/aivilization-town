@@ -1,19 +1,9 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { programResourceFixture as fixture } from './testFixtures/programResourceExchange';
 import { createOpenSocietyManifest } from './manifest';
 import { initialOpenSocietyState } from './state';
-import { PROGRAM_ACTIONS_POLICY } from '@aivilization/collaboration';
 
-test.each([
-  'premises',
-  'stock',
-  'space',
-  'register',
-  'group',
-  'enterprise',
-] as const)(
+test.each(['premises', 'stock', 'space', 'register', 'group', 'enterprise'] as const)(
   '%s actual runtime admission and journal recovery preserve a paid atomic exchange',
   (kind) => {
     const f = fixture(kind, true),
@@ -81,40 +71,6 @@ test('revoking one mandate prevents every resource and payment effect, including
     reason: 'program-mandate-required',
   });
   expect(f.state.coordination!.schedules.later!.status).toBe('failed');
-  t.replay();
-});
-test('explicit enablement is idempotent, persisted and absent in old manifests', () => {
-  const old = createOpenSocietyManifest({ count: 3, continuity: true });
-  expect(old.programActionsPolicy).toBeUndefined();
-  expect(initialOpenSocietyState(old).coordination!.actionsPolicy).toBeUndefined();
-  const fresh = createOpenSocietyManifest({ count: 3, continuity: true, programActions: true });
-  expect(fresh.provenance.programActions).toBe(PROGRAM_ACTIONS_POLICY.version);
-  expect(initialOpenSocietyState(fresh).coordination!.actionsPolicy).toEqual(
-    PROGRAM_ACTIONS_POLICY,
-  );
-  const f = fixture('space', true),
-    first = f.t.r.enableProgramActions();
-  expect(f.t.r.enableProgramActions()).toEqual(first);
-  const reopened = f.t.replay();
-  expect(reopened.enableProgramActions()).toEqual(first);
-});
-test('v2 mandates remain v2 when executed after explicit enterprise-language upgrade; original manifest and journal replay remain stable', () => {
-  const f = fixture('space', true),
-    t = f.t,
-    old = f.state.coordination!.programs.exchange!;
-  const mandates = structuredClone(f.state.coordination!.mandates),
-    manifest = readFileSync(join(t.root, 'manifest.json'));
-  expect(t.r.enableEnterprisePrograms().ok).toBe(true);
-  expect(t.r.enableEnterprisePrograms().ok).toBe(true);
-  expect(t.r.state.coordination!.programs.exchange).toEqual(old);
-  expect(t.r.state.coordination!.mandates).toEqual(mandates);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(manifest);
-  t.ok(t.a, 'programs.run', { id: 'exchange', expectedRevision: 1 }, 'v2-after-v3');
-  const run = Object.values(t.r.state.coordination!.runs)[0]!;
-  expect(run.status).toBe('succeeded');
-  expect(
-    run.execution!.steps.every((s) => s.authority.policyVersion === PROGRAM_ACTIONS_POLICY.version),
-  ).toBe(true);
   t.replay();
 });
 test('enterprise exchange failure after intermediate offer and accept commits neither control nor payment and consumes no mandate', () => {

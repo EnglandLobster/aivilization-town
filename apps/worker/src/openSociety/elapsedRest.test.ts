@@ -47,12 +47,8 @@ function setup(elapsedRest = false) {
   };
   return { r, a, b, call, replay };
 }
-test('explicit activation persists; own bounded context and action query expose interruption without revealing another body', () => {
-  const t = setup();
-  expect(t.r.state.world.residentRest).toBeUndefined();
-  const enabled = t.r.enableElapsedRest();
-  expect(enabled.ok).toBe(true);
-  expect(t.r.enableElapsedRest()).toEqual(enabled);
+test('own bounded context and action query expose rest interruption without revealing another body', () => {
+  const t = setup(true);
   const before = t.r.state.world.agents[t.a]!.physiology.energy;
   expect(t.call(t.a, 'world.sleep', { durationSeconds: 3600 }).ok).toBe(true);
   expect(t.r.state.world.agents[t.a]!.physiology.energy).toBe(before);
@@ -77,20 +73,5 @@ test('explicit activation persists; own bounded context and action query expose 
   expect(t.r.context(t.a).action.rest!.active).toBeNull();
   expect(t.r.state.world.activityTimeByAgent[t.a]!.availableAt).toBe(t.r.state.world.clock.now);
   expect(t.r.state.world.residentRest!.sessions[settled.id]!.elapsedMs).toBe(120000);
-  expect(t.replay().enableElapsedRest()).toEqual(enabled);
-});
-test('fresh opted-in manifests record policy provenance; legacy mode stays upfront and cannot migrate prepaid active time', () => {
-  const manifest = createOpenSocietyManifest({ continuity: true, elapsedRest: true });
-  expect(manifest.provenance.elapsedRest).toBe('resident-rest-v1');
-  expect(manifest.initialWorld.residentRest!.policy.physiologyVersion).toBe(
-    'resident-elapsed-physiology-v1',
-  );
-  const t = setup();
-  expect(t.call(t.a, 'world.sleep', { durationSeconds: 120 }).ok).toBe(true);
-  expect(t.r.state.world.agents[t.a]!.physiology.energy).toBeGreaterThan(20);
-  expect(t.r.enableElapsedRest().error).toBe('rest-activation-requires-no-active-prepaid-effects');
-  expect(t.r.state.world.residentRest).toBeUndefined();
-  expect(t.r.advanceTime(120000, 'time').ok).toBe(true);
-  expect(t.r.enableElapsedRest().ok).toBe(true);
   t.replay();
 });

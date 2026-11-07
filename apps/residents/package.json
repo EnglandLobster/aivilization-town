@@ -25,7 +25,6 @@
     "verify:continuity": "node scripts/verify-continuity.mjs",
     "verify:service-supply": "node scripts/verify-service-supply.mjs",
     "verify:premises-rights": "node scripts/verify-premises-rights.mjs",
-    "verify:premises-rights-activation": "node scripts/verify-premises-rights-activation.mjs",
     "verify:society-kernel": "node scripts/verify-society-kernel.mjs",
     "verify:program-conditions": "node scripts/verify-program-conditions.mjs",
     "verify:common-accounts": "node scripts/verify-common-accounts.mjs",
@@ -36,14 +35,7 @@
     "verify:material-production": "node scripts/verify-material-production.mjs",
     "verify:premises": "node scripts/verify-premises.mjs",
     "verify:facility-use": "node scripts/verify-facility-use.mjs",
-    "verify:atomic-exchange": "node scripts/verify-atomic-exchange.mjs",
-    "verify:public-housing": "node scripts/verify-public-housing.mjs",
-    "verify:housing-occupancy": "node scripts/verify-housing-occupancy.mjs",
-    "verify:housing-choice": "node scripts/verify-housing-choice.mjs",
-    "verify:premises-principals": "node scripts/verify-premises-principals.mjs",
-    "verify:physical-housing-rest": "node scripts/verify-physical-housing-rest.mjs",
-    "verify:resource-sales": "node scripts/verify-resource-sales.mjs",
-    "verify:resource-sales-v2": "node scripts/verify-resource-sales-v2.mjs"
+    "verify:atomic-exchange": "node scripts/verify-atomic-exchange.mjs"
   },
   "dependencies": {
     "@aivilization/agent-runtime": "workspace:*",

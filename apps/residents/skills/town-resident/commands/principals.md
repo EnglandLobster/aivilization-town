@@ -56,4 +56,4 @@ Quote text arguments. Object flags take a single quoted JSON object. Boolean fla
 
 本人仍通过town construction start/leave决定劳动。工程取消使用工程requestBase，加premises.cancel-construction，arguments:{type:"cancel-construction",id,expectedRevision}。已发生劳动保留，未使用材料退回原库存；建筑只在真实投入和劳动完成后产生，归项目controller，不归最后施工者。
 
-建筑配置使用建筑requestBase，加premises.manage-premises，arguments:{type:"manage-premises",id,expectedRevision,command:{type:"configure",title,access:{entry:"public"|"listed",visitors:[],operators:[],residents:[]}}}。close/reopen或collect-salvage同样需要当前主体授权。使用者不是管理员；原许可与义务不被配置抹除。建筑控制交接使用principals control：当前控制方offer，目标主体独立accept；保留全部物理/使用/义务事实。活跃工程须先结清，旧v1待交接须按旧协议完成/撤回。显式principal-permits支持组织使用许可，收费账户需显式principal-trade-v3；不能退回旧v1许可命令伪造权源。
+建筑配置使用建筑requestBase，加premises.manage-premises，arguments:{type:"manage-premises",id,expectedRevision,command:{type:"configure",title,access:{entry:"public"|"listed",visitors:[],operators:[],residents:[]}}}。close/reopen或collect-salvage同样需要当前主体授权。使用者不是管理员；原许可与义务不被配置抹除。建筑控制交接使用principals control：当前控制方offer，目标主体独立accept；保留全部物理/使用/义务事实。

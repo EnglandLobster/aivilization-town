@@ -19,7 +19,7 @@
 
 ## 工作与生产
 
-- [business](commands/business.md)：打工、领工资、求职；开公司、加入、注资、招人、裁人、关闭；约定工资。`town help business`
+- [business](commands/business.md)：打工、领工资、求职；开公司、加入、注资、招人（招聘时写明工资）、裁人、关闭。`town help business`
 - [sources](commands/sources.md)：查看哪里有可以采集的原料。`town help sources`
 - [production](commands/production.md)：采集原料、查配方、加工制作，可以和别人一起做。`town help production`
 - [stocks](commands/stocks.md)：建立和管理自己的库存，存取物品，把物品交给别人。`town help stocks`

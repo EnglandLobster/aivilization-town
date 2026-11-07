@@ -166,22 +166,6 @@ test('residential tier one can gather finite wheat, actually mill and bake, and 
   ).toBe(false);
   t.replay();
 });
-test('old manifests remain unchanged; explicit activation is idempotent and publishes finite source provenance', () => {
-  const t = fixture(false),
-    bytes = readFileSync(join(t.root, 'manifest.json'));
-  expect(t.call(t.a, 'sources.list').error).toBe('finite-material-sources-not-enabled');
-  expect(t.r.enablePhysicalProduction().ok).toBe(true);
-  const count = t.r.journal.commits.length;
-  expect(t.r.enablePhysicalProduction().ok).toBe(true);
-  expect(t.r.journal.commits).toHaveLength(count);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(bytes);
-  expect(t.ok(t.a, 'sources.read', { id: 'source-wheat' })).toMatchObject({
-    policy: { source: 'explicit-finite-scenario-endowment', regeneration: 'none' },
-    source: { remaining: 100 },
-  });
-  t.replay();
-});
-
 test('unused finite-source reservations are released at their real cadence boundary without producing goods', () => {
   const t = fixture();
   t.ok(t.a, 'stocks.create', { id: 'food', locationId: 'workshop', title: '自己选择的材料' });
@@ -201,70 +185,6 @@ test('unused finite-source reservations are released at their real cadence bound
   expect(job().status).toBe('cancelled');
   expect(t.r.state.world.materials!.stocks.food!.inventory).toEqual({});
   expect(t.r.state.world.materials!.extraction!.sources['source-wheat']!.remaining).toBe(100);
-  t.replay();
-});
-
-test('declared sources bind retry to original endowment, remain queryable after actual extraction and replay', () => {
-  const t = fixture(false);
-  const declaration = {
-    origin: {
-      version: 'declared-material-endowment-v1',
-      id: 'declared-wood',
-      kind: 'new-operator-endowment',
-      description: 'Explicit new source for isolated test; no resident ownership.',
-    },
-    sources: [
-      {
-        id: 'finite-wood',
-        locationId: 'workshop',
-        commodity: 'Wood',
-        initialQuantity: 3,
-        workMs: 1000,
-        energyCost: 1,
-        satietyCost: 1,
-        capacity: 1,
-      },
-    ],
-  };
-  const before = structuredClone(t.r.state.world);
-  const rejected = t.r.enablePhysicalProduction({
-    ...declaration,
-    sources: [{ ...declaration.sources[0], initialQuantity: 0 }],
-  });
-  expect(rejected.ok).toBe(false);
-  expect(t.r.state.world).toEqual(before);
-  expect(t.r.enablePhysicalProduction(declaration).ok).toBe(true);
-  expect(t.r.state.world.agents).toEqual(before.agents);
-  expect(t.ok(t.a, 'sources.list')).toMatchObject({ origin: declaration.origin });
-  t.ok(t.a, 'stocks.create', { id: 'own-stock', locationId: 'workshop', title: '个人库存' });
-  t.ok(t.a, 'production.gather', {
-    id: 'gather-declared',
-    stockId: 'own-stock',
-    expectedRevision: 1,
-    sourceId: 'finite-wood',
-    sourceRevision: 1,
-    quantity: 1,
-    workers: [t.a],
-    productName: 'Wood',
-    description: '本人领取',
-  });
-  t.ok(t.a, 'production.start', {
-    id: 'gather-declared',
-    expectedRevision: 1,
-    until: t.r.state.world.clock.now + 1000,
-  });
-  t.time(1000);
-  expect(t.r.state.world.materials!.stocks['own-stock']!.inventory.Wood).toBe(1);
-  const count = t.r.journal.commits.length;
-  expect(t.r.enablePhysicalProduction(declaration).ok).toBe(true);
-  expect(t.r.journal.commits).toHaveLength(count);
-  expect(
-    t.r.enablePhysicalProduction({
-      ...declaration,
-      sources: [{ ...declaration.sources[0], initialQuantity: 4 }],
-    }).error,
-  ).toBe('material-endowment-declaration-conflict');
-  expect(t.r.state.world.materials!.extraction!.origin).toEqual(declaration.origin);
   t.replay();
 });
 

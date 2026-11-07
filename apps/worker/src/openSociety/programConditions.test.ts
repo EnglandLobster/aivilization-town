@@ -292,35 +292,6 @@ test('world, common account and procedural decision facts keep exact source vers
   expect(t.r.state.collectives!.decisions.agreement!.status).toBe('passed');
   t.replay();
 });
-test('legacy manifests require explicit enabling and old unconditioned programs retain their exact definition', () => {
-  const t = setup(false),
-    bytes = readFileSync(join(t.root, 'manifest.json'));
-  expect(
-    t.call(t.a, 'programs.publish', {
-      id: 'bad',
-      title: '条件',
-      purpose: 'x',
-      runners: [t.a],
-      definition: { steps: [t.pay], conditions: [] },
-    }).error,
-  ).toBe('invalid-program-definition');
-  t.ok(t.a, 'programs.publish', {
-    id: 'old',
-    title: '旧流程',
-    purpose: 'x',
-    runners: [t.a],
-    definition: { steps: [t.pay] },
-  });
-  const old = structuredClone(t.r.state.coordination!.programs.old);
-  const result = t.r.enableProgramConditions();
-  expect(result.ok).toBe(true);
-  expect(t.r.enableProgramConditions()).toEqual(result);
-  t.publish([{ source: { kind: 'clock' }, op: 'gte', value: 0 }]);
-  t.ok(t.a, 'programs.run', { id: 'p', expectedRevision: 1 });
-  expect(t.r.state.coordination!.programs.old).toEqual(old);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(bytes);
-  t.replay();
-});
 test('delegated record writing is not misrepresented as the principal personally signing a judgment', () => {
   const t = setup();
   t.register();

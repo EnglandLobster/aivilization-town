@@ -274,21 +274,6 @@ test('common transfers to treasury enter the same money supply and composition',
   t.reconcile();
   t.replay();
 });
-test('old manifests enable accounts explicitly, preserve seed bytes and do not mint funds on upgrade', () => {
-  const t = setup(false),
-    bytes = readFileSync(join(t.root, 'manifest.json')),
-    supply = t.r.state.world.moneySupply;
-  expect(t.call(t.a, 'funds.list', {}).error).toBe('common-accounts-not-enabled');
-  const result = t.r.enableCommonAccounts();
-  expect(result.ok).toBe(true);
-  expect(t.r.enableCommonAccounts()).toEqual(result);
-  expect(t.r.state.world.moneySupply).toBe(supply);
-  t.seed();
-  t.contribute(1);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(bytes);
-  t.reconcile();
-  t.replay();
-});
 test('ledger pages preserve actual reading and reject oversized originals without a false receipt', () => {
   const t = setup();
   t.seed();

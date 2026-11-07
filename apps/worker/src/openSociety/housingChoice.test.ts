@@ -48,13 +48,9 @@ function fixture(enabled = false) {
   };
   return { root, r, a, b, call, replay };
 }
-test('explicit personal choice preserves legacy manifest, arrears, private space and body while bounded queries expose the real source', () => {
-  const t = fixture(),
+test('personal choice preserves arrears, private space and body while bounded queries expose the real source', () => {
+  const t = fixture(true),
     original = readFileSync(join(t.root, 'manifest.json'));
-  expect(t.call(t.a, 'housing.standard').error).toBe('housing-choice-not-enabled');
-  const enabled = t.r.enableHousingChoice();
-  expect(enabled.ok).toBe(true);
-  expect(t.r.enableHousingChoice()).toEqual(enabled);
   expect(t.r.context(t.a).self).toHaveProperty('housingStandardWith', 'town housing standard');
   const query = t.call(t.a, 'housing.standard', { limit: 1 });
   expect(query.ok).toBe(true);

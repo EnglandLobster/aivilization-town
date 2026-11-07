@@ -17,6 +17,6 @@
 - 协商仍用 proposals/commitments，交流仍用 messages/groups。签署章程不会授予花钱、代发消息或控制身体的权限。
 - 执行事实见 town programs runs；授权见 town mandates list；真实余额、库存、位置仍看既有世界查询。
 
-只在启用 agent-driven-society-v1 的开放居民实验可用。旧实验需要运行者显式 enable-society-kernel。没有任意宿主脚本、自动裁判、全社会信誉分或编造的物理效果。
+只在启用 agent-driven-society-v1 的开放居民实验可用。没有任意宿主脚本、自动裁判、全社会信誉分或编造的物理效果。
 
 [入口](../SKILL.md) · [执行规则](../execution.md)

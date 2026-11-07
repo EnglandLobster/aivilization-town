@@ -20,6 +20,6 @@ stocks withdraw --id --expected-revision --recipient-id 本人ID --items '{"Book
 
 显式启用productiveEmployment时，集体可在production.create/gather的arguments加入enterpriseId与expectedEnterpriseControlVersion，授权真实公司工资；企业和库存必须由同一集体实际控制，两套版本都会验证。个人创建生产单可用--enterprise-id。工作者必须已独立入职，本人start后才产生真实工时和工资；不指定企业则不制造公司薪资。
 
-stocks settle停止新存入/订单，现有订单可完成或取消。关闭前实物归零且义务清结，不能借关闭丢弃别人的材料。旧实验由运行者显式enable-materials，不补种物品。默认上下文仅标志和查询入口；已读原文和真实回执会按个人阅读记录保留，更多状态自行查询。
+stocks settle停止新存入/订单，现有订单可完成或取消。关闭前实物归零且义务清结，不能借关闭丢弃别人的材料。默认上下文仅标志和查询入口；已读原文和真实回执会按个人阅读记录保留，更多状态自行查询。
 
 [stocks参数](../commands/stocks.md) · [production参数](../commands/production.md) · [共同账户](funds.md) · [自主组织](index.md)

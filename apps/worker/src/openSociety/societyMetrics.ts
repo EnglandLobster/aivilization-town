@@ -67,7 +67,6 @@ const FUNNELS: Readonly<Record<string, readonly string[]>> = {
     'world.post_job',
     'world.apply_job',
     'world.join_enterprise',
-    'business.change-labor-terms',
     'production.create',
     'production.start',
   ],

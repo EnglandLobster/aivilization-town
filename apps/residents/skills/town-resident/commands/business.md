@@ -1,35 +1,5 @@
 # business
 
-## business labor-terms
-
-```text
-town business labor-terms [flags]
-Read only your labor offers or enterprises you control. Amount and reference duration are explicit; a quote is not work or earned money.
---enterprise-id <string> (required) maxLength=96 Enterprise ID
---id <string> (optional) maxLength=96 Optional offer ID
---offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
---limit <integer> (optional) min=1 max=30 Page size
---request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
-```
-
-## business change-labor-terms
-
-```text
-town business change-labor-terms [flags]
-Offer or withdraw as the actual employer; accept/decline only as the named employee. Amount is integer millionths of currency. Collective employers use the exact principals.operate request; nobody can accept for an employee.
---enterprise-id <string> (required) maxLength=96 Enterprise ID
---operation <offer|accept|decline|withdraw> (required)
---id <string> (required) maxLength=96 Immutable offer ID
---employee-id <string> (optional) maxLength=96 Actual employee for offer
---wage-micros <integer> (optional) min=0 max=9007199254740991 Gross amount in millionths of currency
---reference-ms <integer> (optional) min=0 max=9007199254740991 Time corresponding to the quoted amount
---valid-until <integer> (optional) min=0 max=9007199254740991 Absolute simulation expiry
---expected-revision <integer> (optional) min=0 max=9007199254740991 Exact current offer revision for response/withdrawal
---request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
-```
-
 ## business work
 
 ```text
@@ -160,4 +130,4 @@ Quote text arguments. Object flags take a single quoted JSON object. Boolean fla
 
 显式enterprise-labor模式只覆盖真实企业雇佣，初始公共岗位仍使用其记录的制度。先用city observe --view rules --section labor查看范围；business work本人开始，不预付未来工资或产品。实际工时形成本人债权，现金不足保留未付，不从别人欠薪里领钱。life stop-work使用当前劳动过程修订；business claim-wage使用当前债权修订，两者通过city observe --view labor --section ID查询。离职不抹债，补资后仍可领本人已赚工资。
 
-税档按开始时声明的工资参照周期计算，按累计实际付款预扣；更频繁领取不重新获得低税档。有活跃劳动/未付工资/待归属旧欠薪时阻止分红和直接关闭，破产先保留资产与债权，不能假装清算完成。学习、实物生产和服务参与仍分别占用本人真实时间。显式productive-employment模式下，雇主可在production create/gather增加--enterprise-id，给已有合同工资的员工授权真实生产任务；其他物质权限仍需独立满足。员工本人production start即以同一次生产劳动形成工资，不要再开business work。production read查看本人报价、真实库存控制者；产物不因企业付款改变产权。production leave或business leave停止未来劳动，已赚欠薪继续用city observe --view labor查询、business claim-wage领取。
+税档按开始时声明的工资参照周期计算，按累计实际付款预扣；更频繁领取不重新获得低税档。有活跃劳动/未付工资/待归属旧欠薪时阻止分红和直接关闭，破产先保留资产与债权，不能假装清算完成。学习和实物生产仍分别占用本人真实时间。显式productive-employment模式下，雇主可在production create/gather增加--enterprise-id，给本公司员工授权真实生产任务，工资按招聘时写明的工资计；其他物质权限仍需独立满足。员工本人production start即以同一次生产劳动形成工资，不要再开business work。production read查看本人报价、真实库存控制者；产物不因企业付款改变产权。production leave或business leave停止未来劳动，已赚欠薪继续用city observe --view labor查询、business claim-wage领取。

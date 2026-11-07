@@ -17,7 +17,15 @@ export function programResourceFixture(
   resourceKind: ProgramResourceKind = 'premises',
   durable = false,
 ) {
-  const t = builtPremisesFixture(),
+  // Durable runs create the town with program actions; others apply the policy in memory only.
+  const t = builtPremisesFixture(true, {
+      ...(durable
+        ? {
+            manifest:
+              resourceKind === 'enterprise' ? { enterprisePrograms: true } : { programActions: true },
+          }
+        : {}),
+    }),
     at = t.r.state.world.clock.now;
   const resourceId = resourceKind === 'premises' ? 'home' : 'asset';
   const policy =
@@ -77,12 +85,6 @@ export function programResourceFixture(
               ? s.sharedRecords!.registers[resourceId]!
               : s.communication!.groups[resourceId]!;
   const resource = read(t.r.state);
-  if (
-    durable &&
-    !(resourceKind === 'enterprise' ? t.r.enableEnterprisePrograms() : t.r.enableProgramActions())
-      .ok
-  )
-    throw Error('fixture-actions-enable');
   let state = durable
     ? t.r.state
     : applyOpenSocietyEffects(t.r.state, {

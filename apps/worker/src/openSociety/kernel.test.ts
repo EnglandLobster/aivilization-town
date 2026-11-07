@@ -210,7 +210,7 @@ test('scheduled procedures preserve cadence across large and segmented advances 
   };
   expect(run(false)).toEqual(run(true));
 });
-test('revocation stops scheduled work; cancellation prevents later runs, and old manifests opt in without rewriting their bytes', () => {
+test('revocation stops scheduled work and cancellation prevents later runs', () => {
   const t = setup();
   t.define();
   t.grant();
@@ -228,15 +228,6 @@ test('revocation stops scheduled work; cancellation prevents later runs, and old
   expect(t.r.state.coordination!.mandates.consent?.usedRuns).toBe(0);
   expect(Object.values(t.r.state.sharedRecords!.records)).toHaveLength(0);
   t.replay();
-  const old = setup(false),
-    bytes = readFileSync(join(old.root, 'manifest.json'));
-  expect(old.r.state.sharedRecords).toBeUndefined();
-  expect(old.r.enableSocietyKernel().ok).toBe(true);
-  const first = old.r.enableSocietyKernel();
-  expect(old.r.enableSocietyKernel()).toEqual(first);
-  expect(old.r.state.coordination).toBeDefined();
-  expect(readFileSync(join(old.root, 'manifest.json'))).toEqual(bytes);
-  old.replay();
 });
 
 test('every resource owner must consent; late insufficient funds cannot partially settle a multi-principal program', () => {

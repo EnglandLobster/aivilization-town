@@ -16,7 +16,7 @@ afterEach(() => {
   for (const f of cleanup.reverse()) f();
   cleanup.length = 0;
 });
-function fixture(enabled = true, agreed = false) {
+function fixture(enabled = true) {
   const root = mkdtempSync(join(tmpdir(), 'actual-enterprise-labor-'));
   cleanup.push(() => rmSync(root, { recursive: true, force: true }));
   const m = createOpenSocietyManifest({
@@ -29,20 +29,6 @@ function fixture(enabled = true, agreed = false) {
   });
   const world = {
     ...m.initialWorld,
-    ...(agreed && m.initialWorld.residentLabor
-      ? {
-          residentLabor: {
-            ...m.initialWorld.residentLabor,
-            configuration: {
-              policy: m.initialWorld.residentLabor.configuration.policy,
-              effort: m.initialWorld.residentLabor.configuration.effort,
-              critical: m.initialWorld.residentLabor.configuration.critical,
-              locationIds: m.initialWorld.residentLabor.configuration.locationIds,
-              compensationSource: 'accepted-enterprise-labor-terms-v1' as const,
-            },
-          },
-        }
-      : {}),
     moneySupply: m.initialWorld.moneySupply + 900,
     agents: Object.fromEntries(
       Object.entries(m.initialWorld.agents).map(([id, a]) => [
@@ -88,8 +74,8 @@ function fixture(enabled = true, agreed = false) {
   };
   return { root, r, owner, worker, other, call, ok, replay };
 }
-function setup(agreed = false) {
-  const t = fixture(true, agreed);
+function setup() {
+  const t = fixture(true);
   t.ok(t.owner, 'world.found_enterprise', {
     enterpriseId: 'firm',
     name: 'Resident workshop',
@@ -99,23 +85,6 @@ function setup(agreed = false) {
   });
   t.ok(t.owner, 'world.post_job', { enterpriseId: 'firm', wageOffer: 100000, openSlots: 3 });
   t.ok(t.worker, 'world.join_enterprise', { enterpriseId: 'firm' });
-  if (t.r.state.world.residentLabor?.configuration.compensationSource) {
-    t.ok(t.owner, 'business.change-labor-terms', {
-      enterpriseId: 'firm',
-      operation: 'offer',
-      id: 'hourly',
-      employeeId: t.worker,
-      wageMicros: 60_000_000,
-      referenceMs: 3_600_000,
-      validUntil: 86_400_000,
-    });
-    t.ok(t.worker, 'business.change-labor-terms', {
-      enterpriseId: 'firm',
-      operation: 'accept',
-      id: 'hourly',
-      expectedRevision: 1,
-    });
-  }
 
   t.ok(t.owner, 'stocks.create', {
     id: 'stock',
@@ -245,63 +214,6 @@ test('physical task permission does not grant employer funding; stale or foreign
     }).ok,
   ).toBe(false);
   expect(t.r.state.world.enterprises.firm!.earnedPayroll!.claims[claim.id]).toEqual(claim);
-  t.replay();
-});
-test('productive mode is explicit, refuses mid-participation migration and does not rewrite the original manifest', () => {
-  const t = fixture(false),
-    manifest = readFileSync(join(t.root, 'manifest.json'));
-  t.ok(t.owner, 'stocks.create', { id: 'stock', title: 'Personal work', locationId: 'workshop' });
-  t.ok(t.owner, 'stocks.deposit', { id: 'stock', expectedRevision: 1, items: { Wood: 1 } });
-  t.ok(t.owner, 'production.create', {
-    id: 'job',
-    stockId: 'stock',
-    expectedRevision: 2,
-    recipeId: 'book',
-    quantity: 1,
-    workers: [t.owner],
-    productName: 'Book',
-    description: 'Personal',
-  });
-  t.ok(t.owner, 'production.start', { id: 'job', expectedRevision: 1, until: 60000 });
-  expect(t.r.enableProductiveEmployment().ok).toBe(false);
-  expect(t.r.state.world.productiveEmployment).toBeUndefined();
-  t.ok(t.owner, 'production.leave', { id: 'job', expectedRevision: 2 });
-  expect(t.r.enableProductiveEmployment().ok).toBe(true);
-  const count = t.r.journal.commits.length;
-  expect(t.r.enableProductiveEmployment().ok).toBe(true);
-  expect(t.r.journal.commits.length).toBe(count);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(manifest);
-  t.replay();
-});
-
-test('productive wages use independently accepted rates and replay the frozen agreement', () => {
-  const t = setup(true);
-  t.ok(t.owner, 'production.create', t.create);
-  const duration = t.r.state.world.materials!.productions.job!.recipe.workMs * 2;
-  t.ok(t.worker, 'production.start', { id: 'job', expectedRevision: 1, until: duration });
-  const id = Object.keys(t.r.state.world.productiveEmployment!.claims)[0]!;
-  const money = t.r.state.world.moneySupply;
-  t.ok(t.owner, 'business.change-labor-terms', {
-    enterpriseId: 'firm',
-    operation: 'offer',
-    id: 'future',
-    employeeId: t.worker,
-    wageMicros: 120_000_000,
-    referenceMs: 3_600_000,
-    validUntil: 86_400_000,
-  });
-  t.ok(t.worker, 'business.change-labor-terms', {
-    enterpriseId: 'firm',
-    operation: 'accept',
-    id: 'future',
-    expectedRevision: 1,
-  });
-  expect(t.r.advanceTime(duration, 'agreed-production').ok).toBe(true);
-  expect(t.r.state.world.enterprises.firm!.earnedPayroll!.claims[id]!.earnedMicros).toBe(
-    Math.round((60_000_000 * duration) / 3_600_000),
-  );
-  expect(t.r.state.world.moneySupply).toBe(money);
-  expect(t.r.state.world.materials!.stocks.stock!.inventory).toEqual({ Book: 2, Wood: 2 });
   t.replay();
 });
 

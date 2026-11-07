@@ -13,7 +13,10 @@ import { OpenSocietyRuntime } from './runtime';
 import { applyWorldEvent } from '@aivilization/world';
 import { openPremisesFixture, premisesCleanup } from './testFixtures/openPremises';
 function fixture() {
-  const t = openPremisesFixture(true, true, {}, false, { principals: true });
+  const t = openPremisesFixture(true, true, {}, false, {
+    principals: true,
+    manifest: { premisesPrincipals: true },
+  });
   t.ok(t.b, 'world.found_enterprise', {
     enterpriseId: 'firm',
     name: '材料企业',
@@ -117,29 +120,9 @@ function fixture() {
   };
   return { ...t, reserve, create, request, replay, publicApprove };
 }
-test('explicit construction principal upgrade preserves assets and manifest, creates no project or labor, and replays', () => {
-  const t = fixture(),
-    before = structuredClone(t.r.state.world),
-    manifest = readFileSync(join(t.root, 'manifest.json'));
-  expect(t.call(t.b, 'principals.read', { kind: 'construction-site', id: t.site!.id }).error).toBe(
-    'premises-principals-not-enabled',
-  );
-  expect(t.r.enablePremisesPrincipals().ok).toBe(true);
-  expect(t.r.enablePremisesPrincipals().ok).toBe(true);
-  expect(t.r.state.world.agents).toEqual(before.agents);
-  expect(t.r.state.world.materials).toEqual(before.materials);
-  expect(t.r.state.world.premises!.sites).toEqual(before.premises!.sites);
-  expect(t.r.state.world.premises!.projects).toEqual({});
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(manifest);
-  expect(t.r.state.world.publicGovernance!.authority.grant.construction?.source).toBe(
-    'explicit-scenario-extension',
-  );
-  t.replay();
-});
 test('actual firm materials and independently authorized construction settle into firm assets; worker/creator gain no control and estate cannot disappear', () => {
   const t = fixture(),
     principal = { kind: 'enterprise', id: 'firm' } as const;
-  expect(t.r.enablePremisesPrincipals().ok).toBe(true);
   t.reserve(principal);
   expect(t.r.state.world.materials!.reservations!.records.r!.status).toBe('offered');
   const req = t.request(t.create(principal));
@@ -230,21 +213,6 @@ test('actual firm materials and independently authorized construction settle int
 test('public project authority requires independent votes and a separate source reservation, then cancels with all goods returned to their original firm', () => {
   const t = fixture(),
     principal = { kind: 'public', id: 'town' } as const;
-  const disabled = t.request(t.create(principal));
-  expect(
-    t.call(t.a, 'governance.propose', {
-      id: 'early',
-      text: '尚未授权',
-      action: {
-        kind: 'manage-resource',
-        expectedRevision: disabled.resourceRevision,
-        request: disabled,
-      },
-      closesAt: t.r.state.world.clock.now + 60000,
-      expectedProcedureRevision: 1,
-    }).ok,
-  ).toBe(false);
-  expect(t.r.enablePremisesPrincipals().ok).toBe(true);
   t.reserve(principal);
   const req = t.request(t.create(principal));
   expect(t.call(t.a, 'principals.operate', { request: req }).ok).toBe(false);
@@ -277,7 +245,6 @@ test('public project authority requires independent votes and a separate source 
 test('collective project decisions consume authority atomically, fail when the site version changes, and never grant individual members a shortcut', () => {
   const t = fixture(),
     principal = { kind: 'collective', id: 'club' } as const;
-  expect(t.r.enablePremisesPrincipals().ok).toBe(true);
   t.ok(t.b, 'collectives.create', {
     id: 'club',
     configuration: {
@@ -348,7 +315,6 @@ test('collective project decisions consume authority atomically, fail when the s
 test('public completion retains the approved principal as control source and future administration needs a new independent public decision', () => {
   const t = fixture(),
     principal = { kind: 'public', id: 'town' } as const;
-  expect(t.r.enablePremisesPrincipals().ok).toBe(true);
   t.reserve(principal);
   t.ok(t.d, 'governance.execute', t.publicApprove('build', t.request(t.create(principal))));
   t.ok(t.c, 'construction.start', {
@@ -383,26 +349,9 @@ test('public completion retains the approved principal as control source and fut
   t.replay();
 });
 
-test('new manifests explicitly declare construction principal policy while incompatible activation leaves legacy facts unchanged', () => {
-  const t = fixture();
-  expect(t.ok(t.a, 'rules.read', { id: 'resource-principals' }).data).toMatchObject({
-    policySources: { premisesPrincipals: null },
-  });
-  expect(t.r.enablePremisesPrincipals().ok).toBe(true);
-  expect(t.ok(t.a, 'rules.read', { id: 'resource-principals' }).data).toMatchObject({
-    policySources: { premisesPrincipals: { version: 'premises-resource-principals-v2' } },
-  });
-  expect(t.r.context(t.a).self).toMatchObject({ resourcePrincipalsWith: 'town principals list' });
-  const old = openPremisesFixture(),
-    before = structuredClone(old.r.state.world);
-  expect(old.r.enablePremisesPrincipals().ok).toBe(false);
-  expect(old.r.state.world).toEqual(before);
-});
-
 test('firm to public to collective building transfers require each actual authority and preserve all physical/use facts and journal replay', () => {
   const t = fixture(),
     firm = { kind: 'enterprise', id: 'firm' } as const;
-  expect(t.r.enablePremisesPrincipals().ok).toBe(true);
   t.reserve(firm);
   t.ok(t.b, 'principals.operate', { request: t.request(t.create(firm)) });
   const building = () => t.r.state.world.premises!.buildings.home!;

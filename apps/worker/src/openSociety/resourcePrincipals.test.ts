@@ -120,37 +120,6 @@ function fixture(enabled = true) {
   };
   return { r, a, b, c, root, call, ok, stock, request, club, approve, replay };
 }
-test('explicit activation preserves old material facts and adds only a bounded context pointer', () => {
-  const t = fixture(false),
-    manifest = readFileSync(join(t.root, 'manifest.json')),
-    before = structuredClone(t.r.state.world);
-  expect(t.call(t.a, 'principals.list', {}).ok).toBe(false);
-  expect(t.r.enableResourcePrincipals().ok).toBe(true);
-  expect(t.r.enableResourcePrincipals().ok).toBe(true);
-  expect(t.r.state.world.agents).toEqual(before.agents);
-  expect(t.r.state.world.materials!.stocks).toEqual(before.materials!.stocks);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(manifest);
-  expect(t.r.context(t.a).self).toMatchObject({ resourcePrincipalsWith: 'town principals list' });
-  expect(t.ok(t.a, 'principals.list', { limit: 1 }).data).toMatchObject({
-    items: [{ id: 's', controller: { kind: 'resident', id: t.a } }],
-  });
-  expect(t.call(t.b, 'principals.read', { kind: 'stock', id: 's' }).ok).toBe(false);
-  expect(
-    t.call(t.b, 'principals.control', { actorId: t.a, request: t.request({ type: 'cancel' }) }).ok,
-  ).toBe(false);
-  t.ok(t.a, 'principals.control', {
-    request: t.request({
-      type: 'offer',
-      target: { kind: 'resident', id: t.b },
-      expiresAt: 1000,
-      terms: '限时阅读与接受',
-    }),
-  });
-  t.ok(t.b, 'principals.read', { kind: 'stock', id: 's' });
-  expect(t.r.advanceTime(1000, 'offer-expiry').ok).toBe(true);
-  expect(t.call(t.b, 'principals.read', { kind: 'stock', id: 's' }).ok).toBe(false);
-  t.replay();
-});
 test('authenticated collective execution reaches actual stock effects, rejects stale decisions, and replays with one authority source', () => {
   const t = fixture();
   t.club();

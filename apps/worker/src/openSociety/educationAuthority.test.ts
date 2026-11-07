@@ -87,32 +87,6 @@ test('real newcomer learning crosses the threshold without inventing an admissio
   ]);
   t.replay();
 }, 30000);
-test('explicit upgrade preserves a legacy effective grade with truthful origin, no invented exam, stable manifest and replay', () => {
-  const t = fixture(false);
-  t.study();
-  expect(t.r.state.world.agents[t.actor]!.educationLevel).toBeUndefined();
-  expect(t.call('world.apply_exam', { targetLevel: 3 }).ok).toBe(false);
-  const manifest = readFileSync(join(t.root, 'manifest.json'));
-  const before = structuredClone(t.r.state.world);
-  expect(t.r.enableEducationAuthority().ok).toBe(true);
-  const w = t.r.state.world;
-  expect(w.agents[t.actor]).toMatchObject({
-    educationLevel: 3,
-    qualificationOrigin: {
-      source: 'legacy-score-derived-qualification-preserved',
-      level: 3,
-      recordedAt: before.clock.now,
-    },
-  });
-  expect(w.educationExamApplications).toEqual(before.educationExamApplications);
-  expect(w.moneySupply).toBe(before.moneySupply);
-  expect(w.residentStudy).toEqual(before.residentStudy);
-  const revision = t.r.state.revision;
-  expect(t.r.enableEducationAuthority().ok).toBe(true);
-  expect(t.r.state.revision).toBe(revision);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(manifest);
-  t.replay();
-});
 test('authority refuses forged initial recognition, unearned promotion and changed policy; registration records its own initial grade', () => {
   const legacy = fixture(false),
     t = fixture();

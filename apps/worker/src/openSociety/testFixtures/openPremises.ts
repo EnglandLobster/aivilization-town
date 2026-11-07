@@ -16,7 +16,8 @@ export function openPremisesFixture(
   blueprintExtras: Record<string, string | number> = {},
   premisesRights = true,
   options: {
-    paidPermits?: boolean;
+    /** Further manifest options, e.g. features a test needs from the start. */
+    manifest?: Partial<Parameters<typeof createOpenSocietyManifest>[0]>;
     wearIntervalMs?: number;
     wearPerInterval?: number;
     principals?: boolean;
@@ -34,7 +35,7 @@ export function openPremisesFixture(
       facilityUse,
       premisesRights,
       ...(options.principals ? { resourcePrincipals: true, publicGovernance: true } : {}),
-      ...(options.paidPermits !== undefined ? { paidPermits: options.paidPermits } : {}),
+      ...options.manifest,
     }),
     site = Object.values(m.initialWorld.premises?.sites ?? {})[0],
     location =

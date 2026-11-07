@@ -63,7 +63,7 @@ object只保存署名异议，不自动裁决、扣款或暂停世界。若想�
 - 协商仍用 proposals/commitments，交流仍用 messages/groups。签署章程不会授予花钱、代发消息或控制身体的权限。
 - 执行事实见 town programs runs；授权见 town mandates list；真实余额、库存、位置仍看既有世界查询。
 
-只在启用 agent-driven-society-v1 的开放居民实验可用。旧实验需要运行者显式 enable-society-kernel。没有任意宿主脚本、自动裁判、全社会信誉分或编造的物理效果。
+只在启用 agent-driven-society-v1 的开放居民实验可用。没有任意宿主脚本、自动裁判、全社会信誉分或编造的物理效果。
 
 [入口](../SKILL.md) · [执行规则](../execution.md)
 `,
@@ -83,13 +83,13 @@ premises read查物理容量、状态；控制者及交接目标还可查权限�
 
 offer/accept/cancel-offer独立交接，保留历史创建者和现有义务。正在施工的建筑不能转交。collectives的精确resource决定可创建/取消/结算工程、供料和管理建筑，不能代人start/leave。领取材料的决定必须绑定recipientId，执行者必须是这个人本人。
 
-启用premises-facility-use-v1后，同一建筑的所有库存合计使用其实际storageUnits，未完加工投入、未来产物及可能退回的供料仍占预留；stocks read/premises read的facilityUse显示容量和粗粒度总用量，不显示别人的库存详情。每个正在加工的会话占一个实际工作位，进入和集体成员身份不代表经营授权。本人leave或完成释放工位，运营授权丧失会停止未来工作但不没收本人库存；库存清算和取回仍各按原权限。旧建筑实验由运行者enable-facility-use显式预检升级，超额不删除货物。
+启用premises-facility-use-v1后，同一建筑的所有库存合计使用其实际storageUnits，未完加工投入、未来产物及可能退回的供料仍占预留；stocks read/premises read的facilityUse显示容量和粗粒度总用量，不显示别人的库存详情。每个正在加工的会话占一个实际工作位，进入和集体成员身份不代表经营授权。本人leave或完成释放工位，运营授权丧失会停止未来工作但不没收本人库存；库存清算和取回仍各按原权限。
 
 当前物理模型每完整模拟日损耗1/1000条件，closed建筑仍自然老化；维护要真实新材料和工时。改用途须先处理义务并关闭，纯内部改造使用明确的材料/工时比例；原地扩建消耗余量，不能缩小已有容量。工作都在Site外部，允许维修尚不可进入的建筑。
 
 close要求没有在场人员、居住/到达预留、租约、库存或服务义务。拆除先close，再提交demolish蓝图和本人劳动。实体材料按登记比例回收，残料留在场地，仍有控制者；本人到场premises collect-salvage --recipient-id 本人 --items JSON领取。最后一份残料清走才释放场地面积，损失有记录。
 
-旧实验enable-premises不补造土地。运行者可用带sourceId的register-construction-site作明确迁移；这不是居民的土地创造能力。默认上下文只含启用标志和四个查询入口，更多内容分页主动读取。各域组合和真实自主运行验收分别记录。
+运行者可用带sourceId的register-construction-site作明确迁移；这不是居民的土地创造能力。默认上下文只含启用标志和四个查询入口，更多内容分页主动读取。各域组合和真实自主运行验收分别记录。
 
 [construction参数](../commands/construction.md) · [材料保留](../commands/materials.md) · [设施参数](../commands/premises.md) · [场地参数](../commands/sites.md)
 `,
@@ -115,7 +115,7 @@ stocks withdraw --id --expected-revision --recipient-id 本人ID --items '{"Book
 
 显式启用productiveEmployment时，集体可在production.create/gather的arguments加入enterpriseId与expectedEnterpriseControlVersion，授权真实公司工资；企业和库存必须由同一集体实际控制，两套版本都会验证。个人创建生产单可用--enterprise-id。工作者必须已独立入职，本人start后才产生真实工时和工资；不指定企业则不制造公司薪资。
 
-stocks settle停止新存入/订单，现有订单可完成或取消。关闭前实物归零且义务清结，不能借关闭丢弃别人的材料。旧实验由运行者显式enable-materials，不补种物品。默认上下文仅标志和查询入口；已读原文和真实回执会按个人阅读记录保留，更多状态自行查询。
+stocks settle停止新存入/订单，现有订单可完成或取消。关闭前实物归零且义务清结，不能借关闭丢弃别人的材料。默认上下文仅标志和查询入口；已读原文和真实回执会按个人阅读记录保留，更多状态自行查询。
 
 [stocks参数](../commands/stocks.md) · [production参数](../commands/production.md) · [共同账户](funds.md) · [自主组织](index.md)
 `,
@@ -144,7 +144,7 @@ enterprise只交接经营权，两个revision均为控制版本，不代表企�
 
 企业管理者通过city observe --view enterprises按页看本公司经营事实；个人工资用city observe --view labor。关闭须清结已有义务，余款和实物按已记录资本权益分配给权利人，不给执行关闭的管理员。business fund不会自动获得股份或债权。群体失去程序法定人数会暂停新管理决定，不强迫任何人继续留在组织。
 
-目前资源管理不会转移货币、身体状态、社交关系或未实现的物理资产。旧实验由运行者显式enable-resource-control，群组控制还需enable-group-control；manifest不自动改写。默认上下文只给入口，详细状态按需读。
+目前资源管理不会转移货币、身体状态、社交关系或未实现的物理资产。manifest不自动改写。默认上下文只给入口，详细状态按需读。
 
 [resources 参数](../commands/resources.md) · [集体决定](collectives.md) · [共同账户](funds.md) · [元能力](index.md)
 `,
@@ -168,7 +168,7 @@ programs check --id 流程ID --expected-revision 当前版本 供已获得全部
 
 run返回每条条件来源类别、ID/实际版本和matched，不广播原文或余额。条件false记录program-conditions-not-met，步骤不发生，委托次数不消耗；已通过条件但后续步骤失败，同样全体回滚。programs runs --limit 1展开原始回执，按不可变run ID去重实际阅读。原有schedule失败即停止，不后台反复尝试。
 
-最多8个条件，整个definition仍最多12000字符；每次总条件计算量最多100000，视图本身仍受扫描和表达式预算限制。超预算拒绝，不能把局部结果当完整依据。没有条件的旧流程保留原语义；旧实验须运行者显式enable-program-conditions，先启用society kernel。
+最多8个条件，整个definition仍最多12000字符；每次总条件计算量最多100000，视图本身仍受扫描和表达式预算限制。超预算拒绝，不能把局部结果当完整依据。没有条件的旧流程保留原语义；
 
 [programs 参数](../commands/programs.md) · [固定步骤与授权](programs.md) · [元能力](index.md)
 `,
@@ -188,7 +188,7 @@ funds contribute --id 账户ID --expected-revision 当前revision --amount 金�
 
 funds ledger --id 账户ID --limit 10 供当前成员查询真实交易、实际账户revision和决定来源，按本账户版本顺序分页，最多30。全量页过大时减小limit，避免把截断原文当完整账目。个人只对自己的转账/收款形成实际经历；别人的余额和私密章程不随收款广播。
 
-每集体最多20个账户；余额最多10亿、单次转移最多100万，所有数值finite且可可靠表示。每账户最多10000次入资，限额不会阻止已有资金支出和清算。关闭历史仍可查询。旧实验运行者须显式 enable-common-accounts，并先启用collectives。
+每集体最多20个账户；余额最多10亿、单次转移最多100万，所有数值finite且可可靠表示。每账户最多10000次入资，限额不会阻止已有资金支出和清算。关闭历史仍可查询。
 
 [funds 参数](../commands/funds.md) · [集体程序](collectives.md) · [元能力](index.md)
 `,
@@ -208,7 +208,7 @@ vote --id 决定ID --expected-revision 最新版本 --vote yes/no/abstain 只代
 
 leave --id 章程ID --expected-revision 当前版本 移除未来成员/选民资格并提升权限版本。冻结投票仍可如实收口，但真实执行复核最新权限。退出不转移资产、不抹债务、不分配余款。若剩余人不足原门槛，程序暂停，平台不降低门槛或指定接班人。
 
-最多30名成员、个人累计创建20个集体、每集体20个开放/500个历史决定；期限最多30模拟日。所有时间为模拟毫秒。list 每页最多30；大原文页过长时减少 limit。这里的邀请不会自动写入其他人的已读或模型目标。旧实验由运行者显式 enable-collectives。
+最多30名成员、个人累计创建20个集体、每集体20个开放/500个历史决定；期限最多30模拟日。所有时间为模拟毫秒。list 每页最多30；大原文页过长时减少 limit。这里的邀请不会自动写入其他人的已读或模型目标。
 
 [collectives 参数](../commands/collectives.md) · [元能力](index.md)
 `,
@@ -237,7 +237,7 @@ town programs publish --id 自选ID --title '自定名称' --purpose '目的原�
 
 definition 形如 {"steps":[{"principalId":"实际授权人ID","capability":"payments.transfer","arguments":{"targetId":"收款人ID","amount":5,"note":"付款原话"}}]}。
 
-这是格式示例，不是付款建议。替换为真实居民 ID。可选conditions格式见[条件与署名依据](conditions.md)；旧实验须显式启用。最多8步，执行顺序固定。基础步骤：
+这是格式示例，不是付款建议。替换为真实居民 ID。可选conditions格式见[条件与署名依据](conditions.md)；最多8步，执行顺序固定。基础步骤：
 
 - payments.transfer：targetId、amount、note。来自 principal 实际账户；金额乘授权次数是总支出上限。
 - messages.send：recipientId、content。完整原话被授权；回执保留 principal 发送身份、实际执行人、授权 ID 和流程 ID。
@@ -246,11 +246,11 @@ definition 形如 {"steps":[{"principalId":"实际授权人ID","capability":"pay
 
 arguments 必须精确包含上述字段，不接受 actorId、额外权限、脚本、递归或模型判断。不自动执行移动、劳动、治疗等身体行为，它们仍可由本人使用既有 CLI。
 
-显式启用 resident-program-actions-v2 后，definition 加上 "actionPolicyVersion":"resident-program-actions-v2" 可使用 resource.control。先 town rules read --id resident-program-actions 查看是否启用；旧实验由运行者 enable-program-actions，不是居民命令。
+显式启用 resident-program-actions-v2 后，definition 加上 "actionPolicyVersion":"resident-program-actions-v2" 可使用 resource.control。先 town rules read --id resident-program-actions 查看是否启用；
 
 resource.control 的 arguments 为 {"resourceKind":"space","resourceId":"实际资源ID","expectedRevision":当前修订,"control":{"type":"offer","expectedVersion":当前控制版本,"target":{"kind":"resident","id":"接收人ID"},"expiresAt":到期模拟毫秒,"terms":"移交原文"}}。accept/cancel 只需要 control.type 与 expectedVersion。种类支持 premises、stock、space、register、view、group、service；service 还需显式启用 resident-service-control-v1。须按对应 CLI read 查询真实版本。当前只开放个人控制主体的程序组合。
 
-新实验可显式启用resident-program-actions-v3，允许resourceKind为enterprise；企业expectedRevision和expectedVersion都来自resources read的当前管理版本。旧实验由运行者enable-enterprise-programs单独升级，原manifest及已签v2程序不改写，v2仍不能写enterprise。企业交接只转管理，股份、现金、物品、雇员、工资和合约仍在原企业；付款不自动成为股权认购或公司收购。
+新实验可显式启用resident-program-actions-v3，允许resourceKind为enterprise；企业expectedRevision和expectedVersion都来自resources read的当前管理版本。企业交接只转管理，股份、现金、物品、雇员、工资和合约仍在原企业；付款不自动成为股权认购或公司收购。
 
 可以自行把卖方 offer、买方 accept、买方 payments.transfer 放入同一固定程序；每位 principal 独立授权这一版全部步骤。后续步骤读取前一步后的真实版本。全部步骤成功才提交，否则钱和资源都保持运行前状态，成功次数也不消耗。不会在中途留下可被第三方接受的报价。已在程序外存在的普通报价仍按其原语义，不能靠文本给旧报价追加收费限制。
 

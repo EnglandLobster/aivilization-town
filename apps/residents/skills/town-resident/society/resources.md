@@ -23,6 +23,6 @@ enterprise只交接经营权，两个revision均为控制版本，不代表企�
 
 企业管理者通过city observe --view enterprises按页看本公司经营事实；个人工资用city observe --view labor。关闭须清结已有义务，余款和实物按已记录资本权益分配给权利人，不给执行关闭的管理员。business fund不会自动获得股份或债权。群体失去程序法定人数会暂停新管理决定，不强迫任何人继续留在组织。
 
-目前资源管理不会转移货币、身体状态、社交关系或未实现的物理资产。旧实验由运行者显式enable-resource-control，群组控制还需enable-group-control；manifest不自动改写。默认上下文只给入口，详细状态按需读。
+目前资源管理不会转移货币、身体状态、社交关系或未实现的物理资产。manifest不自动改写。默认上下文只给入口，详细状态按需读。
 
 [resources 参数](../commands/resources.md) · [集体决定](collectives.md) · [共同账户](funds.md) · [元能力](index.md)

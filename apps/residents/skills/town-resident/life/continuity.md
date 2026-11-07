@@ -14,7 +14,7 @@ cognition update 可设置 --pinned true 让自己的长期关注进入上下文
 schedule configure --free-activity-interval-ms 可调整自己的后台自由活动间隔（1分钟至1天）；schedule wait 可选择具体未来时刻，schedule remind 可自主设置提醒。通知偏好见 notifications configure。
 若上下文出现messageWake，私信不会在你睡觉、工作、学习或出行途中打断你，距你上一次机会开始不足minIntervalMs时也不会立即叫醒你；消息会留在收件箱里。想尽快看到某人的回复，就自己用 schedule wait 选一个更近的时刻；你自己设定的等待不受这个限制。
 若上下文出现planWith，你可以用 schedule plan 把最多8步自己的动作排成计划，例如 --steps 'town travel go --target-location-id workshop' --steps 'town production start --id 订单ID --expected-revision current --until complete'。世界会按顺序执行，每一步完成后接着做下一步，不再叫醒你；计划完成、某一步被拒绝或有私信时才叫醒你。每一步仍按原规则检查，失败不会伪造成功；current表示执行时的当前版本，complete表示做到这批完成。只能安排你本人的动作，不能替别人同意或代人行动。schedule plan-cancel 可以在下一步之前停止计划。
-新实验的 livingRules 明示自然日参数：24模拟小时为一天，工资报价按8小时劳动计，实际按劳动秒数结算；恢复需要时间，住房等级不再扩大身体上限。这些是实验参数，不是你的强制日程。旧实验按原 manifest 规则运行。
+新实验的 livingRules 明示自然日参数：24模拟小时为一天，工资报价按8小时劳动计，实际按劳动秒数结算；恢复需要时间，住房等级不再扩大身体上限。这些是实验参数，不是你的强制日程。
 初始化背景、熟人和资源均是明确的初始条件，没有伪造既往互动；公共工资来自国库，市场库存和镇外进口不等于居民生产。
 
 ## 参与与协商

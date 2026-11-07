@@ -14,6 +14,6 @@ funds contribute --id 账户ID --expected-revision 当前revision --amount 金�
 
 funds ledger --id 账户ID --limit 10 供当前成员查询真实交易、实际账户revision和决定来源，按本账户版本顺序分页，最多30。全量页过大时减小limit，避免把截断原文当完整账目。个人只对自己的转账/收款形成实际经历；别人的余额和私密章程不随收款广播。
 
-每集体最多20个账户；余额最多10亿、单次转移最多100万，所有数值finite且可可靠表示。每账户最多10000次入资，限额不会阻止已有资金支出和清算。关闭历史仍可查询。旧实验运行者须显式 enable-common-accounts，并先启用collectives。
+每集体最多20个账户；余额最多10亿、单次转移最多100万，所有数值finite且可可靠表示。每账户最多10000次入资，限额不会阻止已有资金支出和清算。关闭历史仍可查询。
 
 [funds 参数](../commands/funds.md) · [集体程序](collectives.md) · [元能力](index.md)

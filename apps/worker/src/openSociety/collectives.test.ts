@@ -228,21 +228,3 @@ test('deadline scheduler has equal collective effects for large and segmented ti
   one.replay();
   many.replay();
 });
-test('legacy manifests stay unchanged and require an explicit idempotent enable event', () => {
-  const t = setup(false),
-    bytes = readFileSync(join(t.root, 'manifest.json'));
-  expect(t.r.state.collectives).toBeUndefined();
-  expect(t.ok(t.a, 'rules.read', { id: 'resident-collectives' })).toMatchObject({
-    data: { enabled: false },
-  });
-  expect(t.call(t.a, 'collectives.list', {}).error).toBe('collectives-not-enabled');
-  const result = t.r.enableCollectives();
-  expect(result.ok).toBe(true);
-  expect(t.r.enableCollectives()).toEqual(result);
-  t.create();
-  expect(
-    t.r.journal.commits.filter((c) => c.capability === 'system.enable-collectives'),
-  ).toHaveLength(1);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(bytes);
-  t.replay();
-});

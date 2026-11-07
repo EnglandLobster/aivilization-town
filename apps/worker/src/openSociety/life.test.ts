@@ -125,26 +125,6 @@ test('real world accounts, escrow, inventory reservation and replay are atomic',
   ok(a, 'deposits.release', { id: 'deposit', expectedRevision: 1 });
   expect(r.state.world.moneySupply).toBe(supply);
 });
-test('legacy opt-in does not rewrite manifest or backfill events, and is idempotent', () => {
-  const { runtime: r, root, a, call } = setup({ legacy: true });
-  const manifest = structuredClone(r.manifest);
-  expect(r.state.life).toBeUndefined();
-  expect(call(a, 'groups.list', {})).toMatchObject({
-    ok: false,
-    error: 'communication-not-enabled',
-  });
-  expect(r.enableLife().ok).toBe(true);
-  const revision = r.state.revision;
-  expect(r.enableLife().ok).toBe(true);
-  expect(r.state.revision).toBe(revision);
-  expect(r.manifest).toEqual(manifest);
-  const before = structuredClone(r.state);
-  r.close();
-  const replay = new OpenSocietyRuntime(root);
-  cleanup.push(() => replay.close());
-  expect(replay.state).toEqual(before);
-});
-
 test('goods reservation is authoritative across orders and cancellation restores stock and cash', () => {
   const { runtime: r, a, b, c, ok, call } = setup({ goods: true });
   const commodity = Object.values(r.state.world.marketPools)[0]!.commodity;

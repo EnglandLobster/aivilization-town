@@ -8,7 +8,7 @@ town programs publish --id 自选ID --title '自定名称' --purpose '目的原�
 
 definition 形如 {"steps":[{"principalId":"实际授权人ID","capability":"payments.transfer","arguments":{"targetId":"收款人ID","amount":5,"note":"付款原话"}}]}。
 
-这是格式示例，不是付款建议。替换为真实居民 ID。可选conditions格式见[条件与署名依据](conditions.md)；旧实验须显式启用。最多8步，执行顺序固定。基础步骤：
+这是格式示例，不是付款建议。替换为真实居民 ID。可选conditions格式见[条件与署名依据](conditions.md)；最多8步，执行顺序固定。基础步骤：
 
 - payments.transfer：targetId、amount、note。来自 principal 实际账户；金额乘授权次数是总支出上限。
 - messages.send：recipientId、content。完整原话被授权；回执保留 principal 发送身份、实际执行人、授权 ID 和流程 ID。
@@ -17,11 +17,11 @@ definition 形如 {"steps":[{"principalId":"实际授权人ID","capability":"pay
 
 arguments 必须精确包含上述字段，不接受 actorId、额外权限、脚本、递归或模型判断。不自动执行移动、劳动、治疗等身体行为，它们仍可由本人使用既有 CLI。
 
-显式启用 resident-program-actions-v2 后，definition 加上 "actionPolicyVersion":"resident-program-actions-v2" 可使用 resource.control。先 town rules read --id resident-program-actions 查看是否启用；旧实验由运行者 enable-program-actions，不是居民命令。
+显式启用 resident-program-actions-v2 后，definition 加上 "actionPolicyVersion":"resident-program-actions-v2" 可使用 resource.control。先 town rules read --id resident-program-actions 查看是否启用；
 
 resource.control 的 arguments 为 {"resourceKind":"space","resourceId":"实际资源ID","expectedRevision":当前修订,"control":{"type":"offer","expectedVersion":当前控制版本,"target":{"kind":"resident","id":"接收人ID"},"expiresAt":到期模拟毫秒,"terms":"移交原文"}}。accept/cancel 只需要 control.type 与 expectedVersion。种类支持 premises、stock、space、register、view、group、service；service 还需显式启用 resident-service-control-v1。须按对应 CLI read 查询真实版本。当前只开放个人控制主体的程序组合。
 
-新实验可显式启用resident-program-actions-v3，允许resourceKind为enterprise；企业expectedRevision和expectedVersion都来自resources read的当前管理版本。旧实验由运行者enable-enterprise-programs单独升级，原manifest及已签v2程序不改写，v2仍不能写enterprise。企业交接只转管理，股份、现金、物品、雇员、工资和合约仍在原企业；付款不自动成为股权认购或公司收购。
+新实验可显式启用resident-program-actions-v3，允许resourceKind为enterprise；企业expectedRevision和expectedVersion都来自resources read的当前管理版本。企业交接只转管理，股份、现金、物品、雇员、工资和合约仍在原企业；付款不自动成为股权认购或公司收购。
 
 可以自行把卖方 offer、买方 accept、买方 payments.transfer 放入同一固定程序；每位 principal 独立授权这一版全部步骤。后续步骤读取前一步后的真实版本。全部步骤成功才提交，否则钱和资源都保持运行前状态，成功次数也不消耗。不会在中途留下可被第三方接受的报价。已在程序外存在的普通报价仍按其原语义，不能靠文本给旧报价追加收费限制。
 

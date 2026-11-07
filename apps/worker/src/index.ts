@@ -115,4 +115,3 @@ export * from './canonicalSocietyCandidate';
 
 export * from './canonicalRequestHistory';
 
-export * from './openSociety/societyActivation';

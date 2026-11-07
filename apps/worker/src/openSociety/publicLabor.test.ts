@@ -128,17 +128,3 @@ test('zero public cash refuses a start atomically without discounting future lab
   expect(t.r.state.world.moneySupply).toBe(before.moneySupply);
   t.replay();
 });
-test('explicit migration refuses active prepaid legacy work, then preserves manifest and idempotently enables only new work', () => {
-  const t = fixture(false),
-    manifest = readFileSync(join(t.root, 'manifest.json'));
-  t.ok(t.actor, 'world.work', { occupationName: 'Cleaner', laborSeconds: 60 });
-  expect(t.r.enablePublicLabor().ok).toBe(false);
-  expect(t.r.advanceTime(60000, 'end-legacy').ok).toBe(true);
-  expect(t.r.enablePublicLabor().ok).toBe(true);
-  const bytes = readFileSync(join(t.root, 'journal.jsonl'));
-  expect(t.r.enablePublicLabor().ok).toBe(true);
-  expect(readFileSync(join(t.root, 'journal.jsonl'))).toEqual(bytes);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(manifest);
-  expect(t.r.state.world.publicLabor!.process.sessions).toEqual({});
-  t.replay();
-});

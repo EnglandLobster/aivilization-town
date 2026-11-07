@@ -48,38 +48,6 @@ function fixture(enabled = false) {
   };
   return { r, root, a, b, c, call, ok, replay };
 }
-test('explicit employment extension preserves original manifest, residents, accounts and pending work; activation and queries replay without invented votes', () => {
-  const t = fixture(),
-    bytes = readFileSync(join(t.root, 'manifest.json')),
-    before = structuredClone(t.r.state.world);
-  expect(t.call(t.a, 'governance.employment').error).toBe('public-employment-not-enabled');
-  const activation = t.r.enablePublicEmployment();
-  expect(activation.ok).toBe(true);
-  expect(t.r.enablePublicEmployment()).toEqual(activation);
-  expect(t.r.state.world.agents).toEqual(before.agents);
-  expect(t.r.state.world.jobApplications).toEqual(before.jobApplications);
-  expect(t.r.state.world.publicGovernance!.authority.proposals).toEqual({});
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(bytes);
-  const read = t.ok(t.a, 'governance.employment', { limit: 1 }) as ReturnType<
-    typeof publicEmploymentQuery
-  >;
-  expect(read).toMatchObject({
-    activeRevision: 1,
-    nextCycleRevision: 1,
-    latestRevision: 1,
-    source: { kind: 'inherited-scenario' },
-    occupations: { nextOffset: 1 },
-  });
-  expect(read.occupations?.items).toHaveLength(1);
-  expect(t.r.context(t.a).publicGovernance).toMatchObject({
-    employmentRulesWith: 'town governance employment',
-  });
-  expect(JSON.stringify(t.r.context(t.a).publicGovernance)).not.toContain('educationFloor');
-  expect(t.ok(t.a, 'rules.capability', { name: 'governance.employment' })).toMatchObject({
-    availability: { adapterEnabled: true },
-  });
-  expect(t.replay().enablePublicEmployment()).toEqual(activation);
-});
 test('paginated exact terms support independent public amendment; next policy is queryable, stale execution atomic, nonmonotonic quota does not break resident observations', () => {
   const t = fixture(true),
     w = t.r.state.world,

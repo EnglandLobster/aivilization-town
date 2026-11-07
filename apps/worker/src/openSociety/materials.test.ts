@@ -370,21 +370,6 @@ test('settlement waits for held materials and closure never destroys inventory o
   expect(t.r.state.world.agents[t.a]!.inventory.Wood).toBe(10);
   t.replay();
 });
-test('legacy manifest upgrades once through an explicit event, without adding goods or rewriting initial state', () => {
-  const t = fixture(false),
-    manifest = readFileSync(join(t.root, 'manifest.json')),
-    before = t.r.state.world.agents;
-  expect(t.call(t.a, 'production.recipes', {}).error).toBe('materials-not-enabled');
-  expect(t.r.enableMaterials().ok).toBe(true);
-  const count = t.r.journal.commits.length;
-  expect(t.r.enableMaterials().ok).toBe(true);
-  expect(t.r.journal.commits).toHaveLength(count);
-  expect(t.r.state.world.agents).toEqual(before);
-  expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(manifest);
-  t.seed();
-  t.replay();
-});
-
 test('a collective can reserve finite sources by exact vote but cannot start another residents labor', () => {
   const t = fixture(true, true);
   t.seed();

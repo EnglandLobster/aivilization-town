@@ -18,6 +18,6 @@ programs check --id 流程ID --expected-revision 当前版本 供已获得全部
 
 run返回每条条件来源类别、ID/实际版本和matched，不广播原文或余额。条件false记录program-conditions-not-met，步骤不发生，委托次数不消耗；已通过条件但后续步骤失败，同样全体回滚。programs runs --limit 1展开原始回执，按不可变run ID去重实际阅读。原有schedule失败即停止，不后台反复尝试。
 
-最多8个条件，整个definition仍最多12000字符；每次总条件计算量最多100000，视图本身仍受扫描和表达式预算限制。超预算拒绝，不能把局部结果当完整依据。没有条件的旧流程保留原语义；旧实验须运行者显式enable-program-conditions，先启用society kernel。
+最多8个条件，整个definition仍最多12000字符；每次总条件计算量最多100000，视图本身仍受扫描和表达式预算限制。超预算拒绝，不能把局部结果当完整依据。没有条件的旧流程保留原语义；
 
 [programs 参数](../commands/programs.md) · [固定步骤与授权](programs.md) · [元能力](index.md)

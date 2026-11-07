@@ -15,12 +15,6 @@ export function ownLaborContext(world: WorldProjection, actorId: string) {
     .filter((c) => c.actorId === actorId)
     .reduce((sum, c) => sum + c.earnedMicros - c.paidMicros, 0);
   return {
-    ...(state?.configuration.compensationSource === 'accepted-enterprise-labor-terms-v1'
-      ? {
-          termsRequired: true,
-          termsWith: 'town business labor-terms --enterprise-id ENTERPRISE_ID',
-        }
-      : {}),
     policyVersion:
       world.publicLabor?.configuration.policy.version ?? state!.configuration.policy.version,
     scope: world.publicLabor

@@ -106,14 +106,12 @@ their manifests; new features are enabled on them only by explicit `pnpm residen
   - `economy` — accounts/double-entry, inventory math, AMM/pricing, recipes/production chains, external trade.
   - `enterprise` — firm aggregate: cash, ownership shares, membership, solvency, bankruptcy, dividends.
   - `credit` — the single town bank: deposits, loans, amortization, default, reserve ratio.
-  - `society` — physiology, consumption, education, occupations, wages, tax, welfare, housing, resident
-    leases/households/care.
-  - `commerce` (offers/orders/payment requests/deposits with escrow), `services` (capacity slots,
-    bookings, queues, provider time), `collaboration` (versioned multi-party proposals, consent,
-    resident programs/actions), `information` (spaces, documents, ACL/revisions, messages,
-    subscriptions, read receipts), `governance` (public proposals/votes/policy enactment),
-    `materials`, `logistics` (freight/custody), `premises` (sites, construction, use grants),
-    `mobility` (vehicles, drivers, rides).
+  - `society` — physiology, consumption, education, occupations, wages, tax, welfare, housing,
+    succession.
+  - `commerce` (offers/orders/payment requests/deposits with escrow), `collaboration` (versioned
+    multi-party proposals, consent, resident programs/actions), `information` (spaces, documents,
+    ACL/revisions, messages, read receipts), `governance` (public proposals/votes/policy enactment),
+    `materials`, `premises` (sites, construction, buildings, facility use).
 - **`packages/world`** — server-authoritative application/integration boundary over all domain packages:
   **commands → events → projection** (`applyWorldEvent`, `WorldProjection`), cross-aggregate
   orchestration, location/busy-state authorization, cadence scheduling. It must not absorb domain
@@ -199,8 +197,8 @@ from a model-supplied actor ID). Residents set their own goals.
   generated Markdown (which is committed). Residents read it on demand via `town find` / `town wiki`.
 - **Society kernel** (resident-authored institutions): `registers`/`records` (shared claims, never
   authoritative balances), `programs` + `mandates` (≤8-step atomic procedures, each principal
-  personally authorizes an exact revision), `reactions`, `views`, `collectives` (charters + votes),
-  `governance` (public proposals that can enact tax/budget/subsidy/procedure changes).
+  personally authorizes an exact revision), `collectives` (charters + votes), `governance`
+  (public proposals that can enact tax/budget/subsidy/procedure changes).
 - **Persistence**: a separate single-writer journal (`journal.ts`, `journalRecovery.ts`), not the
   canonical partition authority. An explicit partition compute mode (`serve --partition-config` +
   `partition-run`/`partition-daemon`) runs residents in independent local processes against one
@@ -215,8 +213,8 @@ from a model-supplied actor ID). Residents set their own goals.
 ## Conventions
 
 - **DDD layering is a hard rule** (full rules in `AGENTS.md`). Domain layer (`economy`, `enterprise`,
-  `credit`, `society`, `commerce`, `services`, `collaboration`, `information`, `governance`, `materials`,
-  `logistics`, `premises`, `mobility`, `memory`, and pure modules in `world`):
+  `credit`, `society`, `commerce`, `collaboration`, `information`, `governance`, `materials`,
+  `premises`, `memory`, and pure modules in `world`):
   pure types + pure functions + validators, zero side effects (see `weather.ts`, `matters.ts`,
   `conflict.ts`, `conditions.ts` for the shape). Application layer (command handlers in
   `packages/world/src/handlers/`, authority settlement, materializers): orchestrates domain calls

@@ -223,9 +223,7 @@ export function assertPrincipalAuthorization<R extends PrincipalRequest>(
         principal.id === s.beneficiaryId ||
         !('command' in request) ||
         request.command.type !== 'offer' ||
-        !['stock', 'vehicle', 'premises', 'space', 'register', 'view', 'group', 'service'].includes(
-          request.resourceKind,
-        ) ||
+        !['stock', 'premises', 'space', 'register', 'group'].includes(request.resourceKind) ||
         request.command.target.kind !== 'resident' ||
         request.command.target.id !== s.beneficiaryId ||
         request.command.expiresAt <= s.executedAt ||

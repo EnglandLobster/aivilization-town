@@ -5,15 +5,11 @@ import { OpenSocietyRuntime } from '../runtime';
 import { openPremisesFixture, premisesCleanup } from './openPremises';
 
 /** A town with one finished production building, `home`, built by resident c. */
-export function builtPremisesFixture(
-  rights = true,
-  options: Parameters<typeof openPremisesFixture>[4] = {},
-) {
+export function builtPremisesFixture(options: Parameters<typeof openPremisesFixture>[3] = {}) {
   const t = openPremisesFixture(
     true,
     true,
     { primaryUse: 'production', workstations: 1, storageUnits: 10 },
-    rights,
     options,
   );
   t.reserve(undefined, { Wood: 8.1, 'Iron Ingot': 1 });

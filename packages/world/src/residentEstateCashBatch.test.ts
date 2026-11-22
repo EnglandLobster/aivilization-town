@@ -7,22 +7,22 @@ import {
   applyResidentEstateCashBatch,
 } from './residentEstateCashBatch';
 const source = {
-  context: 'services' as const,
-  id: 'original-engagement',
+  context: 'earned-wages' as const,
+  id: 'original-wage',
   revision: 4,
-  policyVersion: 'resident-service-engagements-v1',
+  policyVersion: 'resident-earned-wage-estate-v1',
 };
 const payment = (id: string, amount: number, incoming = true) =>
   createMoneyTransfer({
     transactionId: id,
-    reason: 'original-service-flow',
+    reason: 'original-wage-flow',
     from: economicAccount(
       incoming ? 'public-service' : 'agent',
-      incoming ? 'resident-service-engagements' : 'a',
+      incoming ? 'resident-earned-wages' : 'a',
     ),
     to: economicAccount(
       incoming ? 'agent' : 'public-service',
-      incoming ? 'a' : 'resident-service-engagements',
+      incoming ? 'a' : 'resident-earned-wages',
     ),
     amount,
   });

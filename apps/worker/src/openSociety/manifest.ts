@@ -22,7 +22,6 @@ import {
   assertEducationAuthorityState,
 } from '@aivilization/world';
 import { seedOpenMaterialSources, EXTRACTION_SEED_VERSION } from './extractionPolicy';
-import { applyPremisesRightsEvent, PREMISES_RIGHTS_POLICY } from '@aivilization/premises';
 
 import { emptyResidentRestState, RESIDENT_REST_POLICY } from '@aivilization/society';
 import { assertResidentRestTimeCompatibility, applyWorldEvent } from '@aivilization/world';
@@ -175,7 +174,6 @@ export function createOpenSocietyManifest(input: {
   materials?: boolean;
   premises?: boolean;
   facilityUse?: boolean;
-  premisesRights?: boolean;
   /** Learning by doing plus natural source regrowth (versioned material growth policies). */
   materialGrowth?: boolean;
   /** Paced direct-message wakes (resident-message-pacing-v1); absent keeps immediate wakes. */
@@ -260,19 +258,10 @@ export function createOpenSocietyManifest(input: {
     ...materialsWorld,
     ...(premisesEnabled ? seedOpenPremises(materialsWorld, input.facilityUse !== false) : {}),
   };
-  const premisesRightsEnabled = premisesEnabled && input.premisesRights !== false;
   let world: WorldProjection = {
     ...premisesWorld,
     ...(input.publicGovernance ? { publicGovernance: seedPublicGovernance(premisesWorld) } : {}),
     ...(input.elapsedRest ? { residentRest: emptyResidentRestState() } : {}),
-    ...(premisesRightsEnabled
-      ? {
-          premisesRights: applyPremisesRightsEvent(undefined, {
-            type: 'PremisesRightsEnabled',
-            policy: PREMISES_RIGHTS_POLICY,
-          }),
-        }
-      : {}),
   };
   if (input.physicalProduction)
     world = applyWorldEvent(
@@ -515,7 +504,6 @@ export function createOpenSocietyManifest(input: {
           }
         : {}),
       inventoryRequestPrecision: INVENTORY_REQUEST_PRECISION.version,
-      ...(premisesRightsEnabled ? { premisesRights: PREMISES_RIGHTS_POLICY.version } : {}),
       ...(premisesEnabled && input.facilityUse !== false
         ? { facilityUse: PREMISES_FACILITY_USE_POLICY.version }
         : {}),

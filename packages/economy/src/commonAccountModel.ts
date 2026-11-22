@@ -1,50 +1,4 @@
 import type { AccountingTransaction } from './accounting';
-/** Closed integration sectors. A caller cannot nominate an arbitrary escrow or policy. */
-export const COMMON_ACCOUNT_SETTLEMENT_SOURCES = {
-  'periodic-obligations': {
-    policyVersion: 'resident-periodic-obligations-v1',
-    accountId: 'public-service:resident-periodic-obligations',
-  },
-  'resource-sales-v2': {
-    policyVersion: 'resident-resource-sales-v2',
-    accountId: 'public-service:resident-resource-sales',
-  },
-  'resource-sales': {
-    policyVersion: 'resident-resource-sales-v1',
-    accountId: 'public-service:resident-resource-sales',
-  },
-  capital: {
-    policyVersion: 'enterprise-capital-agreements-v1',
-    accountId: 'public-service:resident-capital',
-  },
-  services: {
-    policyVersion: 'resident-service-engagements-v1',
-    accountId: 'public-service:resident-service-engagements',
-  },
-  logistics: {
-    policyVersion: 'resident-logistics-v1',
-    accountId: 'public-service:resident-logistics',
-  },
-  trade: {
-    policyVersion: 'resident-evidence-trade-v1',
-    accountId: 'public-service:resident-evidence-trade',
-  },
-  'trade-v2': {
-    policyVersion: 'resident-evidence-trade-v2',
-    accountId: 'public-service:resident-evidence-trade',
-  },
-  'construction-trade': {
-    policyVersion: 'construction-trade-v1',
-    accountId: 'public-service:resident-evidence-trade',
-  },
-  'trade-v3': {
-    policyVersion: 'resident-principal-evidence-trade-v3',
-    accountId: 'public-service:resident-evidence-trade',
-  },
-} as const;
-export type CommonAccountSettlementContext = keyof typeof COMMON_ACCOUNT_SETTLEMENT_SOURCES;
-export type CommonAccountSettlementVersion =
-  (typeof COMMON_ACCOUNT_SETTLEMENT_SOURCES)[CommonAccountSettlementContext]['policyVersion'];
 export const COMMON_ACCOUNTS_POLICY = {
   version: 'resident-common-accounts-v1',
   maxAccountsPerCollective: 20,
@@ -84,18 +38,7 @@ export type CommonAccountReceipt = {
   readonly accountIds: readonly string[];
   readonly accountRevisions: Readonly<Record<string, number>>;
   readonly at: number;
-  readonly operation:
-    | 'open'
-    | 'contribute'
-    | 'transfer'
-    | 'beginSettlement'
-    | 'close'
-    | 'externalSettlement';
-  readonly source?: {
-    readonly context: CommonAccountSettlementContext;
-    readonly referenceId: string;
-    readonly policyVersion: CommonAccountSettlementVersion;
-  };
+  readonly operation: 'open' | 'contribute' | 'transfer' | 'beginSettlement' | 'close';
   readonly note: string;
   readonly authority?: CommonAccountAuthority;
   readonly transaction?: AccountingTransaction;

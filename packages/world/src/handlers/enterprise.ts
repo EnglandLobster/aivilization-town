@@ -1,6 +1,4 @@
 import { hasEnterprisePrincipalAssets } from '../principalResourceObligations';
-import { enterpriseServiceEstateRefusal } from '../servicePrincipalEstate';
-import type { ServicesState } from '@aivilization/services';
 import { enterpriseRequiresManagement } from '@aivilization/enterprise';
 import type { ControlAuthorizationPort } from '@aivilization/authority';
 import {
@@ -401,7 +399,6 @@ export function handleAgentFundEnterpriseCommand(input: {
 }
 
 export function handleAgentCloseEnterpriseCommand(input: {
-  readonly serviceDirectory?: ServicesState;
   readonly command: CommandEnvelope<'AgentCloseEnterprise', unknown>;
   readonly projection: WorldProjection;
   readonly policy: EnterprisePolicy;
@@ -421,12 +418,6 @@ export function handleAgentCloseEnterpriseCommand(input: {
   }
   if (hasEnterprisePrincipalAssets(input.projection, enterprise.enterpriseId))
     return rejectCommand(input, 'AgentCloseEnterprise', 'enterprise-resource-estate-unsettled');
-  const serviceRefusal = enterpriseServiceEstateRefusal(
-    input.projection,
-    enterprise.enterpriseId,
-    input.serviceDirectory,
-  );
-  if (serviceRefusal) return rejectCommand(input, 'AgentCloseEnterprise', serviceRefusal);
   const decision = decideCloseEnterprise({
     enterprise,
     actorAgentId: owner.agentId,

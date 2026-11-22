@@ -6,7 +6,7 @@ import {
 } from '@aivilization/world';
 import type { OpenSocietyState, OpenSocietyManifest } from './types';
 import type { ToolExecution } from './informationTools';
-import { numberArg, stringArg, pageItems, ToolRefusal } from './arguments';
+import { numberArg, stringArg, ToolRefusal } from './arguments';
 import { digest } from './journal';
 import { worldExperiences } from './worldTools';
 export function executeHousingOccupancyTool(
@@ -20,7 +20,7 @@ export function executeHousingOccupancyTool(
   const state = s.world.housingOccupancy;
   if (!state) throw new ToolRefusal('housing-occupancy-not-enabled');
   if (name === 'housing.occupancy') {
-    const { personalRights, ...facts } = residentHousingOccupancyFacts(s.world, actorId);
+    const facts = residentHousingOccupancyFacts(s.world, actorId);
     return {
       data: {
         policyVersion: state.policy.version,
@@ -37,7 +37,6 @@ export function executeHousingOccupancyTool(
               },
             }
           : {}),
-        personalRights: pageItems(personalRights, args),
         leaveWith:
           'town housing leave --expected-residence-id <residenceId> --expected-revision <revision>',
         moveWith: 'town travel go',

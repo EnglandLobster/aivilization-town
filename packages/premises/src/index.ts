@@ -10,16 +10,9 @@ export * from './lifecycle';
 export * from './management';
 export * from './commit';
 export * from './facilities';
-export * from './rightsModel';
-export * from './rightsValidation';
-export * from './rightsAccess';
-export * from './rights';
-export * from './provisionModel';
-export * from './provision';
 
 export * from './principal';
 
 export * from './principalControl';
 
-export * from './principalRights';
 export * from './constructionFacts';

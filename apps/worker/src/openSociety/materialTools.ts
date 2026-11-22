@@ -228,29 +228,6 @@ export function executeMaterialTool(
     return result({
       ...metadata(v),
       facilityUse: premisesFacilityAvailability(s.world, v.locationId) ?? { enforced: false },
-      ...(state.custodies && readable(s, v, a)
-        ? {
-            freightReservations: pageItems(
-              Object.values(state.custodies.records)
-                .filter(
-                  (c) =>
-                    (c.status === 'reserved' || c.status === 'loaded') &&
-                    (c.sourceStockId === id || c.destinationStockId === id),
-                )
-                .map((c) => ({
-                  id: c.id,
-                  status: c.status,
-                  freightId: c.consumerId,
-                  heldInTransit: c.sourceStockId === id ? c.held : {},
-                  reservedReturnSpace:
-                    c.sourceStockId === id && c.status === 'loaded' ? c.original : {},
-                  reservedIncomingSpace: c.destinationStockId === id ? c.original : {},
-                  readWith: `town freight read --id ${c.consumerId}`,
-                })),
-              args,
-            ),
-          }
-        : {}),
       ...(readable(s, v, a)
         ? {
             contents: pageItems(

@@ -58,7 +58,7 @@ export function materialWorkstationAvailable(
   if (held?.actorId === actorId)
     return (
       capacity > 0 &&
-      (w.premisesRights
+      (w.premises
         ? worldPremisesUseUntil(w, actorId, locationId, 'operate', held.settledAt) >=
           Math.min(w.clock.now, held.until)
         : mayOperateWorldPremises(w, actorId, locationId))
@@ -119,10 +119,8 @@ function ports(w: WorldProjection, auth: MaterialAuthorization): MaterialPorts {
   return {
     ...auth,
     mayStoreAt: (actor, location) =>
-      w.premisesRights
-        ? mayStoreWorldPremises(w, actor, location)
-        : auth.mayStoreAt(actor, location),
-    ...(w.premisesRights
+      w.premises ? mayStoreWorldPremises(w, actor, location) : auth.mayStoreAt(actor, location),
+    ...(w.premises
       ? {
           mayWorkAt: (actor: string, location: string) =>
             mayOperateWorldPremises(w, actor, location),
@@ -276,7 +274,7 @@ export function residentMaterialEvent(
         p,
       ),
     );
-  if (input.projection.premisesRights) {
+  if (input.projection.premises) {
     if (c.type === 'start-production') {
       const job = s.productions[c.id],
         stock = job && s.stocks[job.stockId];
@@ -478,8 +476,7 @@ export function assertResidentMaterialInterruption(
     !actor ||
     !employer ||
     employer.enterpriseId !== proof.enterpriseId ||
-    (productionEmploymentWage(employer, job.id, asAgentId(proof.workerId), w.clock.now, true) !==
-      undefined &&
+    (productionEmploymentWage(employer, job.id, asAgentId(proof.workerId)) !== undefined &&
       actor.physiology.health > 0) ||
     receipts.some(
       (e) =>

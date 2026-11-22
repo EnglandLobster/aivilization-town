@@ -1,10 +1,3 @@
-import { samePrincipal, type ResourcePrincipal } from '@aivilization/authority';
-import { isPrincipalPremisesPermit } from '@aivilization/premises';
-import {
-  principalTradeAccountObligations,
-  constructionTradeAccountObligations,
-  periodicAccountObligations,
-} from '@aivilization/commerce';
 import type { WorldProjection } from './projection';
 
 /** Material stocks remain the sole physical truth; cash-only closure cannot strand an organizational resource. */
@@ -25,18 +18,6 @@ export function enterprisePrincipalStockIds(
 export function hasEnterprisePrincipalAssets(w: WorldProjection, enterpriseId: string): boolean {
   return (
     enterprisePrincipalStockIds(w, enterpriseId).length > 0 ||
-    periodicAccountObligations(w.periodicObligations, { sector: 'enterprise', id: enterpriseId })
-      .length > 0 ||
-    Object.values(w.residentMobility?.vehicles ?? {}).some(
-      (v) =>
-        v.control?.controller.kind === 'enterprise' && v.control.controller.id === enterpriseId,
-    ) ||
-    constructionTradeAccountObligations(w.residentTrade?.constructionOrders, {
-      sector: 'enterprise',
-      id: enterpriseId,
-    }) ||
-    principalTradeAccountObligations(w.residentTrade, { sector: 'enterprise', id: enterpriseId }) ||
-    hasPrincipalPermitObligations(w, { kind: 'enterprise', id: enterpriseId }) ||
     Object.values(w.materials?.reservations?.records ?? {}).some(
       (r) =>
         r.principalVersion === 'resource-principals-v2' &&
@@ -56,20 +37,5 @@ export function hasEnterprisePrincipalAssets(w: WorldProjection, enterpriseId: s
         b.control.controller.id === enterpriseId &&
         (b.status !== 'demolished' || !b.footprintReleased),
     )
-  );
-}
-
-/** Contracts belong to their original subjects even after the building changes custody. */
-export function hasPrincipalPermitObligations(
-  w: WorldProjection,
-  principal: ResourcePrincipal,
-): boolean {
-  return Object.values(w.premisesRights?.permits ?? {}).some(
-    (p) =>
-      isPrincipalPremisesPermit(p) &&
-      (samePrincipal(p.issuer, principal) || samePrincipal(p.grantee, principal)) &&
-      (p.status === 'offered'
-        ? p.acceptBy > w.clock.now
-        : p.status === 'accepted' && p.endAt > w.clock.now),
   );
 }

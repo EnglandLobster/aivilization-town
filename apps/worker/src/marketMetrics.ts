@@ -1,9 +1,5 @@
-import { worldCapitalEscrowBalance } from '@aivilization/world';
 import { publicLaborEscrowBalance } from '@aivilization/society';
-import { evidenceTradeEscrowBalance } from '@aivilization/commerce';
-import { engagementEscrowBalance } from '@aivilization/services';
 import { residentStudyEscrowBalance } from '@aivilization/world';
-import { freightEscrowBalance } from '@aivilization/logistics';
 import { commonAccountsBalance, estateCashBalance } from '@aivilization/economy';
 import { commerceEscrowBalance } from '@aivilization/commerce';
 import {
@@ -150,12 +146,8 @@ export function createEconomicCompositionPayload(input: {
       publicServices: Object.values(projection.publicBudget?.serviceBalances ?? {}).reduce(
         (total, balance) => total + balance,
         (projection.residentCommerce ? commerceEscrowBalance(projection.residentCommerce) : 0) +
-          worldCapitalEscrowBalance(projection.enterprises) +
-          engagementEscrowBalance(projection.serviceEngagements) +
           residentStudyEscrowBalance(projection.residentStudy) +
-          publicLaborEscrowBalance(projection.publicLabor?.process) +
-          freightEscrowBalance(projection.logistics) +
-          evidenceTradeEscrowBalance(projection.residentTrade),
+          publicLaborEscrowBalance(projection.publicLabor?.process),
       ),
       ammPoolCurrency: pools.reduce((total, pool) => total + pool.currencyReserve, 0),
       ammPoolCommodityValue: pools.reduce(

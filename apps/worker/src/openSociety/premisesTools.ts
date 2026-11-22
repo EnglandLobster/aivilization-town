@@ -68,14 +68,6 @@ function execute(
   requestId: string,
   authorize: ControlAuthorizationPort,
 ): ToolExecution {
-  if (name === 'materials.reserve' && args.consumerDomain === 'logistics' && !s.world.logistics)
-    throw new ToolRefusal('logistics-not-enabled');
-  if (
-    name === 'materials.reserve' &&
-    args.consumerDomain === 'services' &&
-    !s.world.serviceEngagements
-  )
-    throw new ToolRefusal('service-engagements-not-enabled');
   const context = {
     projection: s.world,
     actorId: a,

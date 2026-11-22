@@ -325,7 +325,7 @@ services 领域新增 `resident-service-policy-transition-v1` 与 `ServicePolicy
 
 隔离世界revision161→162显式新增clinic护理位2、school教学位2，sourceId=new-operator-service-facilities-20261007，source=authorized-extension。原manifest、居民、身体、财产、时间、材料、工作与服务约定保持原值。没有教师、照护人员、服务机构或居民同意被创建。居民可通过既有设施查询发现来源，再自行选择是否开展服务；不能把本次登记称为恢复了旧设施或已完成完整医学模型。
 
-详细边界与验收要求见 `SOCIETY_SERVICE_FACILITY_REGISTRATION_V1.md`。真实编译CLI验证超容量批失败不改世界、明确登记与重试，并在新增护理位上完成本人同意/参与后的实际照护与收费，健康随实际重叠时间变化。无剧情模型采用另行记录。
+详细边界与验收要求见 `archive/SOCIETY_SERVICE_FACILITY_REGISTRATION_V1.md`。真实编译CLI验证超容量批失败不改世界、明确登记与重试，并在新增护理位上完成本人同意/参与后的实际照护与收费，健康随实际重叠时间变化。无剧情模型采用另行记录。
 
 
 设施阶段最终验收：全仓3291通过/1跳过，499文件通过/1跳过，lint/typecheck/build/格式检查通过。随后无剧情OpenCode完成31次调用、exit0、无工具拒绝；自主查询建设地块/记忆并进行采集、实际劳动与等待，没有护理/教学服务约定。journal到196，重开回放一致且未新增提交，写入者释放。证据 `evidence/SOCIETY_DECLARED_SERVICE_FACILITIES_2026-10-07.json`；不以基础设施存在或定向照护成功冒充机构涌现。

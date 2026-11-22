@@ -6,11 +6,7 @@ import {
   applyHousingDeparture,
   recordHousingOccupancyChange,
 } from '@aivilization/society';
-import {
-  mayResideInPremises,
-  premisesPermitAllows,
-  permitEffectiveAt,
-} from '@aivilization/premises';
+import { mayResideInPremises } from '@aivilization/premises';
 import type { WorldProjection } from './projection';
 import { resolveAgentResidenceLocationId, resolveResidentialOccupancy } from './projection';
 import type { WorldEvent } from './events';
@@ -105,40 +101,14 @@ export function residentHousingOccupancyFacts(w: WorldProjection, actorId: strin
   if (!actor) throw Error('unknown-housing-resident');
   const residenceId = resolveAgentResidenceLocationId(w, actor),
     location = residenceId ? w.locations[residenceId] : undefined,
-    building = residenceId ? premisesAtLocation(w, residenceId) : undefined,
-    at = w.clock.now;
-  const permits = Object.values(w.premisesRights?.permits ?? {}).filter(
-    (p) =>
-      p.buildingId === building?.id &&
-      p.users.includes(actorId) &&
-      p.scopes.includes('reside') &&
-      permitEffectiveAt(p, at),
-  );
-  const leases = Object.values(w.residentLeases?.leases ?? {}).filter(
-    (l) =>
-      l.tenantId === actorId &&
-      l.locationId === residenceId &&
-      l.status === 'active' &&
-      l.expiresAt > at,
-  );
+    building = residenceId ? premisesAtLocation(w, residenceId) : undefined;
   const physicallyAvailable =
     !!location &&
     (!building ||
       (building.status === 'operational' &&
         building.condition > 0 &&
         building.blueprint.primaryUse === 'residence'));
-  const currentPermission =
-    !!residenceId &&
-    (!building ||
-      premisesPermitAllows(
-        w.premisesRights,
-        building.id,
-        actorId,
-        'reside',
-        at,
-        mayResideInPremises(building, actorId),
-      ) ||
-      leases.length > 0);
+  const currentPermission = !!residenceId && (!building || mayResideInPremises(building, actorId));
   return {
     residenceId,
     locationId: actor.locationId,
@@ -160,22 +130,6 @@ export function residentHousingOccupancyFacts(w: WorldProjection, actorId: strin
           primaryUse: building.blueprint.primaryUse,
         }
       : null,
-    personalRights: [
-      ...permits.map((p) => ({
-        kind: 'permit' as const,
-        id: p.id,
-        revision: p.revision,
-        until: p.endAt,
-        readWith: 'town permits read',
-      })),
-      ...leases.map((l) => ({
-        kind: 'lease' as const,
-        id: l.id,
-        revision: l.revision,
-        until: l.expiresAt,
-        readWith: 'town leases read',
-      })),
-    ],
     requiresRightsResolution: !!residenceId && (!currentPermission || !physicallyAvailable),
   };
 }

@@ -125,8 +125,6 @@ function handleGovernanceCommand<TPayload extends GovernanceCommandMetadataPaylo
     );
   }
   const command = toDomainCommand(parsed.payload, authority.authority);
-  if (input.projection.publicGovernance?.authority.grant.procurement && command.type === 'SetPublicBudget' && command.policy.allocations.length)
-    return rejectGovernanceCommand(input, 'invalid-policy', 'abstract-budget-disabled-by-public-procurement');
   const decision = decideGovernanceChange({
     state: input.projection.governance ?? createInitialTownGovernanceState(),
     command,

@@ -98,12 +98,7 @@ export function worldPrincipalAvailable(
     case 'public':
       return (
         w.publicGovernance?.authority.grant.id === p.id &&
-        !!(
-          w.publicGovernance.authority.grant.resourceCustody ||
-          w.publicGovernance.authority.grant.periodicObligations ||
-          w.publicGovernance.authority.grant.vehicles ||
-          w.publicGovernance.authority.grant.services
-        )
+        !!w.publicGovernance.authority.grant.resourceCustody
       );
     // Collective registry is owned by the open society journal, never inferred from an ID in world.
     case 'collective':

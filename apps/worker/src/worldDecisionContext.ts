@@ -1,4 +1,3 @@
-import { activeEnterpriseLaborTerms } from '@aivilization/enterprise';
 import { publicEmploymentAtCycle, publicEmploymentQuota } from '@aivilization/society';
 import { commodities, jobTiers, occupations } from '@aivilization/content';
 import {
@@ -1841,22 +1840,7 @@ function withEducationOpportunityCostRule(input: {
       ? employers[0]!.employeeWageOffers?.[input.agent.agentId]
       : undefined;
   const labor = input.projection.residentLabor?.configuration;
-  const agreed =
-    labor?.compensationSource === 'accepted-enterprise-labor-terms-v1' && employers.length === 1
-      ? activeEnterpriseLaborTerms(employers[0]!, input.agent.agentId, input.projection.clock.now)
-      : undefined;
-  if (labor?.compensationSource === 'accepted-enterprise-labor-terms-v1' && !agreed) return {};
-  const laborQuote = agreed
-    ? {
-        wage: agreed.wageMicros / 1e6,
-        pay: {
-          version: 'labor-proportional-pay-v1' as const,
-          referenceSeconds: agreed.referenceMs / 1000,
-        },
-      }
-    : wage !== undefined && labor?.pay
-      ? { wage, pay: labor.pay }
-      : undefined;
+  const laborQuote = wage !== undefined && labor ? { wage, pay: labor.pay } : undefined;
   const educationOpportunityCost = createEducationOpportunityCostRule({
     agent: input.agent,
     policies: input.policies,

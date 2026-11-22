@@ -18,7 +18,7 @@ export function programResourceFixture(
   durable = false,
 ) {
   // Durable runs create the town with program actions; others apply the policy in memory only.
-  const t = builtPremisesFixture(true, {
+  const t = builtPremisesFixture({
       ...(durable
         ? {
             manifest:

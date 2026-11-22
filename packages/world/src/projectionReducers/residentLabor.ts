@@ -1,4 +1,3 @@
-import { assertAgreedLaborCompensation } from '../laborCompensationSource';
 import {
   applyResidentLaborEvent,
   emptyResidentLaborState,
@@ -99,22 +98,12 @@ export function applyResidentLaborProjection(
     !terms ||
     terms.withholdingVersion !== EARNED_LABOR_WITHHOLDING_VERSION ||
     !terms.taxPolicyVersion ||
-    !['recorded-employment-offer', 'initial-wage-regime', 'accepted-labor-terms'].includes(
-      terms.wageSource,
-    )
+    !['recorded-employment-offer', 'initial-wage-regime'].includes(terms.wageSource)
   )
     throw Error('labor-compensation-source-missing');
   earnedLaborWithholding(terms, 0);
   const reservation = w.activityTimeByAgent[s.actorId];
   if (!old) {
-    assertAgreedLaborCompensation({
-      configuration: state.configuration,
-      enterprise: initialEnterprise,
-      actorId: s.actorId,
-      at: s.startedAt,
-      durationMs: s.until - s.startedAt,
-      terms,
-    });
     if (
       !p.labor ||
       !a ||

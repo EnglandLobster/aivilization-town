@@ -1,4 +1,3 @@
-import { engagementEscrowBalance } from '@aivilization/services';
 import { expect } from 'vitest';
 import { asAgentId, createEventEnvelope } from '@aivilization/sim-core';
 import { applyEstateCashEvent, ESTATE_CASH_POLICY, estateCashBalance } from '@aivilization/economy';
@@ -6,15 +5,12 @@ import { applyEstateMaterialEvent, ESTATE_MATERIAL_CUSTODY_POLICY } from '@aivil
 import { applySuccessionEvent, RESIDENT_SUCCESSION_POLICY } from '@aivilization/society';
 import {
   applyWorldEvent,
-  advanceResidentServiceEngagements,
   settleResidentMaterialEvent,
   prepareResidentExitCapture,
   prepareResidentEmploymentDeparture,
   RESIDENT_EXIT_PRESERVATION_POLICY,
   settleDepartedProductiveWageEvent,
-  settleDepartedServiceWageEvent,
   claimProductiveWageEvent,
-  claimServiceWageEvent,
   type WorldProjection,
 } from '@aivilization/world';
 
@@ -23,7 +19,7 @@ export function verifyEndedWageAfterExit(
   world: WorldProjection,
   actorId: string,
   id: string,
-  kind: 'service' | 'productive',
+  kind: 'productive',
   active = false,
 ) {
   const initial: WorldProjection = {
@@ -86,27 +82,18 @@ export function verifyEndedWageAfterExit(
     expect(departed.agents[actorId]).toBeUndefined();
     expect(departed.activityTimeByAgent[actorId]).toBeUndefined();
     expect(departed.enterprises.firm!.employeeAgentIds).not.toContain(actorId);
-    if (kind === 'productive') {
-      expect(departed.materials!.productions.job!.session).toBeUndefined();
-      expect(departed.materials!.productions.job!.progressMs).toBe(
-        initial.materials!.productions.job!.progressMs,
-      );
-      expect(departed.materials!.productions.job!.held).toEqual(
-        initial.materials!.productions.job!.held,
-      );
-    } else {
-      expect(departed.serviceEngagements!.engagements.service!.providerPresence).toBeUndefined();
-      expect(departed.serviceEngagements!.engagements.service!.recipientPresence).toBeUndefined();
-      expect(departed.serviceEngagements!.engagements.service!.progressMs).toBe(
-        initial.serviceEngagements!.engagements.service!.progressMs,
-      );
-    }
+    expect(departed.materials!.productions.job!.session).toBeUndefined();
+    expect(departed.materials!.productions.job!.progressMs).toBe(
+      initial.materials!.productions.job!.progressMs,
+    );
+    expect(departed.materials!.productions.job!.held).toEqual(
+      initial.materials!.productions.job!.held,
+    );
     const cash = (p: WorldProjection) =>
       Object.values(p.agents).reduce((n, a) => n + a.balance, 0) +
       Object.values(p.enterprises).reduce((n, e) => n + e.balance, 0) +
       (p.treasury ?? 0) +
-      estateCashBalance(p.residentExits?.cash) +
-      engagementEscrowBalance(p.serviceEngagements);
+      estateCashBalance(p.residentExits?.cash);
     expect(cash(departed)).toBeCloseTo(cash(initial), 8);
     expect(departed.moneySupply).toBe(initial.moneySupply);
     expect(initial).toEqual(beforePreparation);
@@ -128,9 +115,8 @@ export function verifyEndedWageAfterExit(
     simulationId: 'wage-exit',
     nextSequence: 10001,
   };
-  const settle =
-    kind === 'service' ? settleDepartedServiceWageEvent : settleDepartedProductiveWageEvent;
-  const personal = kind === 'service' ? claimServiceWageEvent : claimProductiveWageEvent;
+  const settle = settleDepartedProductiveWageEvent;
+  const personal = claimProductiveWageEvent;
   expect(() => personal({ ...request, actorId })).toThrow();
   if (active) {
     expect(() => settle(request)).toThrow('ended-preserved-wage-required');
@@ -140,32 +126,27 @@ export function verifyEndedWageAfterExit(
       simulationId: 'wage-exit',
       nextSequence: 10002,
     };
-    if (kind === 'service') {
-      expect(() => advanceResidentServiceEngagements(boundary)).toThrow('service-worker-required');
-    } else {
-      const at = { ...w, clock: { ...w.clock, now: w.clock.now + 1 } };
-      const d = settleResidentMaterialEvent({
-        ...boundary,
-        projection: at,
-        actorId: 'system',
-        productionId: 'job',
-        authorization: {
-          authorize: () => undefined,
-          controlAvailable: () => false,
-          hasExternalObligation: () => false,
-          mayStoreAt: () => true,
-        },
-      });
-      if (!d.accepted) throw Error(d.reason);
-      expect(d.events.length).toBeGreaterThan(0);
-      expect(() => d.events.reduce(applyWorldEvent, at)).toThrow('productive-worker-missing');
-    }
+    const at = { ...w, clock: { ...w.clock, now: w.clock.now + 1 } };
+    const d = settleResidentMaterialEvent({
+      ...boundary,
+      projection: at,
+      actorId: 'system',
+      productionId: 'job',
+      authorization: {
+        authorize: () => undefined,
+        controlAvailable: () => false,
+        hasExternalObligation: () => false,
+        mayStoreAt: () => true,
+      },
+    });
+    if (!d.accepted) throw Error(d.reason);
+    expect(d.events.length).toBeGreaterThan(0);
+    expect(() => d.events.reduce(applyWorldEvent, at)).toThrow('productive-worker-missing');
     expect(w).toEqual(before);
     return;
   }
   const paid = settle(request);
-  if (paid.type !== 'ResidentServiceWagePaid' && paid.type !== 'ResidentProductiveWagePaid')
-    throw Error('unexpected-wage-type');
+  if (paid.type !== 'ResidentProductiveWagePaid') throw Error('unexpected-wage-type');
   const proof = paid.payload.estatePayment;
   if (!proof) throw Error('missing-estate-proof');
   expect(paid.payload.actorId).toBe('system');
@@ -208,7 +189,6 @@ export function verifyEndedWageAfterExit(
   );
   expect(next.moneySupply).toBe(initial.moneySupply);
   expect(next.materials).toEqual(w.materials);
-  expect(next.serviceEngagements).toEqual(w.serviceEngagements);
   expect(() => applyWorldEvent(next, paid)).toThrow();
   expect([departure, paid].reduce(applyWorldEvent, initial)).toEqual(next);
 }

@@ -181,7 +181,7 @@ services拥有供给时段、实际提供者与参与者、容量和过程引用
 
 每行维护：代码入口、策略/事件版本、CLI与Skill、测试命令及观察到的结果、真实模型/自由实验、部署范围和剩余差距。只有所有契约均成立才可更新为“已验收”。
 
-当前进度：既有协作v1代码保留；总边界Spec已纠正；本账本已建立；B01完成工程验收（[证据](SOCIETY_BOUNDARIES_VERIFICATION.md)），M02居民数据视图完成工程验收（[证据](SOCIETY_RECORD_VIEWS_VERIFICATION.md)）；M05集体程序完成工程验收（[证据](SOCIETY_COLLECTIVES_VERIFICATION.md)）；M06共同账户切片完成工程验收（[证据](SOCIETY_COMMON_ACCOUNTS_VERIFICATION.md)），其他共同资源/义务继续保留；M07条件与署名依据完成工程验收（[证据](SOCIETY_PROGRAM_CONDITIONS_VERIFICATION.md)）；M08事件响应完成工程验收（[证据](SOCIETY_PROGRAM_REACTIONS_VERIFICATION.md)）；M06/M09空间/共享表/视图控制完成切片验收（[证据](SOCIETY_RESOURCE_CONTROL_VERIFICATION.md)），群组与其他资源继续实施。新设计项没有被标为已经开发，既有测试统计不重复冒充本账本完成率。
+当前进度：既有协作v1代码保留；总边界Spec已纠正；本账本已建立；B01完成工程验收（[证据](SOCIETY_BOUNDARIES_VERIFICATION.md)），M02居民数据视图完成工程验收（[证据](archive/SOCIETY_RECORD_VIEWS_VERIFICATION.md)）；M05集体程序完成工程验收（[证据](SOCIETY_COLLECTIVES_VERIFICATION.md)）；M06共同账户切片完成工程验收（[证据](SOCIETY_COMMON_ACCOUNTS_VERIFICATION.md)），其他共同资源/义务继续保留；M07条件与署名依据完成工程验收（[证据](SOCIETY_PROGRAM_CONDITIONS_VERIFICATION.md)）；M08事件响应完成工程验收（[证据](archive/SOCIETY_PROGRAM_REACTIONS_VERIFICATION.md)）；M06/M09空间/共享表/视图控制完成切片验收（[证据](SOCIETY_RESOURCE_CONTROL_VERIFICATION.md)），群组与其他资源继续实施。新设计项没有被标为已经开发，既有测试统计不重复冒充本账本完成率。
 
 整体目标仍然是全部工程项及完整组合、自主实验完成；工程与真实实验交替反馈，不能等工程全部结束才检验自主性。当前不存在整体完成声明。
 
@@ -189,17 +189,17 @@ services拥有供给时段、实际提供者与参与者、容量和过程引用
 
 真实工作位/跨库存容量证据：`SOCIETY_FACILITY_USE_VERIFICATION.md`（2403通过/1跳过，34次真实CLI）。W03/W07收费、报酬、真实医教效果仍继续开发，不以设施参数替代服务。
 
-真实服务基础证据：`SOCIETY_SERVICE_DELIVERY_VERIFICATION.md`（2427通过/1跳过，完整建设→医教/供餐→真实结算CLI）。W03/W07基础履约切片已接通；更完整医疗物品、企业雇佣/公共采购、生命周期和所有运行模式仍按原账本继续，不把初始4种效果模型当作穷尽社会。
+真实服务基础证据：`archive/SOCIETY_SERVICE_DELIVERY_VERIFICATION.md`（2427通过/1跳过，完整建设→医教/供餐→真实结算CLI）。W03/W07基础履约切片已接通；更完整医疗物品、企业雇佣/公共采购、生命周期和所有运行模式仍按原账本继续，不把初始4种效果模型当作穷尽社会。
 
-W05事实订单基础证据：`SOCIETY_EVIDENCE_TRADE_VERIFICATION.md`，2479通过/1跳过，50次真实CLI/HTTP调用；其余W05义务继续保留。
+W05事实订单基础证据：`archive/SOCIETY_EVIDENCE_TRADE_VERIFICATION.md`，2479通过/1跳过，50次真实CLI/HTTP调用；其余W05义务继续保留。
 
-W05定期使用许可基础证据：`SOCIETY_PREMISES_RIGHTS_VERIFICATION.md`，2502通过/1跳过，27次真实CLI/HTTP调用。有偿许可、有偿控制交割、长期义务和全模式继续，不据此关闭W05。
+W05定期使用许可基础证据：`archive/SOCIETY_PREMISES_RIGHTS_VERIFICATION.md`，2502通过/1跳过，27次真实CLI/HTTP调用。有偿许可、有偿控制交割、长期义务和全模式继续，不据此关闭W05。
 
-W05有偿许可工程证据：`SOCIETY_PAID_RIGHTS_VERIFICATION.md`，2523通过/1跳过，34次真实CLI/HTTP调用。付款、独立许可接受和供给启动原子提交；损坏/维修、提前结束、集体付款及旧版升级已验证。有偿控制交割、长期义务、全模式与独立Agent仍继续，不关闭W05。
+W05有偿许可工程证据：`archive/SOCIETY_PAID_RIGHTS_VERIFICATION.md`，2523通过/1跳过，34次真实CLI/HTTP调用。付款、独立许可接受和供给启动原子提交；损坏/维修、提前结束、集体付款及旧版升级已验证。有偿控制交割、长期义务、全模式与独立Agent仍继续，不关闭W05。
 
-W05/M04/M07 控制交割机制：`SOCIETY_ATOMIC_RESOURCE_EXCHANGE_V1.md`。六类个人资源的显式授权、有序原子组合、真实付款、失败零部分效果和回放已接通；76次真实CLI/HTTP调用通过，2558通过/1跳过，证据见 `SOCIETY_ATOMIC_EXCHANGE_VERIFICATION.md`。集体共同决定、service/车辆/企业原语、长期义务及全模式仍逐项保留。
+W05/M04/M07 控制交割机制：`archive/SOCIETY_ATOMIC_RESOURCE_EXCHANGE_V1.md`。六类个人资源的显式授权、有序原子组合、真实付款、失败零部分效果和回放已接通；76次真实CLI/HTTP调用通过，2558通过/1跳过，证据见 `archive/SOCIETY_ATOMIC_EXCHANGE_VERIFICATION.md`。集体共同决定、service/车辆/企业原语、长期义务及全模式仍逐项保留。
 
-服务管理交接基础：`SOCIETY_SERVICE_CONTROL_VERIFICATION.md`，2567通过/1跳过，96次真实CLI/HTTP调用及25次预期拒绝。七类个人资源原子交割已验证，出勤、预约和历史不随管理交接转移。企业/集体服务、其他资源、长期义务及全模式继续保留。后续真实反馈按 `SOCIETY_FREE_EXPERIMENT_V1.md` 执行。
+服务管理交接基础：`archive/SOCIETY_SERVICE_CONTROL_VERIFICATION.md`，2567通过/1跳过，96次真实CLI/HTTP调用及25次预期拒绝。七类个人资源原子交割已验证，出勤、预约和历史不随管理交接转移。企业/集体服务、其他资源、长期义务及全模式继续保留。后续真实反馈按 `SOCIETY_FREE_EXPERIMENT_V1.md` 执行。
 
 原目标纠偏与公共制度：`SOCIETY_AUTONOMY_AUDIT.md` 区分无人替居民行动和仍存在的外生供给；`SOCIETY_PUBLIC_AUTHORITY_V1.md` 定义精确公共授权、旧程序修订、真实政策执行与救济。首条财政程序和真实服务/物品采购已完成工程验收，完整治理与公共产权仍未完成。自由实验观察用于调整依赖顺序，其他目标不删除。
 
@@ -207,7 +207,7 @@ W05/M04/M07 控制交割机制：`SOCIETY_ATOMIC_RESOURCE_EXCHANGE_V1.md`。六�
 
 公共程序首批证据：`SOCIETY_PUBLIC_GOVERNANCE_VERIFICATION.md`（2605通过/1跳过，45次真实CLI）。精确投票与既有财政政策真实执行已接通；初始授权明确标为场景制度，招聘/住房、真实采购、完整救济及所有运行模式仍继续。生产时间窗口的可发现性修复来自48次自由实验反馈，未改变实际投入产出规则。
 
-G03真实采购：`SOCIETY_PUBLIC_PROCUREMENT_VERIFICATION.md`与`SOCIETY_PUBLIC_GOODS_PROCUREMENT_VERIFICATION.md`记录实际服务/货物采购；公共产权、设施及完整制度范围仍未齐备。B02/W01有限原料→实际加工→食用见`SOCIETY_PHYSICAL_PRODUCTION_VERIFICATION.md`，2637通过/1跳过、22次真实CLI；初始有限源不是完整生态，企业及全模式继续。
+G03真实采购：`archive/SOCIETY_PUBLIC_PROCUREMENT_VERIFICATION.md`与`archive/SOCIETY_PUBLIC_GOODS_PROCUREMENT_VERIFICATION.md`记录实际服务/货物采购；公共产权、设施及完整制度范围仍未齐备。B02/W01有限原料→实际加工→食用见`SOCIETY_PHYSICAL_PRODUCTION_VERIFICATION.md`，2637通过/1跳过、22次真实CLI；初始有限源不是完整生态，企业及全模式继续。
 
 R01已提交等待的失败连续性见`SOCIETY_PROVIDER_HANDOFF_CONTINUITY_V1.md`，原交接不被外部进程失败覆盖，受控进程诊断不冒充真实模型验收。R02新增独立64次自由机会见`SOCIETY_PUBLIC_REST_CONTINUATION_2026-10-05.md`，真实相遇分食但无正式制度，原失败保留；实际生产世界已累计64次自由机会，见`SOCIETY_PHYSICAL_PUBLIC_CONTINUATION_2026-10-05.md`。不同世界不合并成一个持续社会或完成声明。
 
@@ -216,10 +216,10 @@ B02/W07实际学习切片见`SOCIETY_ELAPSED_STUDY_VERIFICATION.md`（2652通过
 
 W07资格边界补充见`SOCIETY_EDUCATION_AUTHORITY_V1.md`：真实初始化缺少正式等级会造成学习后自动派生考试学历；显式模式固定唯一资格状态和来源，非义务晋级须实际录取，旧有效资格保留但不伪造考试。居民原文证书、教学效果和初始制度认可仍分开；自由制度扩展、完整医学供给、全模式与长期实验继续保留。
 
-W03/W07双方服务实际时间见`SOCIETY_SERVICE_TIME_VERIFICATION.md`（2697通过/1跳过、13次编译CLI/4拒绝）：真实重叠、一次身体/材料/费用、等待/退出、精确耗尽和不同时间分片一致；企业服务会计与工资仍沿`SOCIETY_SERVICE_EMPLOYMENT_V1.md`继续。
+W03/W07双方服务实际时间见`archive/SOCIETY_SERVICE_TIME_VERIFICATION.md`（2697通过/1跳过、13次编译CLI/4拒绝）：真实重叠、一次身体/材料/费用、等待/退出、精确耗尽和不同时间分片一致；企业服务会计与工资仍沿`archive/SOCIETY_SERVICE_EMPLOYMENT_V1.md`继续。
 
 
-企业服务组合工程证据：`SOCIETY_SERVICE_EMPLOYMENT_VERIFICATION.md`，2721通过/1跳过，26次编译CLI/7次拒绝。公司独立授权、真实服务经营收付、本人等待/有效工时工资、个人债权、退出/破产与隐私已组合；不关闭W06/M09等完整契约。free-160后旧全状态回放相等，显式启用1286/1287，保留活跃采集继续32次自由机会，暂无服务自主采用结论。
+企业服务组合工程证据：`archive/SOCIETY_SERVICE_EMPLOYMENT_VERIFICATION.md`，2721通过/1跳过，26次编译CLI/7次拒绝。公司独立授权、真实服务经营收付、本人等待/有效工时工资、个人债权、退出/破产与隐私已组合；不关闭W06/M09等完整契约。free-160后旧全状态回放相等，显式启用1286/1287，保留活跃采集继续32次自由机会，暂无服务自主采用结论。
 
 初始公共劳动工程证据：`SOCIETY_PUBLIC_LABOR_VERIFICATION.md`，2742通过/1跳过，11次编译CLI/5次拒绝。全额资金预留、实际工资/税、本人退出、换岗/耗尽退款、身体与账户回放已组合；这是显式初始制度，不冒充居民建立的机构。公共项目/服务关联、居民工资制度变更、公共债务及完整退出仍保留，不关闭W06/G01/G03/M09。
 
@@ -244,17 +244,17 @@ catalog49 / Skill48 / rulebook38 / 381路由；最终全仓与编译CLI验收记
 
 ## 组织资源链持续进展（2026-10-06，仍非全量完成）
 
-主体建设、双边建筑交接、组织使用许可及客观费用收付已沿同一资源/会计事实接通。企业、集体与公共可以真实承担资源和合同，管理员不变成私人受益者；付费同意与资金原子，交接保留原收退款主体和实名权限。见[SOCIETY_RESOURCE_PRINCIPALS_V2.md](SOCIETY_RESOURCE_PRINCIPALS_V2.md)与[SOCIETY_PRINCIPAL_PERMIT_FEES_V3.md](SOCIETY_PRINCIPAL_PERMIT_FEES_V3.md)。
+主体建设、双边建筑交接、组织使用许可及客观费用收付已沿同一资源/会计事实接通。企业、集体与公共可以真实承担资源和合同，管理员不变成私人受益者；付费同意与资金原子，交接保留原收退款主体和实名权限。见[SOCIETY_RESOURCE_PRINCIPALS_V2.md](SOCIETY_RESOURCE_PRINCIPALS_V2.md)与[archive/SOCIETY_PRINCIPAL_PERMIT_FEES_V3.md](archive/SOCIETY_PRINCIPAL_PERMIT_FEES_V3.md)。
 
 当前catalog53/Skill52/rulebook42、381路由；2876首门槛与98次编译CLI仅为工程检查点，新增世界磨损/分段退款测试和最终门槛另有证据。M06/M09/W02/W05/W06/G03仍保留其完整合同，不将资金切片等同于资源清算、长期义务或全面社会。车辆/服务主体资源、真实公产建设采购、身体/住房服务效果、长期救济与退出、canonical/分区及多条件长期实验继续按依赖开发。
 
 自由世界已严格核验512次机会，实际企业/集体/新建设采用仍为零；该冻结引擎只含较早建设主体能力。Chef改革原文、正式每周期招生规则和004使用旧周期规则被录用是不同证据，不能把最后结果归因于新提案。512之后继续自由运行，未提示组织目标，不加载尚未冻结的新工程版本。
 
-车辆资源主体切片：`SOCIETY_VEHICLE_PRINCIPALS_V2.md`与`evidence/SOCIETY_VEHICLE_PRINCIPALS_2026-10-06.json`，2889全仓通过/1跳过、编译认证CLI45/11。企业/集体/公共控制、具名驾驶、原货物/车费连续性已联通，未关闭M06/M09/W04/W05/W06/G03/R01/R02的完整义务。下一服务目录主体链见`SOCIETY_SERVICE_PRINCIPALS_V2.md`，不复制ServicesState或让管理交接冒充本人供给。
+车辆资源主体切片：`archive/SOCIETY_VEHICLE_PRINCIPALS_V2.md`与`evidence/SOCIETY_VEHICLE_PRINCIPALS_2026-10-06.json`，2889全仓通过/1跳过、编译认证CLI45/11。企业/集体/公共控制、具名驾驶、原货物/车费连续性已联通，未关闭M06/M09/W04/W05/W06/G03/R01/R02的完整义务。下一服务目录主体链见`archive/SOCIETY_SERVICE_PRINCIPALS_V2.md`，不复制ServicesState或让管理交接冒充本人供给。
 
-服务承担主体首条链：`SOCIETY_SERVICE_PRINCIPALS_V2.md`与`evidence/SOCIETY_SERVICE_PRINCIPALS_2026-10-06.json`；2898通过/1跳过、认证编译CLI26/8，catalog55/Skill54/rulebook44、381路由。真实ServicesState端口保持唯一事实，组织批准原子消费；本人供给与目录管理分开，预约/出勤和企业服务资产阻止抹账关闭。直接组织创建/重新供给、多方关联授权、收入/工资与整体退出、住房H3-H6、公共建设采购、长期义务和canonical/分区仍在完整范围。
+服务承担主体首条链：`archive/SOCIETY_SERVICE_PRINCIPALS_V2.md`与`evidence/SOCIETY_SERVICE_PRINCIPALS_2026-10-06.json`；2898通过/1跳过、认证编译CLI26/8，catalog55/Skill54/rulebook44、381路由。真实ServicesState端口保持唯一事实，组织批准原子消费；本人供给与目录管理分开，预约/出勤和企业服务资产阻止抹账关闭。直接组织创建/重新供给、多方关联授权、收入/工资与整体退出、住房H3-H6、公共建设采购、长期义务和canonical/分区仍在完整范围。
 
-严格自由检查点608见`evidence/SOCIETY_FREE_OUTCOMES_608_2026-10-06.json`；4387提交/2167调用、32新供应商全部完成、历史6失败保留。真实苹果派生产/现场分享已出现，组织/新建设/组织收费仍零。服务主体v2在完整旧状态比对后显式迁移，不预造目录或提供者。后续供给v3见`SOCIETY_SERVICE_SUPPLY_V3.md`，完整目标不缩减。
+严格自由检查点608见`evidence/SOCIETY_FREE_OUTCOMES_608_2026-10-06.json`；4387提交/2167调用、32新供应商全部完成、历史6失败保留。真实苹果派生产/现场分享已出现，组织/新建设/组织收费仍零。服务主体v2在完整旧状态比对后显式迁移，不预造目录或提供者。后续供给v3见`archive/SOCIETY_SERVICE_SUPPLY_V3.md`，完整目标不缩减。
 
 ### 2026-10-06 服务直接登记切片
 
@@ -264,7 +264,7 @@ M06/M09/W03/W06/W07/G03/R02补齐真实正整数目录创建权、组织直接�
 
 M06/M09/W03/W06的不同主体独立同意、精确版本/期限、撤回与原子使用已接通；来源批准时消费集体决定，不在他人执行时再次消费。2916测试/1跳过与编译CLI36/9见SERVICE_AFFILIATION证据。当前关联生命周期、经营责任、整体退出、住房H3-H6及R01全模式继续，完整契约未关闭。
 
-服务关系v5工程切片：2927测试/1跳过、编译CLI44/6，原企业来源与当前供给关系分开，实际双方独立建立/结束，未结本人参与阻挡、企业退出/公共与集体执行原子回放。见`SOCIETY_SERVICE_AFFILIATION_LIFECYCLE_V5.md`；M06/M09/W03/W06/W07/G03/R01整体仍保持部分。下一项H3实际住房休息接入，H4-H6和全部25项未关闭。
+服务关系v5工程切片：2927测试/1跳过、编译CLI44/6，原企业来源与当前供给关系分开，实际双方独立建立/结束，未结本人参与阻挡、企业退出/公共与集体执行原子回放。见`archive/SOCIETY_SERVICE_AFFILIATION_LIFECYCLE_V5.md`；M06/M09/W03/W06/W07/G03/R01整体仍保持部分。下一项H3实际住房休息接入，H4-H6和全部25项未关闭。
 
 W02/W08/H3实际住房休息切片通过2937测试/1跳过、编译CLI23/5；物理来源、权利和本人行为分开。详见`SOCIETY_PHYSICAL_HOUSING_REST_V1.md`，全部25项及完整H3-H6/R01保持原范围。
 
@@ -272,10 +272,10 @@ W02/W08/H3实际住房休息切片通过2937测试/1跳过、编译CLI23/5；物
 736次严格自由检查点见`evidence/SOCIETY_FREE_OUTCOMES_736_2026-10-06.json`：真实财政短缺下有自主降支出、有限采集和署名告警，未有新企业/集体/建设组织或本轮新增公共方案；此前6个公共提案中4个已执行。能力采用与社会组织形成分开验收，全部25项继续。
 
 
-真实建筑有偿交割工程切片（`SOCIETY_PAID_RESOURCE_CONTROL_V1.md`）：2957全仓测试/1跳过、20认证CLI/4预期拒绝，实际价格同意/账户/公共独立财政接管/控制效果原子提交，旧作者、材料、权限、义务与位置保留。完整H4、W05、固定资产及清算、其他实物与公共在建项目、长期义务和R01仍继续，原25项未缩减。
+真实建筑有偿交割工程切片（`archive/SOCIETY_PAID_RESOURCE_CONTROL_V1.md`）：2957全仓测试/1跳过、20认证CLI/4预期拒绝，实际价格同意/账户/公共独立财政接管/控制效果原子提交，旧作者、材料、权限、义务与位置保留。完整H4、W05、固定资产及清算、其他实物与公共在建项目、长期义务和R01仍继续，原25项未缩减。
 
 
-库存/车辆有偿控制扩展已工程验收：`SOCIETY_PAID_MATERIAL_VEHICLE_V2.md`，2978全仓测试/1原有跳过、26次认证编译CLI/9预期拒绝，catalog61/Skill60/rulebook50，381路由。四类真实主体、旧建筑报价、公共范围不继承、企业独立记账、共同决定单次消费、实际库存/驾驶/受托货物/原返回责任与守恒/回放通过。完整H4/W05、长期义务、固定资产及整体清算、公共在建供给和R01仍开放，不把测试场景计为自由涌现。
+库存/车辆有偿控制扩展已工程验收：`archive/SOCIETY_PAID_MATERIAL_VEHICLE_V2.md`，2978全仓测试/1原有跳过、26次认证编译CLI/9预期拒绝，catalog61/Skill60/rulebook50，381路由。四类真实主体、旧建筑报价、公共范围不继承、企业独立记账、共同决定单次消费、实际库存/驾驶/受托货物/原返回责任与守恒/回放通过。完整H4/W05、长期义务、固定资产及整体清算、公共在建供给和R01仍开放，不把测试场景计为自由涌现。
 
 
 768次严格自由检查点见`evidence/SOCIETY_FREE_OUTCOMES_768_2026-10-06.json`：最新32全完成、5472提交/2625调用与完整回放/81指纹一致；财政短缺下有采集交易、本人降支出和署名交流，无新增组织/建筑/有偿控制订单。本轮零新增公共方案不抹旧6提案/4执行。R02长期整体与R01仍未关闭。
@@ -284,7 +284,7 @@ W02/W08/H3实际住房休息切片通过2937测试/1跳过、编译CLI23/5；物
 
 ## 有限周期责任工程切片（W05/M09/W06/G03）
 
-见`SOCIETY_PERIODIC_OBLIGATIONS_V1.md`：四类真实付款与收入主体、冻结整份总额的独立接受、真实到期支付/欠付、未来终止与债权放弃已接通。企业自己的现金/原承诺、原管理权历史与当前查询/操作权限分离，共同账户清结中的旧付款及公共独立财政范围/准备金已纳入组合验证。认证编译CLI首轮59调用/19预期拒绝，当前源目录62/Skill61/规则51、384路由；最终全仓3013通过/1原有跳过、lint/排序typecheck/build/认证CLI通过，证据见`evidence/SOCIETY_PERIODIC_OBLIGATIONS_2026-10-06.json`。自由世界启用及完整生命周期仍须独立验收。
+见`archive/SOCIETY_PERIODIC_OBLIGATIONS_V1.md`：四类真实付款与收入主体、冻结整份总额的独立接受、真实到期支付/欠付、未来终止与债权放弃已接通。企业自己的现金/原承诺、原管理权历史与当前查询/操作权限分离，共同账户清结中的旧付款及公共独立财政范围/准备金已纳入组合验证。认证编译CLI首轮59调用/19预期拒绝，当前源目录62/Skill61/规则51、384路由；最终全仓3013通过/1原有跳过、lint/排序typecheck/build/认证CLI通过，证据见`evidence/SOCIETY_PERIODIC_OBLIGATIONS_2026-10-06.json`。自由世界启用及完整生命周期仍须独立验收。
 
 这不创造房屋、成员资格、教学、贷款本金/利息或客观服务，也不证明自主采用。原25项、完整H4-H6、长期担保/借款、困境处置/自然人遗产/整体实物清算、公共在建供给及R01/R02仍开放，不将金融承诺切片当完整责任社会。
 
@@ -372,17 +372,17 @@ R01正式server显式resident-society入口及首次失败后供应商session续
 详见`SOCIETY_INTEGRATED_OBSERVATION_V1.md`及对应evidence。方向复核：通过真实自由使用发现共用摩擦并做小修正，没有预设组织目标或增加第385项能力。本修复到此停止；下一阶段回到G03公共在建采购等明确缺口：当前公共建设权源和既有资产采购不能替代在建交付、付费与责任的组合闭环。更长自由运行、canonical、长期责任/完整清算、全25项仍在目标中。
 
 
-公共在建采购进入实施：完整范围与逐步落点见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。当前仅commerce客观履约事实核验基础通过3178全仓测试；订单/托管/授权/施工联动/CLI尚未接通，G03/W02/W05保持部分。下一步继续该完整链，不将基础测试冒充采购交付。
+公共在建采购进入实施：完整范围与逐步落点见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。当前仅commerce客观履约事实核验基础通过3178全仓测试；订单/托管/授权/施工联动/CLI尚未接通，G03/W02/W05保持部分。下一步继续该完整链，不将基础测试冒充采购交付。
 
-在建交易第2步：订单纯领域与托管/独立分款/未付到期通过3184全仓测试；还未进入world或CLI。下一步继续真实项目事实、公共独立授权消费与合并账户/施工原子编排，不改变G03/W02/W05仍部分的状态。见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
+在建交易第2步：订单纯领域与托管/独立分款/未付到期通过3184全仓测试；还未进入world或CLI。下一步继续真实项目事实、公共独立授权消费与合并账户/施工原子编排，不改变G03/W02/W05仍部分的状态。见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
 
-在建交易第3步进行中：真实premises事实与trade总托管/共同账户预留/企业退出读端已接通，3188全仓测试通过；修正未接受报价不得冻结买方工程/账户。authoritative资金写入、公共决定、启用与CLI仍待完成，G03/W02/W05状态不变。见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
+在建交易第3步进行中：真实premises事实与trade总托管/共同账户预留/企业退出读端已接通，3188全仓测试通过；修正未接受报价不得冻结买方工程/账户。authoritative资金写入、公共决定、启用与CLI仍待完成，G03/W02/W05状态不变。见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
 
-在建交易权威写入已验证真实钱包/企业收入、守恒和完整回放，全仓3195通过/1原跳过；公共授权消费、共同账户实际组合与worker/CLI仍待接通，G03/W02/W05保持部分。下一步优先完成可用入口，不扩展工程细节；见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`与`evidence/SOCIETY_CONSTRUCTION_WORLD_WRITES_2026-10-07.json`。
+在建交易权威写入已验证真实钱包/企业收入、守恒和完整回放，全仓3195通过/1原跳过；公共授权消费、共同账户实际组合与worker/CLI仍待接通，G03/W02/W05保持部分。下一步优先完成可用入口，不扩展工程细节；见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`与`evidence/SOCIETY_CONSTRUCTION_WORLD_WRITES_2026-10-07.json`。
 
-公共在建采购新增独立版本化授权，公共决定与国库付款/退款原子提交已通过针对测试；工程种子测试不等于完整居民采购链。下一步集中接共同账户、worker调度、manifest与CLI，G03/W02/W05仍部分；见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
+公共在建采购新增独立版本化授权，公共决定与国库付款/退款原子提交已通过针对测试；工程种子测试不等于完整居民采购链。下一步集中接共同账户、worker调度、manifest与CLI，G03/W02/W05仍部分；见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
 
-建设交易已接开放运行层：复用principals查询/操作，无新增居民工具；个人/集体共同账户/公共工程到采购、实际施工与结算的运行测试通过，编译CLI真实HTTP验收12次调用（1预期越权拒绝）与回放通过。旧manifest显式升级，未进integrated/canonical/分区；下一步真实OpenCode可用性，再回总能力地图排期。见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
+建设交易已接开放运行层：复用principals查询/操作，无新增居民工具；个人/集体共同账户/公共工程到采购、实际施工与结算的运行测试通过，编译CLI真实HTTP验收12次调用（1预期越权拒绝）与回放通过。旧manifest显式升级，未进integrated/canonical/分区；下一步真实OpenCode可用性，再回总能力地图排期。见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
 
 工程交易真实OpenCode四轮完成，保留3次业务拒绝与1次CLI错误，实际资金/工程事件和回放通过；明确提示与脚本建工程，不计自由采用。后续显式society-integrated-v2只增加该已验收能力，旧v1不变。模型和配置证据分开；全25项、canonical/分区、长期责任及自由比较仍未完成。参见`SOCIETY_CONSTRUCTION_MODEL_ACCEPTANCE_V1.md`与`SOCIETY_INTEGRATED_PROFILE_V2.md`。
 
@@ -390,7 +390,7 @@ R01正式server显式resident-society入口及首次失败后供应商session续
 R01管理员实际资源观察切片：18类领域目录/分页/详情复用既有管理员入口，无新增居民工具或领域事件。3299全仓通过/1原跳过及lint/类型/build、浏览器/实际世界HTTP只读验证，见`evidence/SOCIETY_ADMIN_RESOURCES_2026-10-07.json`。R01全模式仍未完成。R02连续段259→577含12完成与1本地300秒超时，回放与历史前缀一致；剩余11机会另段继续，不把该中断算成完整24轮，不从空间/原文或活动计数推断社会成功。见`evidence/SOCIETY_CONTINUOUS_FREE_INTERRUPTION_2026-10-07.json`。
 
 
-私人周期接入已独立于公共grant（`SOCIETY_INDEPENDENT_PERIODIC_ACCESS_V1.md`）：3303全仓通过/1跳过，lint/类型/build、认证CLI7次/2预期拒绝、实际世界741→742迁移保持全部非目标事实；原协议与旧事件语义保留。742→743公共就业另行明确授权并继承canonical规则，不伪造表决或录用。两项暂无启用后自然采用证据。续段11机会完成、总24机会含1超时，18单位实际采集产出不等于组织涌现；见CONTINUOUS_FREE_REMAINDER证据。完整25项及长期责任、住房、R01全模式继续开放。
+私人周期接入已独立于公共grant（`archive/SOCIETY_INDEPENDENT_PERIODIC_ACCESS_V1.md`）：3303全仓通过/1跳过，lint/类型/build、认证CLI7次/2预期拒绝、实际世界741→742迁移保持全部非目标事实；原协议与旧事件语义保留。742→743公共就业另行明确授权并继承canonical规则，不伪造表决或录用。两项暂无启用后自然采用证据。续段11机会完成、总24机会含1超时，18单位实际采集产出不等于组织涌现；见CONTINUOUS_FREE_REMAINDER证据。完整25项及长期责任、住房、R01全模式继续开放。
 
 
 R01同源两分区会话交接已在原revision783→801验收（原session/workspace、前缀、manifest与全状态回放），前两次失败独立保留，非并发/多机完成。B01/M01/W06本人申请主动查询已通过3308全仓测试/1跳过和6认证CLI/1预期拒绝；见SOCIETY_CANONICAL_PARTITION_HANDOFF_V1与SOCIETY_EMPLOYMENT_APPLICATION_VISIBILITY_V1。两项均不等于25项整体或自由涌现完成。

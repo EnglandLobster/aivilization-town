@@ -22,12 +22,6 @@ export function applyEnactedGovernancePolicy(
   projection: WorldProjection,
   payload: GovernancePolicyChangedPayload,
 ): WorldProjection {
-  if (
-    projection.publicGovernance?.authority.grant.procurement &&
-    payload.policyKind === 'public-budget' &&
-    payload.publicBudgetPolicy?.allocations.length
-  )
-    throw Error('abstract-budget-disabled-by-public-procurement');
   const event = { payload };
   const domainEvent: GovernancePolicyChangedDomainEvent = {
     type: 'GovernancePolicyChanged',

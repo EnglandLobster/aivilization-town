@@ -5,7 +5,6 @@ import {
   validController,
   validResourcePrincipal,
 } from '@aivilization/authority';
-import { activeMaterialCustody } from './custodyModel';
 import { type Inventory } from '@aivilization/economy';
 import { fitsStock, containsInventory, moveInventory } from './inventoryFlow';
 import {
@@ -31,9 +30,6 @@ export const sameMaterialConsumer = (
 export const stockHasReservedMaterials = (s: MaterialsState, id: string) =>
   Object.values(s.reservations?.records ?? {}).some(
     (v) => v.stockId === id && v.status !== 'settled',
-  ) ||
-  Object.values(s.custodies?.records ?? {}).some(
-    (v) => activeMaterialCustody(v) && (v.sourceStockId === id || v.destinationStockId === id),
   );
 function receiptEvents(
   s: MaterialsState,
@@ -138,7 +134,7 @@ function offerReservation(
       : (c.beneficiary.kind === 'resident' || c.beneficiary.kind === 'collective') &&
         validController({ kind: c.beneficiary.kind, id: c.beneficiary.id }) &&
         ports.controlAvailable({ kind: c.beneficiary.kind, id: c.beneficiary.id })) ||
-    !['premises', 'services', 'logistics'].includes(c.consumer.domain) ||
+    c.consumer.domain !== 'premises' ||
     !materialId(c.consumer.id) ||
     !c.terms.trim() ||
     c.terms.length > state.policy.maxTermsChars ||

@@ -1,7 +1,6 @@
 import {
   assertPrincipalControlRequest,
   assertPrincipalOperationRequest,
-  type PrincipalValue,
 } from '@aivilization/authority';
 import {
   assertValidTaxPolicy,
@@ -14,18 +13,7 @@ import {
   PUBLIC_EMPLOYMENT_GRANT,
   PUBLIC_HOUSING_GRANT,
   PUBLIC_RESOURCE_CUSTODY_GRANT,
-  PUBLIC_RESOURCE_SALES_GRANT,
-  PUBLIC_RESOURCE_SALES_GRANT_V2,
-  PUBLIC_PERIODIC_OBLIGATIONS_GRANT,
   PUBLIC_CONSTRUCTION_PRINCIPALS_GRANT,
-  PUBLIC_PRINCIPAL_PERMITS_GRANT,
-  PUBLIC_PRINCIPAL_TRADE_GRANT,
-  PUBLIC_CONSTRUCTION_TRADE_GRANT,
-  PUBLIC_VEHICLE_PRINCIPALS_GRANT,
-  PUBLIC_SERVICE_PRINCIPALS_GRANT,
-  PUBLIC_SERVICE_CREATION_GRANT,
-  PUBLIC_PROCUREMENT_GRANT,
-  PUBLIC_GOODS_PROCUREMENT_GRANT,
   type PublicAction,
   type PublicJurisdictionGrant,
   type PublicProcedure,
@@ -61,50 +49,8 @@ export function assertPublicGrant(grant: PublicJurisdictionGrant) {
   keys(
     grant,
     ['id', 'source', 'residents', 'actions'],
-    [
-      'procurement',
-      'goodsProcurement',
-      'employment',
-      'housing',
-      'resourceCustody',
-      'construction',
-      'principalPermits',
-      'principalTrade',
-      'constructionTrade',
-      'resourceSales',
-      'periodicObligations',
-      'vehicles',
-      'services',
-      'serviceCreation',
-    ],
+    ['employment', 'housing', 'resourceCustody', 'construction'],
   );
-  if (grant.procurement) require(publicEqual(grant.procurement, PUBLIC_PROCUREMENT_GRANT));
-  require(grant.actions.includes('fund-service') === !!grant.procurement);
-  if (grant.goodsProcurement)
-    require(
-      !!grant.procurement && publicEqual(grant.goodsProcurement, PUBLIC_GOODS_PROCUREMENT_GRANT),
-    );
-  require(grant.actions.includes('fund-goods') === !!grant.goodsProcurement);
-  if (grant.principalPermits)
-    require(
-      !!grant.construction && publicEqual(grant.principalPermits, PUBLIC_PRINCIPAL_PERMITS_GRANT),
-    );
-  if (grant.resourceSales)
-    require(
-      !!grant.construction &&
-        (publicEqual(grant.resourceSales, PUBLIC_RESOURCE_SALES_GRANT) ||
-          (!!grant.vehicles && publicEqual(grant.resourceSales, PUBLIC_RESOURCE_SALES_GRANT_V2))),
-    );
-  if (grant.constructionTrade)
-    require(
-      !!grant.construction && publicEqual(grant.constructionTrade, PUBLIC_CONSTRUCTION_TRADE_GRANT),
-    );
-  if (grant.principalTrade)
-    require(
-      !!grant.principalPermits && publicEqual(grant.principalTrade, PUBLIC_PRINCIPAL_TRADE_GRANT),
-    );
-  if (grant.periodicObligations)
-    require(publicEqual(grant.periodicObligations, PUBLIC_PERIODIC_OBLIGATIONS_GRANT));
   if (grant.construction)
     require(
       !!grant.resourceCustody &&
@@ -112,18 +58,8 @@ export function assertPublicGrant(grant: PublicJurisdictionGrant) {
     );
   if (grant.resourceCustody)
     require(publicEqual(grant.resourceCustody, PUBLIC_RESOURCE_CUSTODY_GRANT));
-  if (grant.services) require(publicEqual(grant.services, PUBLIC_SERVICE_PRINCIPALS_GRANT));
-  if (grant.serviceCreation)
-    require(!!grant.services && publicEqual(grant.serviceCreation, PUBLIC_SERVICE_CREATION_GRANT));
-  if (grant.vehicles) require(publicEqual(grant.vehicles, PUBLIC_VEHICLE_PRINCIPALS_GRANT));
-  require(
-    grant.actions.includes('control-resource') ===
-      !!(grant.resourceCustody || grant.vehicles || grant.services),
-  );
-  require(
-    grant.actions.includes('manage-resource') ===
-      !!(grant.resourceCustody || grant.vehicles || grant.services || grant.periodicObligations),
-  );
+  require(grant.actions.includes('control-resource') === !!grant.resourceCustody);
+  require(grant.actions.includes('manage-resource') === !!grant.resourceCustody);
   if (grant.housing) require(publicEqual(grant.housing, PUBLIC_HOUSING_GRANT));
   require(grant.actions.includes('set-housing') === !!grant.housing);
   if (grant.employment) require(publicEqual(grant.employment, PUBLIC_EMPLOYMENT_GRANT));
@@ -195,99 +131,14 @@ export function assertPublicAction(a: PublicAction, grant: PublicJurisdictionGra
   require(grant.actions.includes(a.kind) && publicTime(a.expectedRevision));
   if (a.kind === 'control-resource' || a.kind === 'manage-resource') {
     keys(a, ['kind', 'expectedRevision', 'request']);
-    require(
-      !!(
-        grant.resourceCustody ||
-        grant.vehicles ||
-        grant.services ||
-        (a.kind === 'manage-resource' && grant.periodicObligations)
-      ) && a.expectedRevision >= 1,
-    );
+    require(!!grant.resourceCustody && a.expectedRevision >= 1);
     if (a.kind === 'control-resource') assertPrincipalControlRequest(a.request);
     else assertPrincipalOperationRequest(a.request);
     require(
       a.expectedRevision === a.request.resourceRevision &&
         (!!grant.resourceCustody?.resourceKinds.some((k) => k === a.request.resourceKind) ||
-          !!grant.vehicles?.resourceKinds.some((k) => k === a.request.resourceKind) ||
-          !!grant.services?.resourceKinds.some((k) => k === a.request.resourceKind) ||
           (a.kind === 'manage-resource' &&
-            (!!grant.serviceCreation?.resourceKinds.some((k) => k === a.request.resourceKind) ||
-              !!grant.construction?.resourceKinds.some((k) => k === a.request.resourceKind) ||
-              !!grant.principalPermits?.resourceKinds.some((k) => k === a.request.resourceKind) ||
-              !!grant.principalTrade?.resourceKinds.some((k) => k === a.request.resourceKind) ||
-              !!grant.constructionTrade?.resourceKinds.some((k) => k === a.request.resourceKind) ||
-              !!grant.resourceSales?.resourceKinds.some((k) => k === a.request.resourceKind) ||
-              !!grant.periodicObligations?.resourceKinds.some(
-                (k) => k === a.request.resourceKind,
-              )))),
-    );
-    if (
-      a.kind === 'manage-resource' &&
-      (a.request.resourceKind === 'construction-order' ||
-        a.request.operation.capability.startsWith('construction-trades.'))
-    ) {
-      const scope = grant.constructionTrade;
-      require(!!scope && scope.capabilities.some((k) => k === a.request.operation.capability));
-      require(
-        a.request.resourceKind ===
-          (a.request.operation.capability === 'construction-trades.offer'
-            ? 'construction-project'
-            : 'construction-order'),
-      );
-    }
-    if (a.kind === 'manage-resource' && a.request.resourceKind === 'resource-sale')
-      require(
-        [
-          'resource-sales.offer',
-          'resource-sales.accept',
-          'resource-sales.withdraw',
-          'resource-sales.decline',
-        ].includes(a.request.operation.capability),
-      );
-    if (a.kind === 'manage-resource' && a.request.resourceKind === 'periodic-obligation') {
-      const scope = grant.periodicObligations,
-        args = a.request.operation.arguments,
-        terms = args.terms;
-      require(
-        !!scope &&
-          scope.capabilities.some((k) => k === a.request.operation.capability) &&
-          typeof args.maximumTotalMicros === 'number' &&
-          Number.isSafeInteger(args.maximumTotalMicros) &&
-          args.maximumTotalMicros > 0 &&
-          args.maximumTotalMicros <= scope.maximumTotalMicros &&
-          !!terms &&
-          typeof terms === 'object' &&
-          !Array.isArray(terms),
-      );
-      const periods = (terms as Readonly<Record<string, PrincipalValue>>).periods;
-      require(
-        typeof periods === 'number' &&
-          Number.isSafeInteger(periods) &&
-          periods >= 1 &&
-          periods <= scope.maximumPeriods,
-      );
-    }
-    return;
-  }
-  if (a.kind === 'fund-goods') {
-    keys(a, ['kind', 'expectedRevision', 'orderId', 'amount']);
-    require(!!grant.goodsProcurement && publicId(a.orderId) && a.expectedRevision >= 1);
-    require(
-      Number.isFinite(a.amount) &&
-        a.amount > 0 &&
-        Number.isSafeInteger(Math.round(a.amount * 1e6)) &&
-        Math.abs(Math.round(a.amount * 1e6) / 1e6 - a.amount) <= 1e-10,
-    );
-    return;
-  }
-  if (a.kind === 'fund-service') {
-    keys(a, ['kind', 'expectedRevision', 'engagementId', 'maximumCharge']);
-    require(!!grant.procurement && publicId(a.engagementId) && a.expectedRevision >= 1);
-    require(
-      Number.isFinite(a.maximumCharge) &&
-        a.maximumCharge >= 0 &&
-        Number.isSafeInteger(Math.round(a.maximumCharge * 1e6)) &&
-        Math.abs(Math.round(a.maximumCharge * 1e6) / 1e6 - a.maximumCharge) <= 1e-10,
+            !!grant.construction?.resourceKinds.some((k) => k === a.request.resourceKind))),
     );
     return;
   }

@@ -18,45 +18,18 @@ export const ESTATE_CASH_SETTLEMENT_SOURCES = {
     policyVersion: 'resident-earned-wage-estate-v1',
     accountId: 'public-service:resident-earned-wages',
   },
-  leases: {
-    policyVersion: 'resident-lease-continuity-v1',
-    accountId: 'public-service:resident-commerce',
-  },
   credit: {
     policyVersion: 'resident-estate-credit-settlement-v1',
     accountId: 'bank:town-bank',
-  },
-  'periodic-obligations': {
-    policyVersion: 'resident-periodic-obligations-v1',
-    accountId: 'public-service:resident-periodic-obligations',
-  },
-  services: {
-    policyVersion: 'resident-service-engagements-v1',
-    accountId: 'public-service:resident-service-engagements',
-  },
-  logistics: {
-    policyVersion: 'resident-logistics-v1',
-    accountId: 'public-service:resident-logistics',
-  },
-  trade: {
-    policyVersion: 'resident-principal-evidence-trade-v3',
-    accountId: 'public-service:resident-evidence-trade',
-  },
-  capital: {
-    policyVersion: 'enterprise-capital-agreements-v1',
-    accountId: 'public-service:resident-capital',
   },
 } as const;
 export const ESTATE_RESPONSIBILITY_DOMAINS = [
   'credit',
   'enterprise',
   'commerce',
-  'services',
   'society',
   'materials',
   'premises',
-  'mobility',
-  'logistics',
   'information',
   'collaboration',
 ] as const;

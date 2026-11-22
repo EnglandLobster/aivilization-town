@@ -25,8 +25,7 @@ export function stopUnavailableProductiveWork(input: {
     const employer = productionEmployer(w, job.id);
     if (!employer) continue;
     if (
-      productionEmploymentWage(employer, job.id, asAgentId(session.actorId), w.clock.now, true) !==
-        undefined &&
+      productionEmploymentWage(employer, job.id, asAgentId(session.actorId)) !== undefined &&
       (w.agents[session.actorId]?.physiology.health ?? 0) > 0
     )
       continue;

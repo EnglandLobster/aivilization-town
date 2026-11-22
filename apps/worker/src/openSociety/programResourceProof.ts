@@ -119,14 +119,7 @@ export function assertProgramResourceEffects(
     let changed = 0;
     for (const e of effects.worldEvents ?? []) {
       if (e.occurredAt !== at) throw Error('program-resource-clock-mismatch');
-      if (e.type === 'ResidentPremisesProvisionCommitted') {
-        if (
-          e.payload.events.some(
-            (p) => state.world.premisesRights?.permits[p.permitId]?.buildingId !== id,
-          )
-        )
-          throw Error('unrelated-program-provision-effect');
-      } else if (e.type === 'ResidentPremisesCommitted') {
+      if (e.type === 'ResidentPremisesCommitted') {
         changed++;
         if (
           e.payload.reservation ||

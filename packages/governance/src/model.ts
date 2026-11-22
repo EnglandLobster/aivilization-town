@@ -49,18 +49,6 @@ export type PublicAction =
       readonly terms: PublicEmploymentTerms;
     }
   | {
-      readonly kind: 'fund-goods';
-      readonly orderId: string;
-      readonly expectedRevision: number;
-      readonly amount: number;
-    }
-  | {
-      readonly kind: 'fund-service';
-      readonly expectedRevision: number;
-      readonly engagementId: string;
-      readonly maximumCharge: number;
-    }
-  | {
       readonly kind: 'set-tax';
       readonly expectedRevision: number;
       readonly terms: Omit<TaxPolicy, 'policyVersion' | 'source'>;
@@ -95,71 +83,11 @@ export type PublicJurisdictionGrant = {
   };
   readonly residents: readonly string[];
   readonly actions: readonly PublicAction['kind'][];
-  readonly procurement?: typeof PUBLIC_PROCUREMENT_GRANT;
-  readonly goodsProcurement?: typeof PUBLIC_GOODS_PROCUREMENT_GRANT;
   readonly employment?: typeof PUBLIC_EMPLOYMENT_GRANT;
   readonly housing?: typeof PUBLIC_HOUSING_GRANT;
-  readonly principalPermits?: typeof PUBLIC_PRINCIPAL_PERMITS_GRANT;
-  readonly resourceSales?:
-    | typeof PUBLIC_RESOURCE_SALES_GRANT
-    | typeof PUBLIC_RESOURCE_SALES_GRANT_V2;
-  readonly periodicObligations?: typeof PUBLIC_PERIODIC_OBLIGATIONS_GRANT;
-  readonly principalTrade?: typeof PUBLIC_PRINCIPAL_TRADE_GRANT;
-  readonly constructionTrade?: typeof PUBLIC_CONSTRUCTION_TRADE_GRANT;
-  readonly services?: typeof PUBLIC_SERVICE_PRINCIPALS_GRANT;
-  readonly serviceCreation?: typeof PUBLIC_SERVICE_CREATION_GRANT;
-  readonly vehicles?: typeof PUBLIC_VEHICLE_PRINCIPALS_GRANT;
   readonly construction?: typeof PUBLIC_CONSTRUCTION_PRINCIPALS_GRANT;
   readonly resourceCustody?: typeof PUBLIC_RESOURCE_CUSTODY_GRANT;
 };
-export const PUBLIC_PERIODIC_OBLIGATIONS_GRANT = {
-  version: 'public-finite-periodic-commitments-v1',
-  source: 'explicit-scenario-extension',
-  resourceKinds: ['periodic-obligation'],
-  capabilities: [
-    'obligations.offer',
-    'obligations.accept',
-    'obligations.withdraw',
-    'obligations.decline',
-    'obligations.terminate',
-    'obligations.settle',
-    'obligations.waive',
-  ],
-  maximumTotalMicros: 1000000000000,
-  maximumPeriods: 128,
-  scope: 'exact-finite-original-parties-terms-and-total-no-borrowing',
-} as const;
-export const PUBLIC_RESOURCE_SALES_GRANT = {
-  version: 'public-paid-resource-control-v1',
-  source: 'explicit-scenario-extension',
-  resourceKinds: ['resource-sale'],
-  scope: 'exact-price-accounts-source-and-bound-control-effect',
-} as const;
-export const PUBLIC_RESOURCE_SALES_GRANT_V2 = {
-  ...PUBLIC_RESOURCE_SALES_GRANT,
-  version: 'public-paid-resource-control-v2',
-  assetKinds: ['premises', 'stock', 'vehicle'],
-} as const;
-export const PUBLIC_CONSTRUCTION_TRADE_GRANT = {
-  version: 'public-construction-trade-v1',
-  source: 'explicit-scenario-extension',
-  resourceKinds: ['construction-project', 'construction-order'],
-  capabilities: [
-    'construction-trades.offer',
-    'construction-trades.accept',
-    'construction-trades.observe',
-    'construction-trades.withdraw',
-    'construction-trades.propose-settlement',
-    'construction-trades.accept-settlement',
-  ],
-  scope: 'exact-project-order-accounts-price-and-independent-settlement-not-personal-labor',
-} as const;
-export const PUBLIC_PRINCIPAL_TRADE_GRANT = {
-  version: 'public-principal-permit-fees-v1',
-  source: 'explicit-scenario-extension',
-  resourceKinds: ['evidence-order'],
-  scope: 'exact-permit-order-and-original-treasury-account',
-} as const;
 export const PUBLIC_RESOURCE_CUSTODY_GRANT = {
   version: 'public-resource-custody-v2',
   source: 'explicit-scenario-extension',
@@ -178,19 +106,6 @@ export const PUBLIC_EMPLOYMENT_GRANT = {
   scope: 'existing-public-recruitment',
   effect: 'next-recruitment-cycle',
 } as const;
-export const PUBLIC_PROCUREMENT_GRANT = {
-  version: 'resident-public-procurement-v1',
-  source: 'explicit-scenario-extension',
-  treasuryId: 'public-treasury',
-  budgetMode: 'actual-service-procurement',
-} as const;
-export const PUBLIC_GOODS_PROCUREMENT_GRANT = {
-  version: 'resident-public-goods-procurement-v1',
-  source: 'explicit-scenario-extension',
-  treasuryId: 'public-treasury',
-  sourceKind: 'freight',
-  ownership: 'named-recipient-not-implicit-public-property',
-} as const;
 export type PublicVote = {
   readonly actorId: string;
   readonly choice: 'yes' | 'no' | 'abstain';
@@ -205,12 +120,6 @@ export type PublicProposal = {
   readonly procedureRevision: number;
   readonly procedure: PublicProcedure;
   readonly createdAt: number;
-  /** Captured by the owning proposal decision, never supplied by the proposer. Absence is legacy v1. */
-  readonly resourceSalesScopeVersion?:
-    | typeof PUBLIC_RESOURCE_SALES_GRANT.version
-    | typeof PUBLIC_RESOURCE_SALES_GRANT_V2.version;
-  readonly constructionTradeScopeVersion?: typeof PUBLIC_CONSTRUCTION_TRADE_GRANT.version;
-  readonly periodicObligationsScopeVersion?: typeof PUBLIC_PERIODIC_OBLIGATIONS_GRANT.version;
   readonly closesAt: number;
   readonly expiresAt: number;
   readonly votes: Readonly<Record<string, PublicVote>>;
@@ -315,31 +224,4 @@ export const PUBLIC_CONSTRUCTION_PRINCIPALS_GRANT = {
   source: 'explicit-scenario-extension',
   resourceKinds: ['construction-site', 'construction-project'],
   scope: 'exact-project-authority-not-personal-labor',
-} as const;
-
-export const PUBLIC_PRINCIPAL_PERMITS_GRANT = {
-  version: 'public-principal-permits-v1',
-  source: 'explicit-scenario-extension',
-  resourceKinds: ['premises-permit'],
-  scope: 'exact-permission-contract-not-personal-participation',
-} as const;
-
-export const PUBLIC_VEHICLE_PRINCIPALS_GRANT = {
-  version: 'public-vehicle-principals-v1',
-  source: 'explicit-scenario-extension',
-  resourceKinds: ['vehicle'],
-  scope: 'exact-vehicle-custody-and-driver-permissions-not-personal-driving',
-} as const;
-
-export const PUBLIC_SERVICE_PRINCIPALS_GRANT = {
-  version: 'public-service-principals-v1',
-  source: 'explicit-scenario-extension',
-  resourceKinds: ['service'],
-  scope: 'exact-directory-and-named-supply-not-body-or-income',
-} as const;
-export const PUBLIC_SERVICE_CREATION_GRANT = {
-  version: 'public-service-creation-v1',
-  source: 'explicit-scenario-extension',
-  resourceKinds: ['service-directory'],
-  scope: 'exact-directory-creation-not-personal-labor-or-physical-facilities',
 } as const;

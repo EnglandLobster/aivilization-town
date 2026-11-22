@@ -13,7 +13,6 @@ import {
   validProductionExpertise,
 } from './growth';
 import { assertMaterialReservationsPolicy } from './reservationModel';
-import { activeMaterialCustody, assertMaterialCustodyPolicy } from './custodyModel';
 import {
   emptyMaterialsState,
   validInventory,
@@ -42,26 +41,6 @@ export function applyMaterialEvent(
     e.type === 'MaterialSourcesRegrown'
   )
     return applyMaterialGrowthEvent(s, e);
-  if (e.type === 'MaterialCustodyEnabled') {
-    if (s.custodies) throw Error('material-custody-already-enabled');
-    if (!s.reservations) throw Error('material-reservations-not-enabled');
-    assertMaterialCustodyPolicy(e.policy);
-    return { ...s, custodies: { policy: e.policy, records: {} } };
-  }
-  if (e.type === 'MaterialCustodyChanged') {
-    if (!s.custodies) throw Error('material-custody-not-enabled');
-    const c = e.custody,
-      old = s.custodies.records[c.id];
-    if (
-      c.revision !== (old?.revision ?? 0) + 1 ||
-      (old && !activeMaterialCustody(old)) ||
-      !validInventory(c.held, s.policy.maxKinds, s.policy.maxQuantity, true) ||
-      !Number.isSafeInteger(c.at) ||
-      c.at < (old?.at ?? 0)
-    )
-      throw Error('invalid-material-custody-event');
-    return { ...s, custodies: { ...s.custodies, records: { ...s.custodies.records, [c.id]: c } } };
-  }
   if (e.type === 'MaterialReservationsEnabled') {
     if (s.reservations) throw new Error('material-reservations-already-enabled');
     assertMaterialReservationsPolicy(e.policy);

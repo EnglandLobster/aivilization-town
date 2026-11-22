@@ -40,10 +40,6 @@ export type SocietyModuleStatus = {
   readonly owns: 'education-occupation-relationships';
 };
 
-export * from './residentHouseholds';
-export * from './residentCare';
-export * from './residentHealthRecords';
-export * from './residentLeases';
 export * from './residentLearning';
 export * from './residentRhythm';
 export * from './serviceEffects';

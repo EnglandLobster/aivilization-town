@@ -7,11 +7,7 @@ import {
 } from '../resourcePrincipalAuthority';
 import type { PrincipalCollectivePort } from '../principalCollectivePort';
 import { assertMaterialConsumerEnvelope } from '../materialConsumerEnvelope';
-import {
-  applyPremisesCommit,
-  premisesHasPermitObligations,
-  unsettledPremisesProvisions,
-} from '@aivilization/premises';
+import { applyPremisesCommit } from '@aivilization/premises';
 import { applyMaterialCommit } from '@aivilization/materials';
 import { asLocationId } from '@aivilization/sim-core';
 import type { WorldProjection } from '../projection';
@@ -84,29 +80,6 @@ export function applyPremisesProjection(
         publicExecution,
         collective,
       );
-  if (w.premisesRights)
-    for (const event of e.payload.events) {
-      if (
-        event.type === 'ConstructionProjectChanged' &&
-        !w.premises?.projects[event.project.id] &&
-        ['modify', 'demolish'].includes(event.project.kind) &&
-        premisesHasPermitObligations(w.premisesRights, event.project.buildingId, w.clock.now)
-      )
-        throw Error('premises-use-rights-unsettled');
-      if (event.type === 'PremisesBuildingChanged') {
-        if (unsettledPremisesProvisions(w.premisesRights, event.building.id, w.clock.now).length)
-          throw Error('premises-provision-settlement-required');
-        const before = w.premises?.buildings[event.building.id],
-          after = event.building;
-        if (
-          before &&
-          after.status !== 'operational' &&
-          before.status === 'operational' &&
-          premisesHasPermitObligations(w.premisesRights, before.id, w.clock.now)
-        )
-          throw Error('premises-use-rights-unsettled');
-      }
-    }
   assertMaterialConsumerEnvelope(w.materials, e.payload.materialEvents, 'premises');
   const result = applyPremisesCommit(w.premises, e.payload.events, e.payload.efforts),
     material = applyMaterialCommit(w.materials, e.payload.materialEvents, result.allocations),

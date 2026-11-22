@@ -57,9 +57,7 @@ export function assertSuccessionControlOfferRecord(r: SuccessionControlOfferReco
       r.termsRevision <= r.arrangementRevision &&
       r.ownerId !== r.executorId &&
       r.ownerId !== r.beneficiaryId &&
-      ['stock', 'vehicle', 'premises', 'space', 'register', 'view', 'group', 'service'].includes(
-        r.kind,
-      ) &&
+      ['stock', 'premises', 'space', 'register', 'group'].includes(r.kind) &&
       time(r.at) &&
       time(r.expiresAt) &&
       r.expiresAt > r.at,

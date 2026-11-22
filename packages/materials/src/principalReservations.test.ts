@@ -232,10 +232,6 @@ test('v2 authority binds beneficiary, quantity, consumer, version and receipt; l
   expect(t.reserve(t.offer({ kind: 'enterprise', id: 'missing' }))).toMatchObject({
     accepted: false,
   });
-  expect(t.reserve({ ...t.offer(), consumer: { domain: 'services', id: 'p' } })).toMatchObject({
-    accepted: false,
-    reason: 'principal-material-consumer-not-connected',
-  });
   expect(t.reserve({ ...t.offer(), expectedStockRevision: 1 })).toMatchObject({
     accepted: false,
     reason: 'material-stock-revision-conflict',

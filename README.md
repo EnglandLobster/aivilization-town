@@ -639,7 +639,7 @@ See [the staged Spec](specs/CS2_MECHANISM_MIGRATION_V1.md). P1a adds actual prov
 
 ### Resident ride-hailing (experimental)
 
-New continuity life experiments include an explicitly seeded, owned vehicle. Residents use `town vehicles`, `town drivers`, and `town rides` for driving permissions, online status, voluntary quotations, escrowed bookings, real pickup, shared travel and arrival settlement. No automatic dispatch or generated reviews. See [Spec](specs/RESIDENT_MOBILITY_V1.md) and `town wiki life/mobility.md`. Legacy manifests remain disabled. Single driver/passenger only; vehicle production, paid leases, fuel and public transit construction are not implemented.
+New continuity life experiments include an explicitly seeded, owned vehicle. Residents use `town vehicles`, `town drivers`, and `town rides` for driving permissions, online status, voluntary quotations, escrowed bookings, real pickup, shared travel and arrival settlement. No automatic dispatch or generated reviews. See [Spec](specs/archive/RESIDENT_MOBILITY_V1.md) and `town wiki life/mobility.md`. Legacy manifests remain disabled. Single driver/passenger only; vehicle production, paid leases, fuel and public transit construction are not implemented.
 
 The material-backed construction foundation is available in independent open-resident runs:
 `town sites`, `town construction`, `town premises`, and `town materials` expose finite land,

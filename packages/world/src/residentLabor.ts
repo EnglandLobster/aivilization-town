@@ -1,6 +1,4 @@
-import { AGREED_LABOR_SOURCE, quoteWorldLaborCompensation } from './laborCompensationSource';
-import { claimServiceWageEvent } from './serviceWages';
-import { stopUnavailableServiceWork } from './serviceEmploymentLifecycle';
+import { quoteWorldLaborCompensation } from './laborCompensationSource';
 import {
   RESIDENT_LABOR_POLICY,
   assertResidentLaborPolicy,
@@ -43,8 +41,7 @@ export function assertResidentLaborConfiguration(
   c: ResidentLaborConfiguration,
 ) {
   assertResidentLaborPolicy(c.policy);
-  if (c.compensationSource !== AGREED_LABOR_SOURCE) calculateLaborPay(1, 1, c.pay);
-  else if (c.pay !== undefined) throw Error('ambiguous-labor-compensation-source');
+  calculateLaborPay(1, 1, c.pay);
   if (
     !w.residentRest ||
     ![...Object.values(c.effort), ...Object.values(c.critical)].every(
@@ -61,7 +58,6 @@ export function assertResidentLaborConfiguration(
 export function enableResidentLaborEvent(
   input: Omit<Context, 'actorId'> & {
     readonly policies: WorldCommandPolicies;
-    readonly compensationSource?: typeof AGREED_LABOR_SOURCE;
   },
 ): WorldEvent {
   const w = input.projection,
@@ -69,7 +65,7 @@ export function enableResidentLaborEvent(
   assertResidentRestTimeCompatibility(p);
   if (
     w.residentLabor ||
-    (!p.laborPay && input.compensationSource !== AGREED_LABOR_SOURCE) ||
+    !p.laborPay ||
     Object.values(w.activityTimeByAgent).some(
       (a) => a.availableAt > w.clock.now && a.settlementTiming === 'effects-at-commit',
     )
@@ -77,9 +73,7 @@ export function enableResidentLaborEvent(
     throw Error('labor-activation-requires-period-pay-and-no-prepaid-activity');
   const configuration: ResidentLaborConfiguration = {
     policy: RESIDENT_LABOR_POLICY,
-    ...(input.compensationSource === AGREED_LABOR_SOURCE
-      ? { compensationSource: AGREED_LABOR_SOURCE }
-      : { pay: { ...p.laborPay! } }),
+    pay: { ...p.laborPay },
     effort: { ...p.laborCost },
     critical: { ...p.criticalThresholds },
     locationIds: Object.values(w.locations)
@@ -281,15 +275,9 @@ export function handleResidentLabor(input: {
       const offer = enterprise.employeeWageOffers?.[actor.agentId];
       const terms = quoteWorldLaborCompensation({
         configuration: state.configuration,
-        enterprise,
-        actorId: actor.agentId,
-        at: w.clock.now,
         durationMs: p.laborSeconds * 1000,
-        legacyQuote:
-          state.configuration.compensationSource === AGREED_LABOR_SOURCE
-            ? 0
-            : (offer ?? input.policies.wageCalculator(p.occupationName)),
-        legacySource: offer === undefined ? 'initial-wage-regime' : 'recorded-employment-offer',
+        quotedWage: offer ?? input.policies.wageCalculator(p.occupationName),
+        wageSource: offer === undefined ? 'initial-wage-regime' : 'recorded-employment-offer',
         ...(input.policies.tax ? { tax: input.policies.tax } : {}),
       });
       if (terms.taxMicros && w.treasury === undefined) throw Error('labor-tax-treasury-required');
@@ -326,8 +314,6 @@ export function handleResidentLabor(input: {
       typeof p.expectedRevision !== 'number'
     )
       throw Error('invalid-labor-operation-payload');
-    if (input.command.type === 'AgentClaimWage' && w.serviceEmployment?.claims[p.id])
-      return claimServiceWageEvent({ ...context, id: p.id, expectedRevision: p.expectedRevision });
     if (input.command.type === 'AgentClaimWage' && w.productiveEmployment?.claims[p.id])
       return claimProductiveWageEvent({
         ...context,
@@ -447,22 +433,13 @@ export function withEndedEmploymentLabor(
       nextSequence: input.nextSequence + events.length,
     }),
   ];
-  const withProduction = [
+  return [
     ...stopped,
     ...stopUnavailableProductiveWork({
       projection: stopped.reduce(applyWorldEvent, input.projection),
       at: projection.clock.now,
       simulationId: input.command.simulationId,
       nextSequence: input.nextSequence + stopped.length,
-    }),
-  ];
-  return [
-    ...withProduction,
-    ...stopUnavailableServiceWork({
-      projection: withProduction.reduce(applyWorldEvent, input.projection),
-      at: projection.clock.now,
-      simulationId: input.command.simulationId,
-      nextSequence: input.nextSequence + withProduction.length,
     }),
   ];
 }

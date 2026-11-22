@@ -1,6 +1,5 @@
 import { expect, test } from 'vitest';
-import { assertMoneySupplyDelta, createMoneyTransfer, economicAccount } from './accounting';
-import { settleCommonAccountExternalTransfer } from './commonAccountSettlement';
+import { assertMoneySupplyDelta } from './accounting';
 import {
   COMMON_ACCOUNTS_POLICY,
   commonAccountsBalance,
@@ -304,77 +303,4 @@ test('resource parser is closed and cannot accept caller-supplied authority or a
   expect(
     parseCommonAccountOperation('funds.mint', 'pool', value, COMMON_ACCOUNTS_POLICY),
   ).toBeUndefined();
-});
-
-test('settling cash may discharge only the explicitly registered periodic source, without reopening contribution or ordinary spending', () => {
-  const t = fixture();
-  t.open();
-  t.contribute();
-  t.ok({
-    type: 'beginSettlement',
-    id: 'pool',
-    controlVersion: t.s.accounts.pool!.controlVersion,
-    authority: authority(),
-  });
-  expect(t.s.accounts.pool!.status).toBe('settling');
-  const paid = createMoneyTransfer({
-    transactionId: 'actual-due-payment',
-    reason: 'finite existing obligation',
-    from: economicAccount('collective', 'pool'),
-    to: economicAccount('public-service', 'resident-periodic-obligations'),
-    amount: 25,
-  });
-  const input = {
-    state: t.s,
-    actorId: 'system',
-    at: 20,
-    receiptId: 'due-1',
-    source: {
-      context: 'periodic-obligations' as const,
-      referenceId: 'promise',
-      policyVersion: 'resident-periodic-obligations-v1' as const,
-    },
-    transaction: paid,
-  };
-  const d = settleCommonAccountExternalTransfer(input);
-  expect(d.accepted).toBe(true);
-  if (!d.accepted) throw Error(d.reason);
-  expect(d.state.accounts.pool).toMatchObject({ balance: 25, status: 'settling' });
-  expect(d.events.reduce(applyCommonAccountEvent, t.s)).toEqual(d.state);
-  expect(settleCommonAccountExternalTransfer({ ...input, state: d.state }).accepted).toBe(false);
-  const ordinary = createMoneyTransfer({
-    ...paid,
-    transactionId: 'new-service',
-    reason: 'new service',
-    from: economicAccount('collective', 'pool'),
-    to: economicAccount('public-service', 'resident-service-engagements'),
-    amount: 25,
-  });
-  expect(
-    settleCommonAccountExternalTransfer({
-      ...input,
-      source: {
-        context: 'services',
-        referenceId: 'service',
-        policyVersion: 'resident-service-engagements-v1',
-      },
-      transaction: ordinary,
-    }),
-  ).toMatchObject({ accepted: false, reason: 'common-account-settlement-unavailable' });
-  expect(settleCommonAccountExternalTransfer({ ...input, transaction: ordinary }).accepted).toBe(
-    false,
-  );
-  expect(
-    t.act(
-      {
-        type: 'contribute',
-        id: 'pool',
-        expectedRevision: t.s.accounts.pool!.revision,
-        amount: 1,
-        note: '',
-      },
-      'b',
-    ).accepted,
-  ).toBe(false);
-  expect(t.s.accounts.pool!.balance).toBe(50);
 });

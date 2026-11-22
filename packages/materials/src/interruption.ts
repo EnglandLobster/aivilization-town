@@ -98,8 +98,7 @@ export function assertMaterialInterruption(
     r.efforts.length ||
     r.decisionId ||
     r.principalAuthorization ||
-    r.reservationId ||
-    r.custodyProof
+    r.reservationId
   )
     throw Error('material-interruption-source-mismatch');
   const { session, ...rest } = old;

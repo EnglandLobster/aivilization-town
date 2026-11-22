@@ -215,12 +215,7 @@ export function parseMaterialOffer(a: Readonly<Record<string, unknown>>): Materi
     'terms',
     'expiresAt',
   ]);
-  if (
-    a.consumerDomain !== 'premises' &&
-    a.consumerDomain !== 'services' &&
-    a.consumerDomain !== 'logistics'
-  )
-    throw new ToolRefusal('unsupported-material-consumer');
+  if (a.consumerDomain !== 'premises') throw new ToolRefusal('unsupported-material-consumer');
   return {
     id: stringArg(a, 'id'),
     stockId: stringArg(a, 'stockId'),

@@ -14,14 +14,11 @@ export type SuccessionResourceKind =
   | 'personal-cash'
   | 'personal-backpack'
   | 'stock'
-  | 'vehicle'
   | 'premises'
   | 'enterprise-capital'
   | 'space'
   | 'register'
-  | 'view'
-  | 'group'
-  | 'service';
+  | 'group';
 export type SuccessionDuty =
   | 'cash-settlement'
   | 'custody-recovery'

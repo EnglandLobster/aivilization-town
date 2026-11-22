@@ -1,4 +1,3 @@
-import { residentVehicleDepartureInterruption } from './residentTransportInterruption';
 import {
   assertResidentDepartureActivitySource,
   type ResidentDepartureActivitySource,
@@ -104,21 +103,6 @@ export function prepareResidentDepartureActivities(input: {
       w = applyWorldEvent(w, e);
       events.push(e);
     }
-  }
-  for (const v of Object.values(w.residentMobility?.vehicles ?? {}).sort((a, b) =>
-    a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
-  )) {
-    if (!v.journey?.people.includes(actorId) || v.journey.interruption) continue;
-    const event = residentVehicleDepartureInterruption({
-      projection: w,
-      vehicleId: v.id,
-      source,
-      simulationId: d.simulationId,
-      requestId: `${d.id}:transport:${events.length}`,
-      nextSequence: input.nextSequence + events.length,
-    });
-    w = applyWorldEvent(w, event);
-    events.push(event);
   }
   return events;
 }

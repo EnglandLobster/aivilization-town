@@ -1,9 +1,4 @@
 import { mayEnterWorldPremises } from '../premisesAccess';
-import {
-  personalTravelLoadFailure,
-  residentHandCargo,
-  logisticsRouteExists,
-} from '../logisticsPorts';
 import type { CommandEnvelope } from '@aivilization/sim-core';
 import { assertAgentMoveToPayload, assertAgentObserveLocationPayload } from '../commands';
 import type { WorldEvent } from '../events';
@@ -31,17 +26,7 @@ export function handleAgentMoveToCommand(input: {
     return rejectCommand(input, 'AgentMoveTo', payloadResult.reason);
   }
 
-  if (input.projection.interruptedTravelByAgent?.[agent.agentId])
-    return rejectCommand(input, 'AgentMoveTo', 'interrupted-travel-requires-resumption-protocol');
   const payload = payloadResult.payload;
-  const loadFailure = personalTravelLoadFailure(input.projection, agent.agentId);
-  if (loadFailure) return rejectCommand(input, 'AgentMoveTo', loadFailure);
-  if (
-    residentHandCargo(input.projection, agent.agentId).length &&
-    (!agent.locationId ||
-      !logisticsRouteExists(input.projection, agent.locationId, payload.targetLocationId))
-  )
-    return rejectCommand(input, 'AgentMoveTo', 'freight-real-route-required');
   const targetLocation = input.projection.locations[payload.targetLocationId];
   if (targetLocation === undefined) {
     return rejectCommand(

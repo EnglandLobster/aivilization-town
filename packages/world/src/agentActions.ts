@@ -1,5 +1,4 @@
 import { publicHousingWorldPolicies } from './publicHousing';
-import type { ServicesState } from '@aivilization/services';
 import { publicEmploymentWorldPolicies } from './publicEmployment';
 import type { ControlAuthorizationPort } from '@aivilization/authority';
 import { handlePublicLabor } from './publicLabor';
@@ -381,7 +380,6 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
 };
 
 export function dispatchWorldCommand(input: {
-  readonly serviceDirectory?: ServicesState;
   readonly enterpriseAuthorization?: ControlAuthorizationPort;
   readonly command: CommandEnvelope<CoreCommandType, unknown>;
   readonly projection: WorldProjection;
@@ -850,7 +848,6 @@ export function dispatchWorldCommand(input: {
         return rejectCommand(input, 'AgentCloseEnterprise', 'missing enterprise policy');
       }
       return handleAgentCloseEnterpriseCommand({
-        ...(input.serviceDirectory ? { serviceDirectory: input.serviceDirectory } : {}),
         ...(input.enterpriseAuthorization
           ? { enterpriseAuthorization: input.enterpriseAuthorization }
           : {}),

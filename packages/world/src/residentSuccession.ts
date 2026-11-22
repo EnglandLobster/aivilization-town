@@ -21,7 +21,6 @@ import {
 } from '@aivilization/authority';
 import { decideMaterialPrincipalControl } from '@aivilization/materials';
 import { decidePremisesPrincipalControl } from '@aivilization/premises';
-import { decideVehiclePrincipalControl } from '@aivilization/mobility';
 import { tradeFactsEqual as equal } from '@aivilization/commerce';
 import { createEventEnvelope } from '@aivilization/sim-core';
 import type { WorldProjection } from './projection';
@@ -231,24 +230,6 @@ export function residentSuccessionControlOfferEvent(
       if (own.event.type !== 'PremisesPrincipalControlChanged')
         throw Error('succession-single-resource-effect-required');
       change = own.event.change;
-    } else if (request.resourceKind === 'vehicle' && w.residentMobility) {
-      const own = decideVehiclePrincipalControl(
-        w.residentMobility,
-        input.actorId,
-        w.clock.now,
-        request,
-        {
-          available: ports.available,
-          authorizeControl: ports.authorize,
-          authorizeOperation: () => undefined,
-          driverReleaseBlocked: () => 'succession-offer-cannot-release-drivers',
-        },
-      );
-      if (!own.accepted) return own;
-      const e = own.events[0];
-      if (own.events.length !== 1 || e?.type !== 'VehiclePrincipalControlChanged')
-        throw Error('succession-single-resource-effect-required');
-      change = e.change;
     } else
       return {
         accepted: false as const,

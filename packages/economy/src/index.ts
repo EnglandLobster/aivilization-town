@@ -17,7 +17,6 @@ export type EconomyModuleStatus = {
 };
 export * from './commonAccountModel';
 export * from './commonAccounts';
-export * from './commonAccountSettlement';
 
 export * from './cumulativeAllocation';
 

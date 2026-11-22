@@ -148,17 +148,17 @@ server新增显式resident-society子命令，复用完整journal/认证town/Ope
 详见`SOCIETY_INTEGRATED_OBSERVATION_V1.md`及对应evidence。方向复核：通过真实自由使用发现共用摩擦并做小修正，没有预设组织目标或增加第385项能力。本修复到此停止；下一阶段回到G03公共在建采购等明确缺口：当前公共建设权源和既有资产采购不能替代在建交付、付费与责任的组合闭环。更长自由运行、canonical、长期责任/完整清算、全25项仍在目标中。
 
 
-公共在建采购进入实施：完整范围与逐步落点见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。当前仅commerce客观履约事实核验基础通过3178全仓测试；订单/托管/授权/施工联动/CLI尚未接通，G03/W02/W05保持部分。下一步继续该完整链，不将基础测试冒充采购交付。
+公共在建采购进入实施：完整范围与逐步落点见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。当前仅commerce客观履约事实核验基础通过3178全仓测试；订单/托管/授权/施工联动/CLI尚未接通，G03/W02/W05保持部分。下一步继续该完整链，不将基础测试冒充采购交付。
 
-在建交易第2步：订单纯领域与托管/独立分款/未付到期通过3184全仓测试；还未进入world或CLI。下一步继续真实项目事实、公共独立授权消费与合并账户/施工原子编排，不改变G03/W02/W05仍部分的状态。见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
+在建交易第2步：订单纯领域与托管/独立分款/未付到期通过3184全仓测试；还未进入world或CLI。下一步继续真实项目事实、公共独立授权消费与合并账户/施工原子编排，不改变G03/W02/W05仍部分的状态。见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
 
-在建交易第3步进行中：真实premises事实与trade总托管/共同账户预留/企业退出读端已接通，3188全仓测试通过；修正未接受报价不得冻结买方工程/账户。authoritative资金写入、公共决定、启用与CLI仍待完成，G03/W02/W05状态不变。见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
+在建交易第3步进行中：真实premises事实与trade总托管/共同账户预留/企业退出读端已接通，3188全仓测试通过；修正未接受报价不得冻结买方工程/账户。authoritative资金写入、公共决定、启用与CLI仍待完成，G03/W02/W05状态不变。见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
 
-在建交易权威写入已验证真实钱包/企业收入、守恒和完整回放，全仓3195通过/1原跳过；公共授权消费、共同账户实际组合与worker/CLI仍待接通，G03/W02/W05保持部分。下一步优先完成可用入口，不扩展工程细节；见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`与`evidence/SOCIETY_CONSTRUCTION_WORLD_WRITES_2026-10-07.json`。
+在建交易权威写入已验证真实钱包/企业收入、守恒和完整回放，全仓3195通过/1原跳过；公共授权消费、共同账户实际组合与worker/CLI仍待接通，G03/W02/W05保持部分。下一步优先完成可用入口，不扩展工程细节；见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`与`evidence/SOCIETY_CONSTRUCTION_WORLD_WRITES_2026-10-07.json`。
 
-公共在建采购新增独立版本化授权，公共决定与国库付款/退款原子提交已通过针对测试；工程种子测试不等于完整居民采购链。下一步集中接共同账户、worker调度、manifest与CLI，G03/W02/W05仍部分；见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
+公共在建采购新增独立版本化授权，公共决定与国库付款/退款原子提交已通过针对测试；工程种子测试不等于完整居民采购链。下一步集中接共同账户、worker调度、manifest与CLI，G03/W02/W05仍部分；见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
 
-建设交易已接开放运行层：复用principals查询/操作，无新增居民工具；个人/集体共同账户/公共工程到采购、实际施工与结算的运行测试通过，编译CLI真实HTTP验收12次调用（1预期越权拒绝）与回放通过。旧manifest显式升级，未进integrated/canonical/分区；下一步真实OpenCode可用性，再回总能力地图排期。见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
+建设交易已接开放运行层：复用principals查询/操作，无新增居民工具；个人/集体共同账户/公共工程到采购、实际施工与结算的运行测试通过，编译CLI真实HTTP验收12次调用（1预期越权拒绝）与回放通过。旧manifest显式升级，未进integrated/canonical/分区；下一步真实OpenCode可用性，再回总能力地图排期。见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
 
 
 ## 管理员资源观察入口进展（尚待最终回归）
@@ -179,7 +179,7 @@ R01观察缺口已在源代码补齐：复用既有管理员HTTP与页面，18�
 这两项是下轮组合接入候选；仍须验证canonical来源政策、原债务/招聘申请/资金/manifest保存、回放及实际查询。当前剩余11机会版本冻结，不在中途开启。制度的可修改权需要如实标注运行者来源，不能冒充居民已投票；不为让模型操作成功而自动录用、免债或新增资源。
 
 
-深入检查发现旧周期启用不只是空账簿，还强制扩张公共grant；因此没有直接在自由世界执行该入口。独立私人接入的最小边界与实现见`SOCIETY_INDEPENDENT_PERIODIC_ACCESS_V1.md`：复用原金融协议和CLI，只分离world集成权限。3303全仓测试通过/1跳过；编译CLI和实际迁移尚待冻结续段结束。该切片修复私人能力依赖政府的结构问题，不扩展金融玩法。
+深入检查发现旧周期启用不只是空账簿，还强制扩张公共grant；因此没有直接在自由世界执行该入口。独立私人接入的最小边界与实现见`archive/SOCIETY_INDEPENDENT_PERIODIC_ACCESS_V1.md`：复用原金融协议和CLI，只分离world集成权限。3303全仓测试通过/1跳过；编译CLI和实际迁移尚待冻结续段结束。该切片修复私人能力依赖政府的结构问题，不扩展金融玩法。
 
 
 ## 接入后自由检查与下一全局闭环

@@ -14,19 +14,10 @@ export type ResidentLaborConfiguration = {
   readonly effort: { readonly energyCostPerHour: number; readonly satietyCostPerHour: number };
   readonly critical: { readonly energy: number; readonly health: number };
   readonly locationIds: readonly string[];
-} & (
-  | { readonly pay: LaborPayPolicy; readonly compensationSource?: never }
-  | { readonly pay?: never; readonly compensationSource: 'accepted-enterprise-labor-terms-v1' }
-);
+  readonly pay: LaborPayPolicy;
+};
 export type ResidentLaborTerms = EarnedLaborCompensation & {
-  readonly wageSource: 'recorded-employment-offer' | 'initial-wage-regime' | 'accepted-labor-terms';
-  readonly agreement?: {
-    readonly id: string;
-    readonly revision: number;
-    readonly membershipGeneration: number;
-    readonly wageMicros: number;
-    readonly referenceMs: number;
-  };
+  readonly wageSource: 'recorded-employment-offer' | 'initial-wage-regime';
 };
 export type ResidentLaborWorldState = {
   readonly configuration: ResidentLaborConfiguration;

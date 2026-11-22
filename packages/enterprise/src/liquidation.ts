@@ -14,7 +14,6 @@ export type EnterpriseCapitalDistribution = {
 export function enterpriseCapitalDistributions(
   state: EnterpriseState,
 ): readonly EnterpriseCapitalDistribution[] {
-  if (state.capital) throw Error('capital-liquidation-plan-required');
   const rawShares = Object.values(state.ownershipShares ?? { [state.ownerAgentId]: 1 });
   const total = rawShares.reduce((sum, share) => sum + share, 0);
   if (

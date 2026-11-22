@@ -1,34 +1,13 @@
 import type { ResidentDepartureActivitySource } from './residentDepartureActivitySource';
-import type { ServiceClosurePolicy } from './serviceClosurePolicy';
-import type { LeaseContinuity } from './leaseEstateContinuity';
-import type { PeriodicAccessPolicy } from './periodicAccess';
-import type { ResourceAdapterPolicy } from './resourceAdapters';
-import type { ServiceFacilitiesRegisteredPayload } from './serviceFacilityRegistration';
-import type { ResidentLaborTermsPayload } from './residentLaborTerms';
-import type { ResidentConstructionTradePayload } from './residentConstructionTrade';
 import type { ResidentAdmissionEnabledPayload } from './residentAdmission';
 import type { ResidentEstateCreditPayload } from './residentEstateCredit';
 import type { ResidentSuccessionPayload } from './residentSuccession';
 import type { ResidentExitCapture } from './residentExitCapture';
-import type { ResidentResourceSalesPayload } from './resourceSales';
-import type { ResidentPeriodicObligationsPayload } from './periodicObligations';
 import type { PhysicalHousingRestPolicy, PhysicalHousingRestEvidence } from '@aivilization/society';
-import type { ResidentServiceSupplyRelationsPayload } from './serviceSupplyRelations';
-import type { ResidentServiceAffiliationPayload } from './serviceAffiliation';
-import type { ResidentServicePrincipalsPayload } from './servicePrincipals';
-import type { ResidentServiceSupplyPayload } from './serviceSupply';
-import type { ResidentVehiclePrincipalsPayload } from './vehiclePrincipals';
-import type { ResidentPrincipalEvidenceTradePayload } from './principalEvidenceTrade';
-import type { ResidentPrincipalPremisesRightsPayload } from './principalPremisesRights';
 import type { ResourcePrincipalPolicy, PrincipalControlChanged } from '@aivilization/authority';
 import type { HousingOccupancyState, HousingVacated } from '@aivilization/society';
 import type { PublicHousingState, PublicHousingChanged } from '@aivilization/society';
 import type { HousingChoiceState, HousingStandardChoice } from '@aivilization/society';
-import type {
-  CapitalWorldState,
-  CapitalCommittedPayload,
-  CapitalDeferredDistribution,
-} from './capitalModel';
 import type {
   EnterpriseControlEvent,
   EnterpriseManagementAuthority,
@@ -36,12 +15,6 @@ import type {
 } from '@aivilization/enterprise';
 import type { PublicEmploymentState, PublicEmploymentChanged } from '@aivilization/society';
 import type { PublicLaborConfiguration, PublicLaborCommittedPayload } from './publicLaborModel';
-import type {
-  ServiceEmploymentState,
-  ServiceBusinessAuthorizationPayload,
-  ServiceWagePaidPayload,
-} from './serviceEmploymentModel';
-import type { ServiceTimeState } from './serviceTime';
 import type { EducationAuthorityEnabledPayload } from './educationAuthority';
 import type { QualificationOrigin } from '@aivilization/society';
 import type { ResidentExtractionPayload } from './residentExtraction';
@@ -51,18 +24,11 @@ import type {
   ProductiveEmploymentState,
   ProductiveWagePaidPayload,
 } from './productiveEmploymentModel';
-import type { ResidentEvidenceTradePayload } from './residentEvidenceTrade';
-import type { ResidentPremisesRightsPayload } from './residentPremisesRights';
-import type { ResidentPremisesProvisionPayload } from './residentPremisesProvision';
-import type { ResidentServiceEngagementsPayload } from './residentServiceEngagements';
 import type { ResidentRestEvent, ResidentRestPolicy } from '@aivilization/society';
-import type { ResidentLogisticsPayload } from './residentLogistics';
 import type { ResidentPremisesPayload } from './residentPremises';
 import type { ResidentMaterialsPayload } from './residentMaterials';
 import type { ResidentCommonAccountsPayload } from './residentCommonAccounts';
-import type { ResidentMobilityPayload } from './residentMobility';
 import type { LaborPayPolicy } from '@aivilization/society';
-import type { ResidentLease } from '@aivilization/society';
 import type { ResidentCommercePayload } from './residentCommerce';
 import type { AmmPool, Inventory, InventoryQuantityResolution } from '@aivilization/economy';
 import type { BankState } from '@aivilization/credit';
@@ -1714,27 +1680,6 @@ export type AgentResidenceChangedPayload = {
 export type WorldEventPayloadByType = {
   readonly ResidentHousingChoiceEnabled: HousingChoiceState;
   readonly ResidentHousingStandardChosen: HousingStandardChoice;
-  readonly ResidentCapitalEnabled: CapitalWorldState;
-  readonly ResidentCapitalCommitted: CapitalCommittedPayload;
-  readonly ResidentCapitalDistributionDeferred: CapitalDeferredDistribution;
-  readonly ResidentPublicGoodsProcurementEnabled: {
-    readonly policyVersion: 'resident-public-goods-procurement-v1';
-    readonly tradeFunding: Extract<EvidenceTradeEvent, { type: 'TradePublicFundingEnabled' }>;
-  };
-  readonly ResidentPublicProcurementEnabled: {
-    readonly policyVersion: 'resident-public-procurement-v1';
-    readonly serviceFunding: Extract<
-      ServiceEngagementEvent,
-      { type: 'ServicePublicFundingEnabled' }
-    >;
-    readonly policyChange: GovernancePolicyChangedPayload;
-  };
-  readonly ResidentLeaseChanged: {
-    lease: ResidentLease;
-    policyVersion: string;
-    continuity?: LeaseContinuity;
-  };
-  readonly ResidentMobilityCommitted: ResidentMobilityPayload;
   readonly ResidentPhysicalHousingRestEnabled: { readonly policy: PhysicalHousingRestPolicy };
   readonly ResidentRestEnabled: { readonly policy: ResidentRestPolicy };
   readonly ResidentHousingOccupancyEnabled: HousingOccupancyState;
@@ -1758,22 +1703,10 @@ export type WorldEventPayloadByType = {
   readonly ResidentPublicGovernanceCommitted: {
     readonly principalChange?: PrincipalControlChanged;
     readonly materialCommit?: ResidentMaterialsPayload;
-    readonly serviceDirectoryCommit?: ResidentServicePrincipalsPayload;
-    readonly serviceSupplyCommit?: ResidentServiceSupplyPayload;
-    readonly serviceAffiliationCommit?: ResidentServiceAffiliationPayload;
-    readonly serviceSupplyRelationsCommit?: ResidentServiceSupplyRelationsPayload;
-    readonly vehicleCommit?: ResidentVehiclePrincipalsPayload;
-    readonly resourceSalesCommit?: ResidentResourceSalesPayload;
-    readonly periodicObligationsCommit?: ResidentPeriodicObligationsPayload;
-    readonly constructionTradeCommit?: ResidentConstructionTradePayload;
-    readonly principalTradeCommit?: ResidentPrincipalEvidenceTradePayload;
-    readonly principalPermitsCommit?: ResidentPrincipalPremisesRightsPayload;
     readonly premisesCommit?: ResidentPremisesPayload;
     readonly policyVersion: typeof PUBLIC_GOVERNANCE_POLICY.version;
     readonly events: readonly PublicGovernanceEvent[];
     readonly policyChange?: GovernancePolicyChangedPayload;
-    readonly serviceCommit?: ResidentServiceEngagementsPayload;
-    readonly goodsCommit?: ResidentEvidenceTradePayload;
     readonly housingChange?: PublicHousingChanged;
     readonly employmentChange?: PublicEmploymentChanged;
   };
@@ -1788,13 +1721,7 @@ export type WorldEventPayloadByType = {
   };
   readonly PublicLaborEnabled: PublicLaborConfiguration;
   readonly PublicLaborCommitted: PublicLaborCommittedPayload;
-  readonly ResidentServiceFacilitiesRegistered: ServiceFacilitiesRegisteredPayload;
-  readonly ResidentLaborTermsCommitted: ResidentLaborTermsPayload;
   readonly ResidentLaborEnabled: ResidentLaborEnabledPayload;
-  readonly ResidentServiceWagePaid: ServiceWagePaidPayload;
-  readonly ResidentServiceEmploymentEnabled: ServiceEmploymentState;
-  readonly ResidentServiceBusinessAuthorized: ServiceBusinessAuthorizationPayload;
-  readonly ResidentServiceTimeEnabled: ServiceTimeState;
   readonly ResidentEducationAuthorityEnabled: EducationAuthorityEnabledPayload;
   readonly ResidentProductiveEmploymentEnabled: ProductiveEmploymentState;
   readonly ResidentProductiveWagePaid: ProductiveWagePaidPayload;
@@ -1802,27 +1729,9 @@ export type WorldEventPayloadByType = {
   readonly ResidentExtractionEnabled: ResidentExtractionPayload;
   readonly ResidentMaterialsCommitted: ResidentMaterialsPayload;
   readonly ResidentPremisesCommitted: ResidentPremisesPayload;
-  readonly ResidentServiceEngagementsCommitted: ResidentServiceEngagementsPayload;
-  readonly ResidentLogisticsCommitted: ResidentLogisticsPayload;
-  readonly ResidentEvidenceTradeCommitted: ResidentEvidenceTradePayload;
-  readonly ResidentResourceSalesCommitted: ResidentResourceSalesPayload;
-  readonly ResidentResourceAdaptersEnabled: ResourceAdapterPolicy;
-  readonly ResidentServiceClosureEnabled: ServiceClosurePolicy;
-  readonly ResidentPeriodicAccessEnabled: PeriodicAccessPolicy;
-  readonly ResidentPeriodicObligationsCommitted: ResidentPeriodicObligationsPayload;
   readonly ResidentEstateCreditCommitted: ResidentEstateCreditPayload;
   readonly ResidentSuccessionCommitted: ResidentSuccessionPayload;
   readonly ResidentAdmissionEnabled: ResidentAdmissionEnabledPayload;
-  readonly ResidentConstructionTradeCommitted: ResidentConstructionTradePayload;
-  readonly ResidentPrincipalEvidenceTradeCommitted: ResidentPrincipalEvidenceTradePayload;
-  readonly ResidentServicePrincipalsCommitted: ResidentServicePrincipalsPayload;
-  readonly ResidentServiceSupplyCommitted: ResidentServiceSupplyPayload;
-  readonly ResidentServiceAffiliationCommitted: ResidentServiceAffiliationPayload;
-  readonly ResidentServiceSupplyRelationsCommitted: ResidentServiceSupplyRelationsPayload;
-  readonly ResidentVehiclePrincipalsCommitted: ResidentVehiclePrincipalsPayload;
-  readonly ResidentPrincipalPremisesRightsCommitted: ResidentPrincipalPremisesRightsPayload;
-  readonly ResidentPremisesRightsCommitted: ResidentPremisesRightsPayload;
-  readonly ResidentPremisesProvisionCommitted: ResidentPremisesProvisionPayload;
   readonly ResidentCommonAccountsCommitted: ResidentCommonAccountsPayload;
   readonly ResidentCommerceCommitted: ResidentCommercePayload;
   readonly AgentRegistered: AgentRegisteredPayload;
@@ -1949,5 +1858,3 @@ import type {
   PublicGovernanceEvent,
 } from '@aivilization/governance';
 import type { TownGovernancePolicy } from '@aivilization/society';
-import type { ServiceEngagementEvent } from '@aivilization/services';
-import type { EvidenceTradeEvent } from '@aivilization/commerce';

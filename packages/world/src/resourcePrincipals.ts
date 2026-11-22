@@ -1,7 +1,4 @@
 import { applyPrincipalResourceControlEffects } from './resourcePrincipalControlEffects';
-import { resourceSaleForControl } from '@aivilization/commerce';
-import { decideVehiclePrincipalControl } from '@aivilization/mobility';
-import { vehiclePrincipalPorts } from './vehiclePrincipals';
 import { decidePremisesPrincipalControl } from '@aivilization/premises';
 import type { PrincipalCollectivePort } from './principalCollectivePort';
 import {
@@ -49,28 +46,12 @@ export function decideWorldPrincipalControl(
   },
 ) {
   const w = input.projection;
-  if (
-    input.request.command.type === 'accept' &&
-    resourceSaleForControl(
-      w.resourceSales,
-      input.request.resourceKind,
-      input.request.resourceId,
-      input.request.controlVersion,
-    )
-  )
-    return { accepted: false as const, reason: 'paid-resource-sale-acceptance-required' };
-  if (
-    input.request.resourceKind !== 'vehicle' &&
-    !w.materials?.resourcePrincipals &&
-    !(input.request.resourceKind === 'premises' && w.resourceAdapters?.kinds.includes('premises'))
-  )
+  if (!w.materials?.resourcePrincipals)
     return { accepted: false as const, reason: 'resource-principals-not-enabled' };
-  if (!['stock', 'premises', 'vehicle'].includes(input.request.resourceKind))
+  if (!['stock', 'premises'].includes(input.request.resourceKind))
     return { accepted: false as const, reason: 'principal-resource-kind-not-connected' };
   if (input.request.resourceKind === 'premises' && !w.premises?.resourcePrincipals)
     return { accepted: false as const, reason: 'principal-resource-kind-not-connected' };
-  if (input.request.resourceKind === 'vehicle' && !w.residentMobility?.principalPolicy)
-    return { accepted: false as const, reason: 'vehicle-principals-not-enabled' };
   const ports = {
     actorId: input.actorId,
     at: w.clock.now,
@@ -91,29 +72,20 @@ export function decideWorldPrincipalControl(
       }),
   };
   const d =
-    input.request.resourceKind === 'vehicle' && w.residentMobility
-      ? decideVehiclePrincipalControl(
-          w.residentMobility,
-          input.actorId,
-          w.clock.now,
-          input.request,
-          vehiclePrincipalPorts(input),
-        )
-      : input.request.resourceKind === 'stock' && w.materials
-        ? decideMaterialPrincipalControl({ ...ports, state: w.materials })
-        : w.premises
-          ? (() => {
-              const r = decidePremisesPrincipalControl({ ...ports, state: w.premises });
-              return r.accepted ? { accepted: true as const, events: [r.event] } : r;
-            })()
-          : { accepted: false as const, reason: 'premises-not-enabled' };
+    input.request.resourceKind === 'stock' && w.materials
+      ? decideMaterialPrincipalControl({ ...ports, state: w.materials })
+      : w.premises
+        ? (() => {
+            const r = decidePremisesPrincipalControl({ ...ports, state: w.premises });
+            return r.accepted ? { accepted: true as const, events: [r.event] } : r;
+          })()
+        : { accepted: false as const, reason: 'premises-not-enabled' };
   if (!d.accepted) return d;
   const change = d.events[0];
   if (
     d.events.length !== 1 ||
     (change?.type !== 'MaterialPrincipalControlChanged' &&
-      change?.type !== 'PremisesPrincipalControlChanged' &&
-      change?.type !== 'VehiclePrincipalControlChanged')
+      change?.type !== 'PremisesPrincipalControlChanged')
   )
     throw Error('invalid-principal-control-decision');
   return { accepted: true as const, change: change.change };
@@ -145,27 +117,11 @@ export function applyWorldPrincipalControl(
   collective?: PrincipalCollectivePort,
 ): WorldProjection {
   if (
-    (change.request.resourceKind === 'vehicle'
-      ? !w.residentMobility?.principalPolicy
-      : !w.materials?.resourcePrincipals &&
-        !(
-          change.request.resourceKind === 'premises' &&
-          w.resourceAdapters?.kinds.includes('premises')
-        )) ||
+    !w.materials?.resourcePrincipals ||
     change.control.at !== w.clock.now ||
-    !['stock', 'premises', 'vehicle'].includes(change.request.resourceKind)
+    !['stock', 'premises'].includes(change.request.resourceKind)
   )
     throw Error('invalid-world-principal-control');
-  if (
-    change.request.command.type === 'accept' &&
-    resourceSaleForControl(
-      w.resourceSales,
-      change.request.resourceKind,
-      change.request.resourceId,
-      change.request.controlVersion,
-    )
-  )
-    throw Error('paid-resource-sale-acceptance-required');
   assertWorldPrincipalControlSource(
     w,
     change.control.authorization,
@@ -174,7 +130,7 @@ export function applyWorldPrincipalControl(
     publicExecution,
     collective,
   );
-  return applyPrincipalResourceControlEffects(w, change, collective);
+  return applyPrincipalResourceControlEffects(w, change);
 }
 
 export function applyResourcePrincipalsProjection(

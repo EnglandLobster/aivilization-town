@@ -1,8 +1,4 @@
-import {
-  AGREED_LABOR_SOURCE,
-  quoteWorldLaborCompensation,
-  assertAgreedLaborCompensation,
-} from './laborCompensationSource';
+import { quoteWorldLaborCompensation } from './laborCompensationSource';
 import type { ControlAuthorizationPort } from '@aivilization/authority';
 import { asAgentId } from '@aivilization/sim-core';
 import {
@@ -93,9 +89,6 @@ export function prepareProductiveCompensation(input: {
       e = applyEnterpriseDomainEvent(e, d.event);
     }
     const d = decideAssignProductionEmployment({
-      ...(w.residentLabor?.configuration.compensationSource === AGREED_LABOR_SOURCE
-        ? { agreedRates: true as const }
-        : {}),
       enterprise: e,
       ...(input.authorize ? { authorize: input.authorize } : {}),
       actorId: asAgentId(input.actorId),
@@ -116,13 +109,8 @@ export function prepareProductiveCompensation(input: {
     const session = job.session,
       policies = input.policies;
     if (!session || !policies) throw Error('productive-payroll-start-context-required');
-    const wage = productionEmploymentWage(employer, job.id, asAgentId(input.actorId), w.clock.now);
-    if (
-      wage === undefined ||
-      (w.residentLabor.configuration.compensationSource === AGREED_LABOR_SOURCE &&
-        !employer.productionEmployment?.assignments[job.id]?.wageTerms?.[input.actorId])
-    )
-      throw Error('current-authorized-production-employment-required');
+    const wage = productionEmploymentWage(employer, job.id, asAgentId(input.actorId));
+    if (wage === undefined) throw Error('current-authorized-production-employment-required');
     const record: ProductiveClaimContext = {
       id: `production-wage-${input.nextSequence}`,
       actorId: input.actorId,
@@ -132,12 +120,9 @@ export function prepareProductiveCompensation(input: {
       until: session.until,
       terms: quoteWorldLaborCompensation({
         configuration: w.residentLabor.configuration,
-        enterprise: employer,
-        actorId: input.actorId,
-        at: session.startedAt,
         durationMs: session.until - session.startedAt,
-        legacyQuote: wage,
-        legacySource: 'recorded-employment-offer',
+        quotedWage: wage,
+        wageSource: 'recorded-employment-offer',
         ...(policies.tax ? { tax: policies.tax } : {}),
       }),
       lastReceiptId: receipt.id,
@@ -258,27 +243,16 @@ export function applyProductiveMaterialCompensation(input: {
   if (!old) {
     const session = job.session;
     if (
-      (w.residentLabor!.configuration.compensationSource === AGREED_LABOR_SOURCE &&
-        !employer.productionEmployment?.assignments[job.id]?.wageTerms?.[c.actorId]) ||
       receipt.operation !== 'start-production' ||
       receipt.actorId !== c.actorId ||
       !session ||
       session.actorId !== c.actorId ||
       session.startedAt !== c.startedAt ||
       session.until !== c.until ||
-      productionEmploymentWage(employer, job.id, asAgentId(c.actorId), w.clock.now) === undefined ||
-      (w.residentLabor!.configuration.compensationSource !== AGREED_LABOR_SOURCE &&
-        c.terms.wageSource !== 'recorded-employment-offer')
+      productionEmploymentWage(employer, job.id, asAgentId(c.actorId)) === undefined ||
+      c.terms.wageSource !== 'recorded-employment-offer'
     )
       throw Error('productive-claim-start-mismatch');
-    assertAgreedLaborCompensation({
-      configuration: w.residentLabor!.configuration,
-      enterprise: employer,
-      actorId: c.actorId,
-      at: c.startedAt,
-      durationMs: c.until - c.startedAt,
-      terms: c.terms,
-    });
   } else {
     const sourceSession = w.materials?.productions[job.id]?.session;
     if (

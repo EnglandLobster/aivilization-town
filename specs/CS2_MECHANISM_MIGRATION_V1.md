@@ -56,4 +56,4 @@ P1a 覆盖：合法/非法发布、企业授权、员工独立开始、地点/�
 
 ## 当前状态
 
-P1a 已实现并通过工程与真实 CLI 验收，见 [验证记录](CS2_SERVICE_SUPPLY_P1A_VERIFICATION.md)；P1b 与 P2–P6 已规划、未实现。本轮不承诺完整医院、学校、房地产或物流市场已经建成。
+P1a 已实现并通过工程与真实 CLI 验收，见 [验证记录](archive/CS2_SERVICE_SUPPLY_P1A_VERIFICATION.md)；P1b 与 P2–P6 已规划、未实现。本轮不承诺完整医院、学校、房地产或物流市场已经建成。

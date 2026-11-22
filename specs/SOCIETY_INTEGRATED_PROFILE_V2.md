@@ -6,7 +6,7 @@ v2在v1固定功能清单上仅显式启用constructionTrade，与`public-constr
 
 集成测试核对v1无建设订单/采购grant，v2具有空订单与正确版本；两者居民资产、premises初始事实、moneySupply、treasury一致。实际v2运行推进900000毫秒后重开完整状态和journal相同，没有预建订单或社团。新profile无法覆盖旧v1目录，原manifest和状态仍可原样重开。
 
-本发布依据建设运行/编译CLI及真实提示式模型验收，分别见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`与`SOCIETY_CONSTRUCTION_MODEL_ACCEPTANCE_V1.md`。模型验收使用显式工程配置而非完整v2；后续v2已完成settled/newcomers两组共32次自由机会及正常重启/传输回放核验，见`SOCIETY_V2_CONDITIONS_AND_RESTART_V1.md`。短观察不等于稳定社会。canonical/分区所有能力、长期义务/完整清算与原25项仍保留。
+本发布依据建设运行/编译CLI及真实提示式模型验收，分别见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`与`SOCIETY_CONSTRUCTION_MODEL_ACCEPTANCE_V1.md`。模型验收使用显式工程配置而非完整v2；后续v2已完成settled/newcomers两组共32次自由机会及正常重启/传输回放核验，见`SOCIETY_V2_CONDITIONS_AND_RESTART_V1.md`。短观察不等于稳定社会。canonical/分区所有能力、长期义务/完整清算与原25项仍保留。
 
 本轮止于显式配置接入与验证。下一工作重心回到R01/R02整体组合与不同条件自由观察；不追加施工评分、自动承包人选择、招标制度或强制集体。
 

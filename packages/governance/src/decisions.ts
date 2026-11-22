@@ -84,21 +84,6 @@ export function decidePublicCommand(
       procedureRevision: s.procedureRevision,
       procedure: structuredClone(s.procedure),
       createdAt: at,
-      ...(c.action.kind === 'manage-resource' &&
-      c.action.request.operation.capability.startsWith('construction-trades.') &&
-      s.grant.constructionTrade
-        ? { constructionTradeScopeVersion: s.grant.constructionTrade.version }
-        : {}),
-      ...(c.action.kind === 'manage-resource' &&
-      c.action.request.resourceKind === 'resource-sale' &&
-      s.grant.resourceSales
-        ? { resourceSalesScopeVersion: s.grant.resourceSales.version }
-        : {}),
-      ...(c.action.kind === 'manage-resource' &&
-      c.action.request.resourceKind === 'periodic-obligation' &&
-      s.grant.periodicObligations
-        ? { periodicObligationsScopeVersion: s.grant.periodicObligations.version }
-        : {}),
       closesAt: c.closesAt,
       expiresAt: c.closesAt + s.procedure.executionWindowMs,
       votes: {},

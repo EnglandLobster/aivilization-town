@@ -22,22 +22,7 @@ export function residentCommerceEvent(input: {
   requestId: string;
   simulationId: string;
   nextSequence: number;
-  leaseSettlementId?: string;
-  mobilitySettlementId?: string;
 }): { accepted: true; events: readonly WorldEvent[] } | { accepted: false; reason: string } {
-  if (
-    'id' in input.command &&
-    input.command.id.startsWith('lease-deposit-') &&
-    input.leaseSettlementId !== input.command.id
-  )
-    return { accepted: false, reason: 'lease-deposit-controlled-by-lease' };
-  if (
-    input.projection.residentMobility &&
-    'id' in input.command &&
-    input.command.id.startsWith('ride-deposit-') &&
-    input.mobilitySettlementId !== input.command.id
-  )
-    return { accepted: false, reason: 'ride-deposit-controlled-by-mobility' };
   const w = input.projection,
     s = w.residentCommerce;
   if (!s) return { accepted: false, reason: 'commerce-not-enabled' };

@@ -9,17 +9,17 @@ import {
   applyResidentEstateCashEffects,
 } from './residentEstateCashEffects';
 const source = {
-  context: 'periodic-obligations' as const,
+  context: 'earned-wages' as const,
   id: 'existing-contract',
   revision: 3,
-  policyVersion: 'resident-periodic-obligations-v1',
+  policyVersion: 'resident-earned-wage-estate-v1',
 };
 const ledger = (amount = 2) => [
   createMoneyTransfer({
     transactionId: 'periodic-original-payout',
     reason: 'periodic-obligation-paid',
     from: economicAccount('agent', 'a'),
-    to: economicAccount('public-service', 'resident-periodic-obligations'),
+    to: economicAccount('public-service', 'resident-earned-wages'),
     amount,
   }),
 ];
@@ -34,7 +34,7 @@ test('a closed consumer prepares physical-cash receipts and replays them without
     next = applyResidentEstateCashEffects(w, source, raw, p);
   expect(next?.cash.accounts['estate-10']?.balance).toBe(w.moneySupply - 2);
   expect(
-    next?.cash.accounts['estate-10']?.settledSources['periodic-obligations:existing-contract'],
+    next?.cash.accounts['estate-10']?.settledSources['earned-wages:existing-contract'],
   ).toMatchObject({ revision: 3, transactionId: raw[0]?.transactionId });
   expect(p.events).toHaveLength(1);
   expect(p.events[0]?.type).toBe('EstateCashSettled');
@@ -51,7 +51,7 @@ test('original consumer refunds enter the same preserved account while balances 
       createMoneyTransfer({
         transactionId: 'refund-original-escrow',
         reason: 'original-consumer-refund',
-        from: economicAccount('public-service', 'resident-periodic-obligations'),
+        from: economicAccount('public-service', 'resident-earned-wages'),
         to: economicAccount('agent', 'a'),
         amount: 2,
       }),

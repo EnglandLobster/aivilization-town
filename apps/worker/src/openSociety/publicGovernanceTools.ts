@@ -38,37 +38,6 @@ export function executePublicGovernanceTool(
       procedure: a.procedure,
       procedureRevision: a.procedureRevision,
       institutionLimits: state.institutionPolicy,
-      procurement: a.grant.procurement
-        ? {
-            policy: a.grant.procurement,
-            treasuryBalance: s.world.treasury ?? 0,
-            minimumTreasuryReserve: s.world.governance?.publicBudget?.minimumTreasuryReserve ?? 0,
-            contractWith: 'town engagements read',
-            ledgerWith: 'town engagements ledger',
-            fundingAction: {
-              kind: 'fund-service',
-              engagementId: 'exact-id',
-              expectedRevision: 'observed-revision',
-              maximumCharge: 'observed-maximumCharge',
-            },
-            abstractBudget: 'disabled',
-          }
-        : null,
-      goodsProcurement: a.grant.goodsProcurement
-        ? {
-            policy: a.grant.goodsProcurement,
-            contractWith: 'town trades read',
-            ledgerWith: 'town trades ledger',
-            fundingAction: {
-              kind: 'fund-goods',
-              orderId: 'exact-id',
-              expectedRevision: 'observed-revision',
-              amount: 'observed-amount',
-            },
-            ownership:
-              'Named buyer receives the goods; treasury funding does not create public ownership.',
-          }
-        : null,
       housing: a.grant.housing
         ? { grant: a.grant.housing, rulesWith: 'town governance housing' }
         : null,

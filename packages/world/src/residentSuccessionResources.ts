@@ -21,11 +21,9 @@ export function residentSuccessionResourceFact(
   const resource =
     b.kind === 'stock'
       ? w.materials?.stocks[b.id]
-      : b.kind === 'vehicle'
-        ? w.residentMobility?.vehicles[b.id]
-        : b.kind === 'premises'
-          ? w.premises?.buildings[b.id]
-          : undefined;
+      : b.kind === 'premises'
+        ? w.premises?.buildings[b.id]
+        : undefined;
   if (!resource) return undefined;
   if ('status' in resource && (resource.status === 'closed' || resource.status === 'demolished'))
     return undefined;

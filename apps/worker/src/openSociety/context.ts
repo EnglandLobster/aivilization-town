@@ -1,5 +1,4 @@
 import { ACTION_PLAN_HINT, plannableRoutes } from './actionPlans';
-import { interruptedTravelContext } from './interruptedTravelContext';
 import { ownStudyContext } from './studyContext';
 import { ownLaborContext, readOwnLabor } from './laborContext';
 import { physicalProductionContext } from './physicalProductionContext';
@@ -105,9 +104,6 @@ export function buildOpenResidentContext(
       collectivesEnabled: !!state.collectives,
       materialsEnabled: !!state.world.materials,
       premisesEnabled: !!state.world.premises,
-      logisticsEnabled: !!state.world.logistics,
-      evidenceTradeEnabled: !!state.world.residentTrade,
-      premisesRightsEnabled: !!state.world.premisesRights,
       groupControlEnabled: !!state.communication?.groupControlPolicy,
       resourceControlEnabled: !!state.resourceControlPolicy,
       programConditionsEnabled: !!state.coordination?.conditionsPolicy,
@@ -142,7 +138,6 @@ export function buildOpenResidentContext(
     action: {
       activity: state.world.activityTimeByAgent[actorId] ?? null,
       travel: state.world.transitByAgent?.[actorId] ?? null,
-      ...interruptedTravelContext(state.world, actorId),
       ...(state.world.residentRest ? { rest: ownRestContext(state.world, actorId) } : {}),
       ...(state.world.residentStudy ? { study: ownStudyContext(state.world, actorId) } : {}),
       ...(state.world.residentLabor || state.world.publicLabor
@@ -332,7 +327,6 @@ export function observeResidentWorld(
       return {
         activity: state.world.activityTimeByAgent[actorId] ?? null,
         travel: state.world.transitByAgent?.[actorId] ?? null,
-        ...interruptedTravelContext(state.world, actorId, true),
         ...(state.world.residentRest ? { rest: ownRestContext(state.world, actorId) } : {}),
         ...(state.world.residentStudy ? { study: ownStudyContext(state.world, actorId) } : {}),
         ...(state.world.residentLabor || state.world.publicLabor

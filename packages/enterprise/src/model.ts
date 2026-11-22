@@ -1,16 +1,5 @@
-import { assertEnterpriseLaborTerms, type EnterpriseLaborTermsState } from './laborTerms';
-import { assertEnterprisePeriodicAccounting } from './periodicAccounting';
-import type { EnterprisePeriodicAccounting } from './periodicAccountingModel';
-import {
-  assertEnterpriseResourceSalesAccounting,
-  type EnterpriseResourceSalesAccounting,
-} from './resourceSalesAccounting';
-import { assertEnterpriseTradeAccounting, type EnterpriseTradeAccounting } from './tradeAccounting';
-import { assertEnterpriseCapitalState } from './capitalValidation';
-import type { EnterpriseCapitalState } from './capitalModel';
 import { assertEnterpriseControlState } from './control';
 import type { ResourceControl } from '@aivilization/authority';
-import { assertServiceBusiness, type EnterpriseServiceBusinessState } from './serviceBusiness';
 import type { Inventory } from '@aivilization/economy';
 import type { AgentId } from '@aivilization/sim-core';
 import { assertProductionEmployment, type ProductionEmploymentState } from './productionEmployment';
@@ -38,15 +27,8 @@ export type EnterpriseJobPosting = {
  * money deliberately remain outside this boundary.
  */
 export type EnterpriseState = {
-  readonly laborTerms?: EnterpriseLaborTermsState;
-  /** Explicitly activated capital rights; legacy ownershipShares become the immutable origin only. */
-  readonly capital?: EnterpriseCapitalState;
   /** Explicit management handover only; never replaces capital shares or employee identity. */
   readonly control?: ResourceControl;
-  readonly resourceSalesAccounting?: EnterpriseResourceSalesAccounting;
-  readonly periodicAccounting?: EnterprisePeriodicAccounting;
-  readonly tradeAccounting?: EnterpriseTradeAccounting;
-  readonly serviceBusiness?: EnterpriseServiceBusinessState;
   readonly enterpriseId: string;
   readonly name: string;
   readonly ownerAgentId: AgentId;
@@ -120,16 +102,7 @@ export function normalizeEnterpriseState(state: EnterpriseState): EnterpriseStat
 }
 
 export function assertValidEnterpriseState(state: EnterpriseState): void {
-  if (state.periodicAccounting)
-    assertEnterprisePeriodicAccounting(state.periodicAccounting, state.enterpriseId);
   assertEnterpriseControlState(state);
-  if (state.resourceSalesAccounting)
-    assertEnterpriseResourceSalesAccounting(state.resourceSalesAccounting, state.enterpriseId);
-  if (state.tradeAccounting)
-    assertEnterpriseTradeAccounting(state.tradeAccounting, state.enterpriseId);
-  if (state.capital) assertEnterpriseCapitalState(state.capital);
-  if (state.laborTerms) assertEnterpriseLaborTerms(state.laborTerms);
-  if (state.serviceBusiness) assertServiceBusiness(state.serviceBusiness);
   if (state.productionEmployment) assertProductionEmployment(state.productionEmployment);
   if (state.earnedPayroll) {
     assertEarnedPayrollState(state.earnedPayroll);

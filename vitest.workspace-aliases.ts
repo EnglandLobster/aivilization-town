@@ -6,9 +6,6 @@ export const workspaceAliases = {
   '@aivilization/governance': fileURLToPath(
     new URL('packages/governance/src/index.ts', workspaceRoot),
   ),
-  '@aivilization/logistics': fileURLToPath(
-    new URL('packages/logistics/src/index.ts', workspaceRoot),
-  ),
   '@aivilization/premises': fileURLToPath(new URL('packages/premises/src/index.ts', workspaceRoot)),
   '@aivilization/materials': fileURLToPath(
     new URL('./packages/materials/src/index.ts', import.meta.url),
@@ -16,8 +13,6 @@ export const workspaceAliases = {
   '@aivilization/authority': fileURLToPath(
     new URL('packages/authority/src/index.ts', workspaceRoot),
   ),
-  '@aivilization/mobility': fileURLToPath(new URL('packages/mobility/src/index.ts', workspaceRoot)),
-  '@aivilization/services': fileURLToPath(new URL('packages/services/src/index.ts', workspaceRoot)),
   '@aivilization/commerce': fileURLToPath(new URL('packages/commerce/src/index.ts', workspaceRoot)),
   '@aivilization/collaboration': fileURLToPath(
     new URL('packages/collaboration/src/index.ts', workspaceRoot),

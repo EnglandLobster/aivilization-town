@@ -106,14 +106,7 @@ export function executeRulebookTool(
         coordination: state.coordination?.policy ?? null,
         materials: state.world.materials?.policy ?? null,
         materialSources: state.world.materials?.extraction?.policy ?? null,
-        serviceEngagements: state.world.serviceEngagements?.policy ?? null,
-        logistics: state.world.logistics?.policy ?? null,
-        evidenceTrade: state.world.residentTrade?.policy ?? null,
         premises: state.world.premises?.policy ?? null,
-        vehiclePrincipals: state.world.residentMobility?.principalPolicy ?? null,
-        constructionTrade: state.world.residentTrade?.constructionOrders?.policy ?? null,
-        publicConstructionTrade:
-          state.world.publicGovernance?.authority.grant.constructionTrade ?? null,
         premisesPrincipals: state.world.premises?.resourcePrincipals ?? null,
         resourcePrincipals: state.world.materials?.resourcePrincipals ?? null,
         facilityUse: state.world.premises?.facilityUsePolicy ?? null,
@@ -124,22 +117,13 @@ export function executeRulebookTool(
         programActions: state.coordination?.actionsPolicy ?? null,
         elapsedRest: state.world.residentRest?.policy ?? null,
         physicalHousingRest: state.world.physicalHousingRest ?? null,
-        capitalAgreements: state.world.capitalAgreements?.policy ?? null,
         publicEmployment: state.world.publicEmployment
           ? {
               policyVersion: state.world.publicEmployment.policyVersion,
               readWith: 'town governance employment',
             }
           : null,
-        resourceSales: state.world.resourceSales?.policy ?? null,
-        resourceAdapters: state.world.resourceAdapters ?? null,
-        periodicAccess: state.world.periodicAccess ?? null,
-        serviceClosurePolicy: state.world.serviceClosurePolicy ?? null,
         publicGovernance: state.world.publicGovernance?.authority.policy ?? null,
-        publicProcurement: state.world.publicGovernance?.authority.grant.procurement ?? null,
-        publicGoodsProcurement:
-          state.world.publicGovernance?.authority.grant.goodsProcurement ?? null,
-        tradePublicFunding: state.world.residentTrade?.publicFunding ?? null,
         publicGrant: state.world.publicGovernance?.authority.grant.source ?? null,
         worldParameters:
           'town city observe --view rules; only currently exposed rule groups are readable',

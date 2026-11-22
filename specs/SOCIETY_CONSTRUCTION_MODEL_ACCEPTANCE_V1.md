@@ -1,6 +1,6 @@
 # 工程交易的真实模型可用性验收
 
-本文件属于G03/W02/W05/R02的局部证据，不关闭25项总目标。工程约定与真实施工规则见`SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
+本文件属于G03/W02/W05/R02的局部证据，不关闭25项总目标。工程约定与真实施工规则见`archive/SOCIETY_CONSTRUCTION_PROCUREMENT_V1.md`。
 
 ## 验收边界
 

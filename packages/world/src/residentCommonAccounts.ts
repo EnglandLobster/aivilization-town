@@ -1,4 +1,3 @@
-import { residentEscrowIncoming, residentEscrowObligations } from './residentEscrowAccounting';
 import {
   decideCommonAccount,
   type AccountingTransaction,
@@ -76,9 +75,7 @@ export function residentCommonAccountEvent(input: {
                 !['closed', 'bankrupt'].includes(w.enterprises[r.id]!.status)
               ? w.enterprises[r.id]!.balance
               : undefined,
-      unresolvedObligations: (id) =>
-        residentEscrowObligations(w, id) || input.authorization.unresolvedObligations(id),
-      reservedIncoming: (id) => residentEscrowIncoming(w, id),
+      unresolvedObligations: (id) => input.authorization.unresolvedObligations(id),
     },
   });
   if (!d.accepted) return d;

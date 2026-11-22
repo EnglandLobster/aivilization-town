@@ -1,6 +1,5 @@
 import { addInventory, removeInventory, type Inventory } from '@aivilization/economy';
 import { validInventory, type MaterialsState } from './model';
-import { activeMaterialCustody } from './custodyModel';
 export const scaleInventory = (v: Inventory, n: number): Inventory =>
   Object.fromEntries(
     Object.entries(v)
@@ -39,12 +38,6 @@ export function fitsStock(
   for (const r of Object.values(s.reservations?.records ?? {}))
     if (r.stockId === stockId && r.status !== 'settled')
       reserved = moveInventory(reserved, r.held, 'add');
-  for (const c of Object.values(s.custodies?.records ?? {}))
-    if (
-      activeMaterialCustody(c) &&
-      (c.destinationStockId === stockId || (c.status === 'loaded' && c.sourceStockId === stockId))
-    )
-      reserved = moveInventory(reserved, c.original, 'add');
   if (!validInventory(reserved, s.policy.maxKinds, s.policy.maxQuantity, true)) return false;
   if (locationCapacity === undefined) return true;
   if (!Number.isFinite(locationCapacity) || locationCapacity < 0) return false;
@@ -72,19 +65,5 @@ export function materialLocationStorageUsage(s: MaterialsState, locationId: stri
     }
   for (const r of Object.values(s.reservations?.records ?? {}))
     if (ids.has(r.stockId) && r.status !== 'settled') stored += quantity(r.held);
-  if (!s.custodies) return { stored, futureOutputs, total: stored + futureOutputs };
-  let incoming = 0,
-    returnHeadroom = 0;
-  for (const c of Object.values(s.custodies.records))
-    if (activeMaterialCustody(c)) {
-      if (ids.has(c.destinationStockId)) incoming += quantity(c.original);
-      if (c.status === 'loaded' && ids.has(c.sourceStockId)) returnHeadroom += quantity(c.original);
-    }
-  return {
-    stored,
-    futureOutputs,
-    incoming,
-    returnHeadroom,
-    total: stored + futureOutputs + incoming + returnHeadroom,
-  };
+  return { stored, futureOutputs, total: stored + futureOutputs };
 }

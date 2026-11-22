@@ -1,16 +1,12 @@
 import { assertPhysicalHousingTimeInterval } from '../physicalHousingRest';
 import { advanceEstateCreditTime } from './estateCreditTime';
-import { assertPeriodicTimeInterval, advancePeriodicObligations } from '../periodicObligations';
 import { publicHousingSource } from '../publicHousing';
-import { advanceResidentCapital } from '../capitalLifecycle';
 import { publicEmploymentAtCycle, publicRecruitmentPolicy } from '@aivilization/society';
 import {
   settlePublicLaborInterval,
   stopUnavailablePublicLabor,
   assertPublicLaborTimePolicy,
 } from '../publicLabor';
-import { stopUnavailableServiceWork } from '../serviceEmploymentLifecycle';
-import { settleServiceElapsedInterval, assertServiceTimePolicy } from '../serviceTime';
 import { advanceClock, createSeededRandom, rollProbabilityPercent } from '@aivilization/sim-core';
 import { progressResidentStudyEvents, residentStudyPromotionEvents } from '../residentStudy';
 import { progressResidentLaborEvents, stopUnavailableResidentLabor } from '../residentLabor';
@@ -235,7 +231,6 @@ function handleAdvanceSimulationTimeInterval(input: AdvanceSimulationTimeInput):
   const previous = input.projection.clock;
   const next = advanceClock(previous, payload.deltaMs);
   assertPhysicalHousingTimeInterval(input.projection, previous.now, next.now);
-  assertPeriodicTimeInterval(input.projection, next.now);
   const events: WorldEvent[] = [
     makeEvent(input, 0, 'SimulationTimeAdvanced', {
       previous: { ...previous },
@@ -296,25 +291,6 @@ function handleAdvanceSimulationTimeInterval(input: AdvanceSimulationTimeInput):
   // precede them in this command (most importantly PublicBudgetSpent). Keeping
   // the command's original projection here lets a later tax payload resurrect
   // a stale treasury value even though replay applies the budget event first.
-  const beforePeriodic = events.reduce(applyWorldEvent, input.projection);
-  events.push(
-    ...advancePeriodicObligations({
-      projection: beforePeriodic,
-      simulationId: input.command.simulationId,
-      requestId: `periodic-tick-${input.nextSequence + events.length}`,
-      nextSequence: input.nextSequence + events.length,
-    }),
-  );
-  const beforeCapital = events.reduce(applyWorldEvent, input.projection);
-  events.push(
-    ...advanceResidentCapital({
-      projection: beforeCapital,
-      at: next.now,
-      simulationId: input.command.simulationId,
-      requestId: `capital-expiry-${input.nextSequence + events.length}`,
-      nextSequence: input.nextSequence + events.length,
-    }),
-  );
   const projectionBeforeEnterprise = events.reduce(applyWorldEvent, input.projection);
   if (!input.projection.residentLabor)
     appendEnterpriseLifecycleEvents({
@@ -412,7 +388,6 @@ function handleAdvanceSimulationTimeInterval(input: AdvanceSimulationTimeInput):
   // multiply daily lifecycle and migration rolls. Exact v1 policies retain
   // the historical shared-minimum grid, while v2+ policies are gated to their
   // own boundaries below.
-  assertServiceTimePolicy(input.projection, input);
   assertPublicLaborTimePolicy(input.projection, input);
   const turnoverSettlementCadencesMs = [
     ...(input.projection.publicLabor
@@ -420,9 +395,6 @@ function handleAdvanceSimulationTimeInterval(input: AdvanceSimulationTimeInput):
           input.projection.publicLabor.configuration.policy.cadenceMs,
           ...(input.recruitmentCycle ? [input.recruitmentCycle.cycleDurationMs] : []),
         ]
-      : []),
-    ...(input.projection.serviceTime && input.projection.serviceEngagements
-      ? [input.projection.serviceEngagements.policy.cadenceMs]
       : []),
     ...(input.projection.productiveEmployment && input.projection.materials
       ? [input.projection.materials.policy.settlementIntervalMs]
@@ -504,17 +476,6 @@ function handleAdvanceSimulationTimeInterval(input: AdvanceSimulationTimeInput):
         actorId,
         splitRestIntervals(settlementIntervalsByAgent.get(actorId)!, publicWork?.until),
       );
-      if (input.projection.serviceTime)
-        for (const service of Object.values(input.projection.serviceEngagements?.engagements ?? {}))
-          for (const boundary of [
-            service.endAt,
-            service.providerPresence?.until,
-            service.recipientPresence?.until,
-          ])
-            settlementIntervalsByAgent.set(
-              actorId,
-              splitRestIntervals(settlementIntervalsByAgent.get(actorId)!, boundary),
-            );
       if (input.projection.productiveEmployment)
         for (const job of Object.values(input.projection.materials?.productions ?? {}))
           for (const boundary of [job.session?.until, job.sourceExpiresAt])
@@ -623,47 +584,6 @@ function handleAdvanceSimulationTimeInterval(input: AdvanceSimulationTimeInput):
         balanceByAgent.set(agent.agentId, settlementProjection.agents[agent.agentId]!.balance);
       }
       // Early composites are already folded; later physical/household events must not apply them twice.
-      eventStart = events.length;
-    }
-
-    if (settlementProjection.serviceTime) {
-      for (const service of Object.values(
-        settlementProjection.serviceEngagements?.engagements ?? {},
-      ).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
-        if (
-          !service.providerPresence ||
-          (!service.recipientPresence && !settlementProjection.serviceEmployment)
-        )
-          continue;
-        const provider = settlementProjection.agents[service.providerId];
-        if (!provider) throw Error('service-provider-missing');
-        const interval = currentInterval(provider);
-        const serviceEvents = settleServiceElapsedInterval({
-          projection: settlementProjection,
-          id: service.id,
-          from: interval.previousSimulationTime,
-          until: interval.currentSimulationTime,
-          simulationId: input.command.simulationId,
-          // Automatic settlement also creates bounded domain receipt IDs. The durable
-          // sequence is unique within this world; arbitrary command/service IDs are not
-          // valid domain IDs and must not be concatenated into those receipts.
-          requestId: `service-time-${input.nextSequence + events.length}`,
-          nextSequence: input.nextSequence + events.length,
-        });
-        if (!serviceEvents.length) continue;
-        for (const actorId of service.recipientPresence
-          ? [service.providerId, service.recipientId]
-          : [service.providerId]) {
-          if (composedBodyActors.has(actorId)) throw Error('duplicate-service-body-reservation');
-          composedBodyActors.add(actorId);
-        }
-        events.push(...serviceEvents);
-        settlementProjection = serviceEvents.reduce(applyWorldEvent, settlementProjection);
-        for (const agent of Object.values(settlementProjection.agents)) {
-          physiologyByAgent.set(agent.agentId, agent.physiology);
-          balanceByAgent.set(agent.agentId, agent.balance);
-        }
-      }
       eventStart = events.length;
     }
 
@@ -1208,14 +1128,6 @@ function handleAdvanceSimulationTimeInterval(input: AdvanceSimulationTimeInput):
       });
       events.push(...productiveStops);
       settlementProjection = productiveStops.reduce(applyWorldEvent, settlementProjection);
-      const serviceStops = stopUnavailableServiceWork({
-        projection: settlementProjection,
-        at: currentSettlementTime,
-        simulationId: input.command.simulationId,
-        nextSequence: input.nextSequence + events.length,
-      });
-      events.push(...serviceStops);
-      settlementProjection = serviceStops.reduce(applyWorldEvent, settlementProjection);
       if (events.length !== laborStart)
         for (const agent of agents)
           balanceByAgent.set(agent.agentId, settlementProjection.agents[agent.agentId]!.balance);
@@ -1476,10 +1388,7 @@ function appendPublicBudgetEvents(input: {
   readonly nextSimulationTime: number;
 }): void {
   const policy = input.input.publicBudget;
-  if (
-    policy === undefined ||
-    input.input.projection.publicGovernance?.authority.grant.procurement
-  ) {
+  if (policy === undefined) {
     return;
   }
   const cycles = calculateCompletedRecruitmentCycleNumbers({

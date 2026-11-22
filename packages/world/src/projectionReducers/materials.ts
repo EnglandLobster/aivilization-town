@@ -115,7 +115,7 @@ export function applyMaterialsProjection(
       throw Error('invalid-productive-body-proof');
     agents[body.actorId] = { ...agent, physiology: { ...body.next } };
   }
-  if (w.premisesRights)
+  if (w.premises)
     for (const event of e.payload.events) {
       if (event.type !== 'MaterialReceiptRecorded') continue;
       const r = event.receipt,
@@ -188,7 +188,7 @@ export function applyMaterialsProjection(
     )
       throw Error('material-source-capacity-exceeded');
     if (
-      w.premisesRights &&
+      w.premises &&
       (!stock || worldPremisesUseUntil(w, r.agentId, stock.locationId, 'operate') < r.availableAt)
     )
       throw Error('production-permit-window-exceeded');

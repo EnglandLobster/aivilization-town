@@ -63,76 +63,8 @@ export function principalCollectiveAuthority(
   };
 }
 function proofs(e: WorldEvent): readonly PrincipalAuthorization<PrincipalRequest>[] {
-  if (e.type === 'ResidentLaborTermsCommitted')
-    return e.payload.authorization ? [e.payload.authorization] : [];
-  if (e.type === 'ResidentServiceSupplyRelationsCommitted')
-    return e.payload.events.flatMap<PrincipalAuthorization<PrincipalRequest>>((v) =>
-      v.type === 'ServiceSupplyRelationsEnabled'
-        ? []
-        : v.type === 'ServiceSupplyRelationChanged'
-          ? [v.authorization]
-          : [
-              v.change.control.authorization,
-              ...(v.affiliationAuthorization ? [v.affiliationAuthorization] : []),
-            ],
-    );
-  if (e.type === 'ResidentServiceAffiliationCommitted')
-    return e.payload.events.flatMap<PrincipalAuthorization<PrincipalRequest>>((v) =>
-      v.type === 'ServiceAffiliationsEnabled'
-        ? []
-        : v.type === 'ServiceAffiliatedPrincipalControlChanged'
-          ? [v.change.control.authorization]
-          : v.type === 'ServiceAffiliationConsentApproved'
-            ? [v.consent.authorization]
-            : [v.authorization],
-    );
-  if (e.type === 'ResidentServiceSupplyCommitted')
-    return e.payload.events.flatMap((v) =>
-      v.type === 'ServiceSupplyEnabled' ? [] : [v.authorization],
-    );
   if (e.type === 'ResidentResourcePrincipalControlCommitted')
     return [e.payload.change.control.authorization];
-  if (e.type === 'ResidentServicePrincipalsCommitted')
-    return e.payload.events.flatMap<PrincipalAuthorization<PrincipalRequest>>((v) =>
-      v.type === 'ServicePrincipalControlChanged'
-        ? [
-            v.change.control.authorization,
-            ...(v.affiliationAuthorization ? [v.affiliationAuthorization] : []),
-          ]
-        : v.type === 'ServicePrincipalOperationCommitted'
-          ? [v.authorization]
-          : [],
-    );
-  if (e.type === 'ResidentVehiclePrincipalsCommitted')
-    return e.payload.events.flatMap((v) =>
-      v.type === 'VehiclePrincipalDriversChanged' ? [v.authorization] : [],
-    );
-  if (e.type === 'ResidentResourceSalesCommitted')
-    return e.payload.event.type === 'ResourceSaleCommitted' && e.payload.event.authorization
-      ? [e.payload.event.authorization]
-      : [];
-  if (e.type === 'ResidentPeriodicObligationsCommitted') {
-    const v = e.payload.event;
-    return v.type === 'PeriodicObligationOffered'
-      ? [v.obligation.offeredAuthorization]
-      : v.type === 'PeriodicObligationChanged'
-        ? [v.authorization]
-        : [];
-  }
-  if (e.type === 'ResidentConstructionTradeCommitted')
-    return e.payload.events.flatMap((v) =>
-      v.type === 'ConstructionTradeCommitted' ? [v.authorization] : [],
-    );
-  if (e.type === 'ResidentPrincipalEvidenceTradeCommitted')
-    return e.payload.events.flatMap((v) =>
-      v.type === 'PrincipalTradeCommitted' && v.receipt.authorization
-        ? [v.receipt.authorization]
-        : [],
-    );
-  if (e.type === 'ResidentPrincipalPremisesRightsCommitted')
-    return e.payload.events.flatMap((v) =>
-      v.type === 'PrincipalPremisesRightsEnabled' ? [] : [v.authorization],
-    );
   if (e.type === 'ResidentPremisesCommitted')
     return e.payload.events.flatMap((v) =>
       v.type === 'PremisesPrincipalOperationRecorded' ? [v.receipt.authorization] : [],

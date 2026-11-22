@@ -32,8 +32,7 @@ export const enterpriseController = (e: EnterpriseState): Controller =>
   effectiveController(enterpriseControlResource(e));
 export const enterpriseControlVersion = (e: EnterpriseState): number =>
   controlVersion(enterpriseControlResource(e));
-export const enterpriseRequiresManagement = (e: EnterpriseState): boolean =>
-  !!(e.control || e.capital);
+export const enterpriseRequiresManagement = (e: EnterpriseState): boolean => !!e.control;
 export type EnterpriseManagementOperation =
   | 'resource-control'
   | 'activate-capital'

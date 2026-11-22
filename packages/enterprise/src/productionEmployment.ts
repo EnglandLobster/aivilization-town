@@ -1,9 +1,3 @@
-import {
-  enterpriseLaborRateReference,
-  assertEnterpriseLaborRateReference,
-  matchesEnterpriseLaborRate,
-  type EnterpriseLaborRateReference,
-} from './laborTerms';
 import { enterpriseRequiresManagement } from './control';
 import type { ControlAuthorizationPort } from '@aivilization/authority';
 import {
@@ -28,7 +22,6 @@ export type ProductionEmploymentAssignment = {
   readonly at: number;
   readonly authorizedWorkMs: number;
   readonly wageOffers: Readonly<Record<string, number>>;
-  readonly wageTerms?: Readonly<Record<string, EnterpriseLaborRateReference>>;
 };
 export type ProductionEmploymentState = {
   readonly policyVersion: typeof PRODUCTION_EMPLOYMENT_POLICY.version;
@@ -55,15 +48,6 @@ export function assertProductionEmployment(s: ProductionEmploymentState): void {
     throw Error('invalid-production-employment-state');
   for (const [id, a] of Object.entries(s.assignments)) {
     const workers = Object.entries(a.wageOffers);
-    if (a.wageTerms) {
-      if (Object.keys(a.wageTerms).length !== workers.length)
-        throw Error('invalid-production-wage-terms');
-      for (const [actor, wage] of workers) {
-        const rate = a.wageTerms[actor];
-        if (!rate || rate.wageMicros / 1e6 !== wage) throw Error('invalid-production-wage-terms');
-        assertEnterpriseLaborRateReference(rate);
-      }
-    }
     if (
       !key(id) ||
       id !== a.productionId ||
@@ -88,7 +72,6 @@ export function decideAssignProductionEmployment(input: {
   readonly at: number;
   readonly authorizedWorkMs: number;
   readonly workers: readonly AgentId[];
-  readonly agreedRates?: true;
 }): Decision {
   const e = input.enterprise;
   const authority = enterpriseManagementAuthority(
@@ -103,15 +86,8 @@ export function decideAssignProductionEmployment(input: {
   if (new Set(input.workers).size !== input.workers.length)
     return { accepted: false, reason: 'duplicate-production-employee' };
   const wageOffers: Record<string, number> = {};
-  const wageTerms: Record<string, EnterpriseLaborRateReference> = {};
   for (const actor of input.workers) {
-    const agreed = input.agreedRates ? enterpriseLaborRateReference(e, actor, input.at) : undefined;
-    const wage = input.agreedRates
-      ? agreed
-        ? agreed.wageMicros / 1e6
-        : undefined
-      : e.employeeWageOffers?.[actor];
-    if (agreed) wageTerms[actor] = agreed;
+    const wage = e.employeeWageOffers?.[actor];
     if (!key(actor) || !e.employeeAgentIds.includes(actor) || wage === undefined)
       return { accepted: false, reason: 'production-employee-contracted-wage-required' };
     wageOffers[actor] = wage;
@@ -126,7 +102,6 @@ export function decideAssignProductionEmployment(input: {
       at: input.at,
       authorizedWorkMs: input.authorizedWorkMs,
       wageOffers,
-      ...(input.agreedRates ? { wageTerms } : {}),
     },
   };
   try {
@@ -158,12 +133,7 @@ export function applyProductionEmploymentEvent(
     Object.hasOwn(e.productionEmployment?.assignments ?? {}, a.productionId) ||
     Object.entries(a.wageOffers).some(
       ([actor, wage]) =>
-        !e.employeeAgentIds.includes(actor as AgentId) ||
-        (a.wageTerms
-          ? !a.wageTerms[actor] ||
-            !matchesEnterpriseLaborRate(e, actor, a.wageTerms[actor], a.at) ||
-            a.wageTerms[actor].wageMicros / 1e6 !== wage
-          : e.employeeWageOffers?.[actor] !== wage),
+        !e.employeeAgentIds.includes(actor as AgentId) || e.employeeWageOffers?.[actor] !== wage,
     )
   )
     throw Error('production-employment-authorization-mismatch');
@@ -183,8 +153,6 @@ export function productionEmploymentWage(
   e: EnterpriseState,
   productionId: string,
   actorId: AgentId,
-  at = 0,
-  existingSession = false,
 ): number | undefined {
   const a = e.productionEmployment?.assignments[productionId];
   const wage = a?.wageOffers[actorId];
@@ -192,10 +160,7 @@ export function productionEmploymentWage(
     ['active', 'insolvent'].includes(e.status) &&
     e.employeeAgentIds.includes(actorId) &&
     wage !== undefined &&
-    (a.wageTerms
-      ? !!a.wageTerms[actorId] &&
-        matchesEnterpriseLaborRate(e, actorId, a.wageTerms[actorId], at, existingSession)
-      : e.employeeWageOffers?.[actorId] === wage)
+    e.employeeWageOffers?.[actorId] === wage
     ? wage
     : undefined;
 }

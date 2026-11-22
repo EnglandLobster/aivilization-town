@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { createCommandEnvelope, createEventEnvelope, asAgentId } from '@aivilization/sim-core';
-import { freightWorldFixture } from './testFixtures/residentFreight';
+import { materialsWorldFixture } from './testFixtures/residentMaterialsWorld';
 import { enableResidentExtractionEvent } from './residentExtraction';
 import { settleResidentMaterialEvent } from './residentMaterials';
 import { dispatchWorldCommand, type WorldCommandPolicies } from './agentActions';
@@ -25,7 +25,7 @@ const sources = [
   },
 ];
 test('explicit activation preserves old inventory, disables instant legacy production, and records actual extraction in one conserved world', () => {
-  const t = freightWorldFixture(),
+  const t = materialsWorldFixture(),
     before = t.w;
   const activation = enableResidentExtractionEvent({ ...t.context(), policies, sources });
   t.commit([activation]);
@@ -48,7 +48,7 @@ test('explicit activation preserves old inventory, disables instant legacy produ
   );
   const job = () => t.w.materials!.productions.gather!;
   expect(source().remaining).toBe(3);
-  expect(t.w.materials!.stocks['source-stock']!.inventory.Wood).toBe(4);
+  expect(t.w.materials!.stocks['source-stock']!.inventory.Wood).toBe(8);
   t.ok(
     t.material('source', {
       type: 'start-production',
@@ -71,7 +71,7 @@ test('explicit activation preserves old inventory, disables instant legacy produ
     }),
   );
   expect(job().completed).toBe(1);
-  expect(t.w.materials!.stocks['source-stock']!.inventory.Wood).toBe(5);
+  expect(t.w.materials!.stocks['source-stock']!.inventory.Wood).toBe(9);
   t.ok(
     t.material('source', {
       type: 'cancel-production',
@@ -121,7 +121,7 @@ test('explicit activation preserves old inventory, disables instant legacy produ
   t.replay();
 });
 test('activation rejects unknown places, a duplicate pool and active prepaid production without changing history', () => {
-  const t = freightWorldFixture();
+  const t = materialsWorldFixture();
   expect(() =>
     enableResidentExtractionEvent({
       ...t.context(),

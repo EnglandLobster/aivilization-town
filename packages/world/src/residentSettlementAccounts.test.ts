@@ -11,7 +11,7 @@ const payment = () =>
     transactionId: 'original-paid-period',
     reason: 'periodic-obligation-paid',
     from: economicAccount('agent', 'a'),
-    to: economicAccount('public-service', 'resident-periodic-obligations'),
+    to: economicAccount('public-service', 'resident-earned-wages'),
     amount: 2,
   });
 const departed = () => {
@@ -68,7 +68,7 @@ test('a forged population reference, physical destination, amount or unknown fie
           transactionId: 'original-paid-period',
           reason: 'periodic-obligation-paid',
           from: economicAccount('estate', 'estate-10'),
-          to: economicAccount('public-service', 'resident-periodic-obligations'),
+          to: economicAccount('public-service', 'resident-earned-wages'),
           amount: 3,
         }),
       ],
@@ -91,10 +91,10 @@ test('a subsequent real cash-domain event invalidates a saved physical-account p
     previousRevision: 1,
     at: 0,
     source: {
-      context: 'periodic-obligations',
+      context: 'earned-wages',
       id: 'existing-contract',
       revision: 1,
-      policyVersion: 'resident-periodic-obligations-v1',
+      policyVersion: 'resident-earned-wage-estate-v1',
     },
     transaction,
   });
@@ -112,7 +112,7 @@ test('a closed consumer must supply its original economic ledger; direct estate 
     transactionId: 'direct-withdrawal',
     reason: 'unsupported',
     from: economicAccount('estate', 'estate-10'),
-    to: economicAccount('public-service', 'resident-periodic-obligations'),
+    to: economicAccount('public-service', 'resident-earned-wages'),
     amount: 2,
   });
   expect(() => resolveResidentSettlementAccounts(w, [direct])).toThrow('must-be-resolved');
@@ -133,7 +133,7 @@ test('a closed consumer must supply its original economic ledger; direct estate 
         transactionId: 'unknown-subject',
         reason: 'unsupported',
         from: economicAccount('agent', 'unknown'),
-        to: economicAccount('public-service', 'resident-periodic-obligations'),
+        to: economicAccount('public-service', 'resident-earned-wages'),
         amount: 2,
       }),
     ]),

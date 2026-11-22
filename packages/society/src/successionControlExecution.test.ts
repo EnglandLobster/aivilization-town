@@ -159,7 +159,7 @@ test('a ready arrangement without actual population trigger and a substituted ac
     { termsRevision: 2 },
     { expectedArrangementRevision: 1 },
     { resourceId: 'other' },
-    { kind: 'vehicle' as const },
+    { kind: 'premises' as const },
     { expiresAt: 5051 },
     { expiresAt: 60 },
   ])
@@ -175,7 +175,7 @@ test('current control entitlement and source are rechecked rather than accepting
     { ...original, ownerId: 'd' },
     { ...original, entitlementVersion: 3 },
     { ...original, available: false },
-    { ...original, kind: 'vehicle' as const },
+    { ...original, kind: 'premises' as const },
     { ...original, id: 'other' },
   ]) {
     f.fact = changed;
@@ -262,7 +262,7 @@ test('composite binding keys cannot alias arrangements/resources containing colo
       ...e.record,
       id: 'one',
       arrangementId: 'will:stock',
-      kind: 'vehicle' as const,
+      kind: 'premises' as const,
       resourceId: 's',
     },
   };
@@ -273,7 +273,7 @@ test('composite binding keys cannot alias arrangements/resources containing colo
       id: 'two',
       arrangementId: 'will',
       kind: 'stock' as const,
-      resourceId: 'vehicle:s',
+      resourceId: 'premises:s',
     },
   };
   const next = [one, two].reduce(applySuccessionControlExecutionEvent, f.executions);

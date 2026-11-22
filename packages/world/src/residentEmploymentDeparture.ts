@@ -9,7 +9,6 @@ import {
 } from './residentExitCapture';
 import { stopUnavailableResidentLabor } from './residentLabor';
 import { stopUnavailableProductiveWork } from './productiveEmploymentLifecycle';
-import { stopUnavailableServiceWork } from './serviceEmploymentLifecycle';
 
 /** Candidate atomic batch only. The caller owns the actual population decision and must
  * append every event in one journal transaction. This is not natural-population activation. */
@@ -70,7 +69,6 @@ export function prepareResidentEmploymentDeparture(input: {
       nextSequence: d.sequence + events.length,
     });
     append(stopUnavailableProductiveWork(context()));
-    append(stopUnavailableServiceWork(context()));
     append(stopUnavailableResidentLabor(context()));
     append(
       prepareResidentDepartureActivities({
@@ -87,12 +85,7 @@ export function prepareResidentEmploymentDeparture(input: {
       w.residentLabor?.process.activeByActor[id] ||
       (w.activityTimeByAgent[id]?.availableAt ?? 0) > at ||
       Object.values(w.materials?.productions ?? {}).some((j) => j.session?.actorId === id) ||
-      Object.values(w.premises?.projects ?? {}).some((j) => j.session?.actorId === id) ||
-      Object.values(w.serviceEngagements?.engagements ?? {}).some(
-        (s) =>
-          (s.providerId === id && s.providerPresence) ||
-          (s.recipientId === id && s.recipientPresence),
-      )
+      Object.values(w.premises?.projects ?? {}).some((j) => j.session?.actorId === id)
     )
       throw Error('employment-departure-other-active-participation-unresolved');
     const terminal = { ...d, sequence: d.sequence + events.length };

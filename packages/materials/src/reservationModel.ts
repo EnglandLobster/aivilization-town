@@ -15,7 +15,7 @@ export type MaterialReservationsPolicy = {
   readonly maxTermsChars: number;
 };
 export type MaterialConsumer = {
-  readonly domain: 'premises' | 'services' | 'logistics';
+  readonly domain: 'premises';
   readonly id: string;
 };
 export type MaterialReservation = {

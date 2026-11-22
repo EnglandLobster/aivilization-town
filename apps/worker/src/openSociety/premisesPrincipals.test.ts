@@ -13,10 +13,15 @@ import { OpenSocietyRuntime } from './runtime';
 import { applyWorldEvent } from '@aivilization/world';
 import { openPremisesFixture, premisesCleanup } from './testFixtures/openPremises';
 function fixture() {
-  const t = openPremisesFixture(true, true, {}, false, {
-    principals: true,
-    manifest: { premisesPrincipals: true },
-  });
+  const t = openPremisesFixture(
+    true,
+    true,
+    {},
+    {
+      principals: true,
+      manifest: { premisesPrincipals: true },
+    },
+  );
   t.ok(t.b, 'world.found_enterprise', {
     enterpriseId: 'firm',
     name: '材料企业',

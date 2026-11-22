@@ -230,4 +230,4 @@ its solvency calculation; it must not absorb the banking model.
 
 `residentMobilityCommand` 原子编排车辆状态、双方完全一致的真实旅行和 commerce 押金；`advanceResidentMobility` 在真实到达/订单时限边界处理结算。车费托管位于已有 `public-service:resident-commerce` 流通账户，采用平衡 entries，不新增货币或游离账户。`ride-deposit-` 命名空间只能由出行应用端口结算；普通居民 deposits 命令不可旁路。接客途中取消退款不会取消已发生的移动。
 
-新 continuity 生活实验在 manifest.initialWorld 显式播种一辆车并记录 policy/provenance，旧 manifest 无此字段则关闭。不把实验能力视作 canonical/跨分区支持；详见 `specs/RESIDENT_MOBILITY_V1.md`。
+新 continuity 生活实验在 manifest.initialWorld 显式播种一辆车并记录 policy/provenance，旧 manifest 无此字段则关闭。不把实验能力视作 canonical/跨分区支持；详见 `specs/archive/RESIDENT_MOBILITY_V1.md`。

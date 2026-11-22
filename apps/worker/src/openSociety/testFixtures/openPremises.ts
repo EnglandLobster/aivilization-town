@@ -14,7 +14,6 @@ export function openPremisesFixture(
   enabled = true,
   facilityUse = true,
   blueprintExtras: Record<string, string | number> = {},
-  premisesRights = true,
   options: {
     /** Further manifest options, e.g. features a test needs from the start. */
     manifest?: Partial<Parameters<typeof createOpenSocietyManifest>[0]>;
@@ -33,7 +32,6 @@ export function openPremisesFixture(
       ...(options.elapsedRest ? { elapsedRest: true } : {}),
       premises: enabled,
       facilityUse,
-      premisesRights,
       ...(options.principals ? { resourcePrincipals: true, publicGovernance: true } : {}),
       ...options.manifest,
     }),

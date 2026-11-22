@@ -166,27 +166,18 @@ importers:
       '@aivilization/information':
         specifier: workspace:*
         version: link:../../packages/information
-      '@aivilization/logistics':
-        specifier: workspace:*
-        version: link:../../packages/logistics
       '@aivilization/materials':
         specifier: workspace:*
         version: link:../../packages/materials
       '@aivilization/memory':
         specifier: workspace:*
         version: link:../../packages/memory
-      '@aivilization/mobility':
-        specifier: workspace:*
-        version: link:../../packages/mobility
       '@aivilization/observability':
         specifier: workspace:*
         version: link:../../packages/observability
       '@aivilization/premises':
         specifier: workspace:*
         version: link:../../packages/premises
-      '@aivilization/services':
-        specifier: workspace:*
-        version: link:../../packages/services
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../../packages/sim-core
@@ -276,18 +267,6 @@ importers:
         specifier: workspace:*
         version: link:../sim-core
 
-  packages/logistics:
-    dependencies:
-      '@aivilization/authority':
-        specifier: workspace:*
-        version: link:../authority
-      '@aivilization/economy':
-        specifier: workspace:*
-        version: link:../economy
-      '@aivilization/materials':
-        specifier: workspace:*
-        version: link:../materials
-
   packages/materials:
     dependencies:
       '@aivilization/authority':
@@ -306,12 +285,6 @@ importers:
         specifier: workspace:*
         version: link:../sim-core
 
-  packages/mobility:
-    dependencies:
-      '@aivilization/authority':
-        specifier: workspace:*
-        version: link:../authority
-
   packages/observability:
     dependencies:
       '@aivilization/sim-core':
@@ -329,18 +302,6 @@ importers:
       '@aivilization/materials':
         specifier: workspace:*
         version: link:../materials
-
-  packages/services:
-    dependencies:
-      '@aivilization/authority':
-        specifier: workspace:*
-        version: link:../authority
-      '@aivilization/economy':
-        specifier: workspace:*
-        version: link:../economy
-      '@aivilization/society':
-        specifier: workspace:*
-        version: link:../society
 
   packages/sim-core: {}
 
@@ -376,24 +337,15 @@ importers:
       '@aivilization/governance':
         specifier: workspace:*
         version: link:../governance
-      '@aivilization/logistics':
-        specifier: workspace:*
-        version: link:../logistics
       '@aivilization/materials':
         specifier: workspace:*
         version: link:../materials
       '@aivilization/memory':
         specifier: workspace:*
         version: link:../memory
-      '@aivilization/mobility':
-        specifier: workspace:*
-        version: link:../mobility
       '@aivilization/premises':
         specifier: workspace:*
         version: link:../premises
-      '@aivilization/services':
-        specifier: workspace:*
-        version: link:../services
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../sim-core

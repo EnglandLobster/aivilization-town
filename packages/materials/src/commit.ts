@@ -2,8 +2,6 @@ import { assertMaterialInterruption } from './interruption';
 import { assertPrincipalReservationTransitions } from './principalReservations';
 import { assertMaterialPrincipalReceipt } from './principalReceipts';
 import type { MaterialAllocation } from './reservationModel';
-import type { MaterialCustodyProof } from './custodyModel';
-import { validateMaterialCustodyEvidence } from './custodyCommit';
 import type { Inventory } from '@aivilization/economy';
 import { applyMaterialEvent } from './events';
 import { regrowMaterialSources } from './growth';
@@ -40,23 +38,11 @@ export function applyMaterialCommit(
   before: MaterialsState | undefined,
   events: readonly MaterialEvent[],
   consumerEvidence: readonly MaterialAllocation[] = [],
-  custodyEvidence: readonly MaterialCustodyProof[] = [],
 ) {
   assertMaterialInterruption(before, events);
   if (
-    custodyEvidence.length ||
-    events.some(
-      (e) =>
-        e.type === 'MaterialCustodyChanged' ||
-        (e.type === 'MaterialReceiptRecorded' &&
-          (e.receipt.custodyProof ||
-            e.receipt.transfers.some((t) => t.from.kind === 'custody' || t.to.kind === 'custody'))),
-    )
-  )
-    validateMaterialCustodyEvidence(before, events, custodyEvidence);
-  if (
     events.some((e) => e.type === 'MaterialExtractionEnabled') &&
-    (events.length !== 1 || consumerEvidence.length || custodyEvidence.length)
+    (events.length !== 1 || consumerEvidence.length)
   )
     throw Error('material-extraction-activation-must-stand-alone');
   if (
@@ -74,7 +60,6 @@ export function applyMaterialCommit(
     regrown &&
     (!before ||
       consumerEvidence.length ||
-      custodyEvidence.length ||
       canonicalJson(events) !== canonicalJson(regrowMaterialSources(before, regrown.at)))
   )
     throw Error('material-regrowth-must-match-policy');
@@ -103,7 +88,6 @@ export function applyMaterialCommit(
       (endpoint.kind === 'source' && !state.extraction?.sources[endpoint.id]) ||
       (endpoint.kind === 'stock' && !state.stocks[endpoint.id]) ||
       (endpoint.kind === 'production' && !state.productions[endpoint.id]) ||
-      (endpoint.kind === 'custody' && !state.custodies?.records[endpoint.id]) ||
       (endpoint.kind === 'reservation' && !state.reservations?.records[endpoint.id])
     )
       throw new Error('material-flow-endpoint-missing');
@@ -153,16 +137,11 @@ export function applyMaterialCommit(
         add(t.to, t.items, 1);
         if (t.from.kind === 'reservation') {
           const reservation = state.reservations?.records[t.from.id];
-          const toCustody = t.to.kind === 'custody' && r.custodyProof?.operation === 'load';
-          if (
-            !reservation ||
-            (!toCustody && (t.to.kind !== 'stock' || t.to.id !== reservation.stockId))
-          )
+          if (!reservation || t.to.kind !== 'stock' || t.to.id !== reservation.stockId)
             throw new Error('invalid-material-reservation-return');
-          const ledger = toCustody ? allocations : returned;
-          const v = ledger[reservation.id] ?? {};
+          const v = returned[reservation.id] ?? {};
           for (const [k, n] of Object.entries(t.items)) v[k] = (v[k] ?? 0) + n;
-          ledger[reservation.id] = v;
+          returned[reservation.id] = v;
         }
       }
       for (const a of r.allocations ?? []) {
@@ -265,12 +244,6 @@ export function applyMaterialCommit(
       source.remaining !== old.remaining + (delta[source.commodity] ?? 0)
     )
       throw Error('material-source-flow-mismatch');
-  }
-  for (const [id, c] of Object.entries(state.custodies?.records ?? {})) {
-    const expected = { ...before?.custodies?.records[id]?.held };
-    for (const [k, n] of Object.entries(deltas[`custody:${id}`] ?? {}))
-      expected[k] = (expected[k] ?? 0) + n;
-    if (!equalInventory(expected, c.held)) throw Error('material-custody-flow-mismatch');
   }
   for (const [id, v] of Object.entries(state.stocks)) {
     const old = before?.stocks[id]?.inventory ?? {},

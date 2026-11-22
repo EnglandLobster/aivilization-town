@@ -39,19 +39,7 @@ export function applyPublicGovernanceEvent(
       p.closedAt !== undefined ||
       p.executedAt !== undefined ||
       p.effectIds ||
-      p.invalidatedByProposal ||
-      (p.resourceSalesScopeVersion !== undefined &&
-        (p.action.kind !== 'manage-resource' ||
-          p.action.request.resourceKind !== 'resource-sale' ||
-          p.resourceSalesScopeVersion !== s.grant.resourceSales?.version)) ||
-      (p.constructionTradeScopeVersion !== undefined &&
-        (p.action.kind !== 'manage-resource' ||
-          !p.action.request.operation.capability.startsWith('construction-trades.') ||
-          p.constructionTradeScopeVersion !== s.grant.constructionTrade?.version)) ||
-      (p.periodicObligationsScopeVersion !== undefined &&
-        (p.action.kind !== 'manage-resource' ||
-          p.action.request.resourceKind !== 'periodic-obligation' ||
-          p.periodicObligationsScopeVersion !== s.grant.periodicObligations?.version))
+      p.invalidatedByProposal
     )
       fail();
     return { ...s, proposals: { ...s.proposals, [p.id]: p } };

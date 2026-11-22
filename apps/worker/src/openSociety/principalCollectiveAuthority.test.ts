@@ -24,11 +24,9 @@ import { initialOpenSocietyState, applyOpenSocietyEffects } from './state';
 import { principalCollectiveAuthority } from './principalCollectiveAuthority';
 import type { OpenSocietyEffects } from './types';
 
-function fixture(firm = false, labor = false) {
+function fixture(firm = false) {
   const m = createOpenSocietyManifest({
     count: 3,
-    elapsedRest: labor,
-    elapsedLabor: labor,
     continuity: true,
     materials: true,
     publicGovernance: true,
@@ -42,20 +40,6 @@ function fixture(firm = false, labor = false) {
     ...m,
     initialWorld: {
       ...m.initialWorld,
-      ...(labor && m.initialWorld.residentLabor
-        ? {
-            residentLabor: {
-              ...m.initialWorld.residentLabor,
-              configuration: {
-                policy: m.initialWorld.residentLabor.configuration.policy,
-                effort: m.initialWorld.residentLabor.configuration.effort,
-                critical: m.initialWorld.residentLabor.configuration.critical,
-                locationIds: m.initialWorld.residentLabor.configuration.locationIds,
-                compensationSource: 'accepted-enterprise-labor-terms-v1' as const,
-              },
-            },
-          }
-        : {}),
       agents: Object.fromEntries(
         Object.entries(m.initialWorld.agents).map(([id, v]) => [
           id,
@@ -74,7 +58,7 @@ function fixture(firm = false, labor = false) {
                 balance: 0,
                 inventory: {},
                 maxEmployees: 3,
-                employeeAgentIds: labor ? [asAgentId(c)] : [],
+                employeeAgentIds: [],
                 employeeWageOffers: {},
                 ownershipShares: { [a]: 1 },
                 status: 'active',

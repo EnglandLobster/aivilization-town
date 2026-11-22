@@ -8,13 +8,18 @@ import { createCommandEnvelope } from '@aivilization/sim-core';
 import { openWorldPolicies } from './manifest';
 
 function setup() {
-  return openPremisesFixture(true, true, {}, true, {
-    elapsedRest: true,
-    initialEnergy: 30,
-    wearIntervalMs: 600000,
-    wearPerInterval: 250,
-    manifest: { housingOccupancy: true, physicalHousingRest: true },
-  });
+  return openPremisesFixture(
+    true,
+    true,
+    {},
+    {
+      elapsedRest: true,
+      initialEnergy: 30,
+      wearIntervalMs: 600000,
+      wearPerInterval: 250,
+      manifest: { housingOccupancy: true, physicalHousingRest: true },
+    },
+  );
 }
 function build(t: ReturnType<typeof setup>) {
   t.reserve();

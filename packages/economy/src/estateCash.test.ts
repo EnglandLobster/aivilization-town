@@ -52,10 +52,10 @@ function fixture(balance = 100.123456789) {
   };
   const capture = () => commit(captureEstateCash(state, 'a-estate', source));
   const reference = (revision = 1): EstateCashSourceReference => ({
-    context: 'periodic-obligations',
+    context: 'earned-wages',
     id: 'promise',
     revision,
-    policyVersion: 'resident-periodic-obligations-v1',
+    policyVersion: 'resident-earned-wage-estate-v1',
   });
   const transaction = (amount: number, id = 'periodic-cash-1'): AccountingTransaction =>
     createMoneyTransfer({
@@ -63,11 +63,11 @@ function fixture(balance = 100.123456789) {
       reason: 'actual-once-only-due',
       from: economicAccount(
         amount > 0 ? 'public-service' : 'estate',
-        amount > 0 ? 'resident-periodic-obligations' : 'a-estate',
+        amount > 0 ? 'resident-earned-wages' : 'a-estate',
       ),
       to: economicAccount(
         amount > 0 ? 'estate' : 'public-service',
-        amount > 0 ? 'a-estate' : 'resident-periodic-obligations',
+        amount > 0 ? 'a-estate' : 'resident-earned-wages',
       ),
       amount: Math.abs(amount),
     });
@@ -223,7 +223,7 @@ test('zero cash is insufficient for closure if any domain is unobserved, missing
   const pending = t
     .reads()
     .map((r) =>
-      r.domain === 'logistics' ? { ...r, references: [{ id: 'real-cargo', revision: 3 }] } : r,
+      r.domain === 'materials' ? { ...r, references: [{ id: 'real-cargo', revision: 3 }] } : r,
     );
   expect(closeEstateCash(t.state, { ...base, responsibilityReads: pending })).toMatchObject({
     accepted: false,
@@ -377,7 +377,7 @@ test('cash v2 does not allow a substituted bank, sector, source version or unrel
   for (const destination of [
     economicAccount('bank', 'other-bank'),
     economicAccount('public-service', 'town-bank'),
-    economicAccount('public-service', 'resident-periodic-obligations'),
+    economicAccount('public-service', 'resident-earned-wages'),
   ])
     expect(
       settleEstateCash(s, {
@@ -433,16 +433,16 @@ test('legacy clearing consumers keep their exact original transfer semantics und
     previousRevision: 1,
     at: 200,
     source: {
-      context: 'periodic-obligations',
+      context: 'earned-wages',
       id: 'old-promise',
       revision: 1,
-      policyVersion: 'resident-periodic-obligations-v1',
+      policyVersion: 'resident-earned-wage-estate-v1',
     },
     transaction: createMoneyTransfer({
       transactionId: 'original-periodic-payout',
       reason: 'old-consumer',
       from: economicAccount('estate', 'bank-estate'),
-      to: economicAccount('public-service', 'resident-periodic-obligations'),
+      to: economicAccount('public-service', 'resident-earned-wages'),
       amount: 10,
     }),
   });

@@ -6,7 +6,6 @@ import {
   publicEqual,
 } from '@aivilization/governance';
 import { MATERIAL_EXTRACTION_POLICY } from '@aivilization/materials';
-import { assertPremisesRightsPolicy } from '@aivilization/premises';
 import {
   assertHousingChoiceState,
   assertHousingOccupancyState,
@@ -78,6 +77,4 @@ export function assertTownConsistency(
     assertResidentStudyConfiguration(world, world.residentStudy.configuration);
   if (world.residentLabor)
     assertResidentLaborConfiguration(world, world.residentLabor.configuration);
-  if (manifest.initialWorld.premisesRights)
-    assertPremisesRightsPolicy(manifest.initialWorld.premisesRights.policy);
 }

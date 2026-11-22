@@ -51,7 +51,6 @@ export const TOWN_FEATURES = {
   materials: true,
   premises: true,
   facilityUse: true,
-  premisesRights: true,
   messagePacing: true,
   actionPlans: 'resident-action-plans-v2',
 } as const satisfies Parameters<typeof createOpenSocietyManifest>[0];

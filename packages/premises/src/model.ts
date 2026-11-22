@@ -241,3 +241,6 @@ export type PremisesPorts = {
   readonly hasObligations: (buildingId: string) => boolean;
   readonly sessionReserved: (project: ConstructionProject) => boolean;
 };
+/** What someone may do in a building; each grant list on the building answers one of these. */
+export const PREMISES_USE_SCOPES = ['entry', 'operate', 'store', 'reside'] as const;
+export type PremisesUseScope = (typeof PREMISES_USE_SCOPES)[number];

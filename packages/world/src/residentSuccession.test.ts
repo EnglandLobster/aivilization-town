@@ -1,8 +1,6 @@
 import { expect, test } from 'vitest';
 import { asAgentId, asLocationId, createEventEnvelope, advanceClock } from '@aivilization/sim-core';
 import { createMaterialsPolicy, type MaterialCommand } from '@aivilization/materials';
-import { emptyMobilityState, authorizedDriver } from '@aivilization/mobility';
-import { enableVehiclePrincipalsEvent } from './vehiclePrincipals';
 import { enablePremisesPrincipalsEvent } from './premisesPrincipals';
 import { residentConstructionFixture } from './testFixtures/residentConstruction';
 import type {
@@ -30,7 +28,7 @@ import {
   residentSuccessionControlOfferEvent,
   assertResidentSuccessionSnapshot,
 } from './residentSuccession';
-function fixture(asset: 'stock' | 'vehicle' = 'stock') {
+function fixture() {
   const f = residentExitFixture(),
     a = {
       ...f.agents.a!,
@@ -39,9 +37,6 @@ function fixture(asset: 'stock' | 'vehicle' = 'stock') {
     };
   const seed: WorldProjection = {
     ...f,
-    residentMobility: emptyMobilityState([
-      { id: 'car', ownerId: 'a', authorized: [], locationId: 'site', seats: 4, revision: 1 },
-    ]),
     agents: {
       a,
       b: { ...a, agentId: asAgentId('b'), balance: 0, inventory: {} },
@@ -144,7 +139,6 @@ function fixture(asset: 'stock' | 'vehicle' = 'stock') {
     }),
   ]);
   commit([enableResourcePrincipalsEvent(ctx()), enableResidentSuccessionEvent(ctx())]);
-  if (asset === 'vehicle') commit([enableVehiclePrincipalsEvent(ctx())]);
   const terms: SuccessionTerms = {
     id: 'will',
     ownerId: 'a',
@@ -156,9 +150,9 @@ function fixture(asset: 'stock' | 'vehicle' = 'stock') {
     executionWindowMs: 5000,
     bindings: [
       {
-        kind: asset,
-        id: asset === 'stock' ? 's' : 'car',
-        entitlementVersion: asset === 'stock' ? w.materials!.stocks.s!.control.version : 1,
+        kind: 'stock',
+        id: 's',
+        entitlementVersion: w.materials!.stocks.s!.control.version,
         duty: 'control-handover',
       },
     ],
@@ -194,8 +188,8 @@ function fixture(asset: 'stock' | 'vehicle' = 'stock') {
     arrangementId: 'will',
     expectedArrangementRevision: w.residentExits!.arrangements.arrangements.will!.revision,
     termsRevision: 1,
-    kind: asset,
-    resourceId: asset === 'stock' ? 's' : 'car',
+    kind: 'stock' as const,
+    resourceId: 's',
     expiresAt: 500,
   };
   const propose = (change: Partial<SuccessionControlOfferInput> = {}, actor = 'b') =>
@@ -269,7 +263,7 @@ test('missing actual population trigger or substituted executor cannot generate 
   for (const change of [
     { termsRevision: 2 },
     { resourceId: 'other' },
-    { kind: 'vehicle' as const },
+    { kind: 'premises' as const },
     { expiresAt: 5001 },
   ])
     expect(f.propose(change).accepted).toBe(false);
@@ -380,39 +374,6 @@ test('source ACL/body availability, deadline and old mode do not silently grant 
     residentSuccessionControlOfferEvent({ ...f.ctx('b'), projection: changed, offer: f.offer })
       .accepted,
   ).toBe(false);
-});
-test('real vehicle custody offers and independently accepted control retain original author, location, driver permissions and empty load without inventing a purchase or licence', () => {
-  const f = fixture('vehicle'),
-    vehicle = structuredClone(f.w.residentMobility!.vehicles.car!);
-  f.ok(f.propose());
-  const offered = f.w.residentMobility!.vehicles.car!;
-  expect(offered.ownerId).toBe('a');
-  expect(offered.control?.controller).toEqual({ kind: 'resident', id: 'a' });
-  expect(offered.locationId).toBe(vehicle.locationId);
-  expect(vehicle.authorized).toEqual([]);
-  // The legacy seed owner already had implicit self-use; the owning v2 migration preserves that old permission explicitly.
-  expect(offered.authorized).toEqual(['a']);
-  f.ok(
-    residentPrincipalControlEvent({
-      ...f.ctx('c'),
-      request: {
-        resourceKind: 'vehicle',
-        resourceId: 'car',
-        resourceRevision: offered.revision,
-        controlVersion: offered.control!.version,
-        command: { type: 'accept' },
-      },
-    }),
-  );
-  const after = f.w.residentMobility!.vehicles.car!;
-  expect(after.control?.controller).toEqual({ kind: 'resident', id: 'c' });
-  expect(after.authorized).toEqual(['a']);
-  expect(authorizedDriver(after, 'c')).toBe(false);
-  expect(after.ownerId).toBe('a');
-  expect(after.locationId).toBe('site');
-  expect(after.journey).toBeUndefined();
-  expect(f.w.successionControlExecutions?.records['handover-1']?.kind).toBe('vehicle');
-  expect(f.events.reduce(applyWorldEvent, f.seed)).toEqual(f.w);
 });
 test('a home completed with actual consumed materials and recorded labor can be offered under the original accepted mandate; control does not itself move or house the beneficiary', () => {
   const construction = residentConstructionFixture();

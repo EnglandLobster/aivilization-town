@@ -11,11 +11,6 @@ import type {
   MaterialAllocation,
 } from './reservationModel';
 import type { Inventory } from '@aivilization/economy';
-import type {
-  MaterialCustodiesState,
-  MaterialCustodyEvent,
-  MaterialCustodyProof,
-} from './custodyModel';
 import {
   assertResourceControlPolicy,
   type ResourceControl,
@@ -114,7 +109,7 @@ export type MaterialProduction = {
   readonly at: number;
 };
 export type MaterialEndpoint = {
-  readonly kind: 'resident' | 'stock' | 'production' | 'reservation' | 'custody' | 'source';
+  readonly kind: 'resident' | 'stock' | 'production' | 'reservation' | 'source';
   readonly id: string;
 };
 export type MaterialTransfer = {
@@ -141,7 +136,6 @@ export type MaterialEffort = {
 export type MaterialReceipt = {
   readonly reservationId?: string;
   readonly principalAuthorization?: PrincipalAuthorization<PrincipalOperationRequest>;
-  readonly custodyProof?: MaterialCustodyProof;
   readonly allocations?: readonly MaterialAllocation[];
   readonly endReason?: ProductionEndReason;
   readonly id: string;
@@ -160,7 +154,6 @@ export type MaterialsState = {
   readonly regrowth?: MaterialRegrowthState;
   readonly resourcePrincipals?: ResourcePrincipalPolicy;
   readonly extraction?: MaterialExtractionState;
-  readonly custodies?: MaterialCustodiesState;
   readonly reservations?: MaterialReservationsState;
   readonly policy: MaterialsPolicy;
   readonly stocks: Readonly<Record<string, MaterialStock>>;
@@ -172,7 +165,6 @@ export type MaterialEvent =
   | { readonly type: 'MaterialPrincipalControlChanged'; readonly change: PrincipalControlChanged }
   | MaterialExtractionEvent
   | MaterialGrowthEvent
-  | MaterialCustodyEvent
   | MaterialReservationEvent
   | { readonly type: 'MaterialsEnabled'; readonly policy: MaterialsPolicy }
   | { readonly type: 'MaterialStockChanged'; readonly stock: MaterialStock }

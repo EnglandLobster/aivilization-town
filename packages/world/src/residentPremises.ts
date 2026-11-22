@@ -20,7 +20,6 @@ import {
   applyPremisesEvent,
   applyPremisesCommit,
   initialPublicSiteGrant,
-  premisesHasPermitObligations,
   type PremisesPorts,
   type PremisesEvent,
   type ConstructionProject,
@@ -42,7 +41,6 @@ import {
 } from '@aivilization/materials';
 import { asAgentId, createEventEnvelope } from '@aivilization/sim-core';
 import { resolveAgentResidenceLocationId, type WorldProjection } from './projection';
-import { settleResidentPremisesProvisions } from './residentPremisesProvision';
 import {
   EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION,
   type AgentActivityTimeCommittedPayload,
@@ -90,17 +88,8 @@ export function premisesOccupancy(w: WorldProjection, id: string) {
 export function premisesWorldObligations(w: WorldProjection, id: string) {
   const b = w.premises?.buildings[id];
   if (!b) return false;
-  return (
-    premisesHasPermitObligations(w.premisesRights, id, w.clock.now) ||
-    Object.values(w.serviceEngagements?.engagements ?? {}).some(
-      (e) => e.locationId === b.locationId && ['accepted', 'funded'].includes(e.status),
-    ) ||
-    Object.values(w.materials?.stocks ?? {}).some(
-      (s) => s.locationId === b.locationId && s.status !== 'closed',
-    ) ||
-    Object.values(w.residentLeases?.leases ?? {}).some(
-      (l) => l.locationId === b.locationId && l.status !== 'ended',
-    )
+  return Object.values(w.materials?.stocks ?? {}).some(
+    (s) => s.locationId === b.locationId && s.status !== 'closed',
   );
 }
 function ports(w: WorldProjection, auth: PremisesAuthorization): PremisesPorts {
@@ -218,21 +207,14 @@ function wrap(input: Context, d: ConstructionWorkDecision) {
         }
       : {}),
   };
-  const provisionEvents = settleResidentPremisesProvisions({
-    ...input,
-    buildingIds: d.events.flatMap((e) =>
-      e.type === 'PremisesBuildingChanged' ? [e.building.id] : [],
-    ),
-  });
   return {
     accepted: true as const,
     events: [
-      ...provisionEvents,
       createEventEnvelope({
         id: `${input.requestId}:premises`,
         simulationId: input.simulationId,
         type: 'ResidentPremisesCommitted',
-        sequence: input.nextSequence + provisionEvents.length,
+        sequence: input.nextSequence,
         occurredAt: at,
         payload,
       }),
@@ -264,11 +246,6 @@ export function residentConstructionEvent(
   if (!s) return no('premises-not-enabled');
   const p = principalPremisesPorts(input);
   if (c.type === 'create') {
-    if (
-      (c.construction.kind === 'modify' || c.construction.kind === 'demolish') &&
-      premisesHasPermitObligations(input.projection.premisesRights, c.construction.buildingId, at)
-    )
-      return no('premises-use-rights-unsettled');
     const site = s.sites[c.construction.siteId];
     if (!site || !input.projection.locations[site.parentLocationId]?.connections)
       return no('construction-site-graph-required');

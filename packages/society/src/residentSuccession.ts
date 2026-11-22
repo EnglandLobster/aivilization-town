@@ -47,16 +47,7 @@ export function assertSuccessionBinding(b: SuccessionBinding) {
         ? 'custody-recovery'
         : b.kind === 'enterprise-capital'
           ? 'capital-rights'
-          : [
-                'stock',
-                'vehicle',
-                'premises',
-                'space',
-                'register',
-                'view',
-                'group',
-                'service',
-              ].includes(b.kind)
+          : ['stock', 'premises', 'space', 'register', 'group'].includes(b.kind)
             ? 'control-handover'
             : undefined;
   require(expected === b.duty, 'succession-duty-source-kind-mismatch');

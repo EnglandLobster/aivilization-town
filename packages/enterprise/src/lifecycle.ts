@@ -1,5 +1,3 @@
-import { enterpriseCapitalPayments } from './capitalAggregate';
-import { enterprisePeriodicArrears } from './periodicAccounting';
 import {
   applyEnterpriseDomainEvent,
   ownershipPayments,
@@ -37,7 +35,6 @@ export function evaluateEnterpriseLifecycle(input: {
   ) {
     const availableForSolvency =
       enterprise.balance -
-      enterprisePeriodicArrears(enterprise) -
       (enterprise.earnedPayroll ? earnedPayrollArrears(enterprise.earnedPayroll) : 0);
     if (availableForSolvency < solvency.minimumCashBalance) {
       if (enterprise.insolvencyStartedAt === undefined) {
@@ -70,7 +67,6 @@ export function evaluateEnterpriseLifecycle(input: {
     dividend !== undefined &&
     enterprise.status === 'active' &&
     !hasProtectedEarnedLabor(enterprise) &&
-    enterprisePeriodicArrears(enterprise) === 0 &&
     isCadenceDue(
       enterprise.lastDividendPaidAt ?? enterprise.foundedAt,
       input.evaluatedAt,
@@ -81,21 +77,8 @@ export function evaluateEnterpriseLifecycle(input: {
     const availableCash = Math.max(0, enterprise.balance - dividend.minimumCashReserve);
     const totalAmount = Math.min(distributableProfit * dividend.payoutRatio, availableCash);
     if (totalAmount > 0) {
-      const event: EnterpriseDomainEvent = enterprise.capital
-        ? {
-            type: 'EnterpriseCapitalDividendPaid',
-            dividendPolicyVersion: input.policy.policyVersion,
-            equityVersion: enterprise.capital.equityVersion,
-            totalAmount,
-            paidAt: input.evaluatedAt,
-            payments: enterpriseCapitalPayments(enterprise, totalAmount),
-          }
-        : { type: 'EnterpriseDividendPaid', totalAmount, paidAt: input.evaluatedAt };
-      events.push(event);
-      return {
-        events,
-        dividendPayments: enterprise.capital ? [] : ownershipPayments({ enterprise, totalAmount }),
-      };
+      events.push({ type: 'EnterpriseDividendPaid', totalAmount, paidAt: input.evaluatedAt });
+      return { events, dividendPayments: ownershipPayments({ enterprise, totalAmount }) };
     }
   }
   return { events, dividendPayments: [] };

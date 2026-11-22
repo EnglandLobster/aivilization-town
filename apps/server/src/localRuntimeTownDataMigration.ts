@@ -106,9 +106,11 @@ export function migrateLocalRuntimeTownDataV1ToV2(input: {
   }
 
   mkdirSync(dirname(targetRootDir), { recursive: true });
-  const stagingRootDir = mkdtempSync(
+  // cpSync must create the destination itself: newer Node rejects copying into an existing directory.
+  const stagingParentDir = mkdtempSync(
     join(dirname(targetRootDir), `.${basename(targetRootDir)}.migrating-`),
   );
+  const stagingRootDir = join(stagingParentDir, 'root');
   try {
     cpSync(sourceRootDir, stagingRootDir, {
       recursive: true,
@@ -185,15 +187,14 @@ export function migrateLocalRuntimeTownDataV1ToV2(input: {
       renameSync(targetRootDir, stagingRootDir);
       throw error;
     }
+    rmSync(stagingParentDir, { recursive: true, force: true });
     return {
       ...payload,
       artifactId,
       artifactPath: migrationArtifactPath(targetRootDir, artifactId),
     };
   } catch (error) {
-    if (existsSync(stagingRootDir)) {
-      rmSync(stagingRootDir, { recursive: true, force: true });
-    }
+    rmSync(stagingParentDir, { recursive: true, force: true });
     throw error;
   }
 }
